@@ -24,6 +24,59 @@ test("Google is the only authentication entry", async ({ page }) => {
   await expect(page.getByLabel("Password")).toHaveCount(0);
 });
 
+test("authenticated users cannot manage the hidden Workspace through Better Auth", async ({
+  context,
+}) => {
+  const identity = await createE2EIdentity("Workspace Boundary User");
+
+  try {
+    await context.addCookies(identity.cookies);
+
+    const bootstrapResponse = await context.request.get("/api/v1/bootstrap");
+    expect(bootstrapResponse.status()).toBe(200);
+    const bootstrap = await bootstrapResponse.json();
+
+    const createResponse = await context.request.post(
+      "/api/auth/organization/create",
+      {
+        data: {
+          name: "Rogue Workspace",
+          slug: `rogue-${crypto.randomUUID()}`,
+        },
+      },
+    );
+
+    const updateResponse = await context.request.post(
+      "/api/auth/organization/update",
+      {
+        data: {
+          organizationId: bootstrap.workspace.id,
+          data: {
+            slug: `tampered-${crypto.randomUUID()}`,
+          },
+        },
+      },
+    );
+
+    const deleteResponse = await context.request.post(
+      "/api/auth/organization/delete",
+      {
+        data: {
+          organizationId: bootstrap.workspace.id,
+        },
+      },
+    );
+
+    expect([
+      createResponse.status(),
+      updateResponse.status(),
+      deleteResponse.status(),
+    ]).toEqual([403, 403, 403]);
+  } finally {
+    await cleanupE2EIdentity(identity);
+  }
+});
+
 test("authenticated user creates a Story that survives reload", async ({
   context,
   page,
