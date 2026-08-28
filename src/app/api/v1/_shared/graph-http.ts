@@ -61,12 +61,10 @@ export function toBoardSnapshotResponse(input: {
 }) {
   return boardSnapshotResponseSchema.parse({
     story: input.story,
-    snapshot: {
-      board: toBoardResponse(input.snapshot.board),
-      nodes: input.snapshot.nodes.map(toGraphNodeResponse),
-      edges: input.snapshot.edges.map(toGraphEdgeResponse),
-      boardNodes: input.snapshot.boardNodes.map(toBoardNodeResponse),
-      boardEdges: input.snapshot.boardEdges.map(toBoardEdgeResponse),
-    },
+    board: toBoardResponse(input.snapshot.board),
+    nodes: input.snapshot.nodes.map(toGraphNodeResponse),
+    edges: input.snapshot.edges.map(toGraphEdgeResponse),
+    boardNodes: input.snapshot.boardNodes.map(toBoardNodeResponse),
+    boardEdges: input.snapshot.boardEdges.map(toBoardEdgeResponse),
   });
 }
