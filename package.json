@@ -13,13 +13,14 @@
     "check:boundaries": "node scripts/verify-import-boundaries.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
     "auth:generate": "auth generate --config ./src/backend/infrastructure/auth/auth-schema.config.ts --output ./src/backend/infrastructure/database/schema/auth.schema.ts --adapter drizzle --dialect postgresql --yes",
     "check": "pnpm check:agents && pnpm check:boundaries && pnpm lint && pnpm typecheck && pnpm test",
-    "ci": "pnpm check && pnpm build && pnpm e2e"
+    "ci": "pnpm check && pnpm test:integration && pnpm build && pnpm e2e"
   },
   "dependencies": {
     "@tanstack/react-query": "5.102.3",
