@@ -52,6 +52,9 @@ jobs:
       - name: Check architecture and unit tests
         run: pnpm check
 
+      - name: PostgreSQL integration tests
+        run: pnpm test:integration
+
       - name: Production build
         run: pnpm build
 
