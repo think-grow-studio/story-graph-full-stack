@@ -34,6 +34,9 @@ jobs:
       - name: Production build
         run: pnpm build
 
+      - name: Verify build leaves tracked files clean
+        run: git diff --exit-code
+
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
 
