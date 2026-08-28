@@ -5,25 +5,32 @@ import {
 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 
-import { bootstrapResponseSchema } from "@/contracts/auth/bootstrap.contract";
-import { apiErrorResponseSchema } from "@/contracts/common/error.contract";
-import {
-  createStoryRequestSchema,
-  listStoriesQuerySchema,
-  listStoriesResponseSchema,
-  storyResponseSchema,
-  storyWorkspaceQuerySchema,
-  updateStoryRequestSchema,
-} from "@/contracts/story/story.contract";
-import { healthResponseSchema } from "@/contracts/system/health.contract";
-
 extendZodWithOpenApi(z);
 
 const json = (schema: z.ZodType) => ({
   "application/json": { schema },
 });
 
-export function buildOpenApiDocument() {
+export async function buildOpenApiDocument() {
+  const [
+    { bootstrapResponseSchema },
+    { apiErrorResponseSchema },
+    {
+      createStoryRequestSchema,
+      listStoriesQuerySchema,
+      listStoriesResponseSchema,
+      storyResponseSchema,
+      storyWorkspaceQuerySchema,
+      updateStoryRequestSchema,
+    },
+    { healthResponseSchema },
+  ] = await Promise.all([
+    import("@/contracts/auth/bootstrap.contract"),
+    import("@/contracts/common/error.contract"),
+    import("@/contracts/story/story.contract"),
+    import("@/contracts/system/health.contract"),
+  ]);
+
   const registry = new OpenAPIRegistry();
   const healthResponse = registry.register("HealthResponse", healthResponseSchema);
   const bootstrapResponse = registry.register("BootstrapResponse", bootstrapResponseSchema);
