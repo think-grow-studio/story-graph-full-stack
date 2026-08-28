@@ -168,8 +168,8 @@ describe("Graph Core API", () => {
     );
     expect(snapshotResponse.status).toBe(200);
     const snapshot = await snapshotResponse.json();
-    expect(snapshot.snapshot.nodes).toEqual([expect.objectContaining({ id: nodeId })]);
-    expect(snapshot.snapshot.boardNodes).toEqual([
+    expect(snapshot.nodes).toEqual([expect.objectContaining({ id: nodeId })]);
+    expect(snapshot.boardNodes).toEqual([
       expect.objectContaining({ nodeId, x: 120, y: 80 }),
     ]);
 

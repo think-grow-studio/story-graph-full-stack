@@ -71,7 +71,7 @@ export async function buildOpenApiDocument() {
   const createEdgeRequest = registry.register("CreateEdgeRequest", createEdgeRequestSchema);
   const updateEdgeRequest = registry.register("UpdateEdgeRequest", updateEdgeRequestSchema);
   const graphEdgeResponse = registry.register("GraphEdgeResponse", graphEdgeResponseSchema);
-  const boardEdgeResponse = registry.register("BoardEdgeResponse", boardEdgeResponseSchema);
+  registry.register("BoardEdgeResponse", boardEdgeResponseSchema);
   const createEdgeResponse = registry.register("CreateEdgeResponse", createEdgeResponseSchema);
   const boardSnapshotResponse = registry.register(
     "BoardSnapshotResponse",

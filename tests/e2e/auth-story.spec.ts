@@ -157,10 +157,10 @@ test("Graph Core snapshot survives a page reload", async ({ context, page }) => 
     );
     expect(firstSnapshotResponse.status()).toBe(200);
     const firstSnapshot = await firstSnapshotResponse.json();
-    expect(firstSnapshot.snapshot.nodes).toEqual([
+    expect(firstSnapshot.nodes).toEqual([
       expect.objectContaining({ id: nodeId, version: 1, name: "Persistent Node" }),
     ]);
-    expect(firstSnapshot.snapshot.boardNodes).toEqual([
+    expect(firstSnapshot.boardNodes).toEqual([
       expect.objectContaining({ nodeId, x: 120, y: 80 }),
     ]);
 
@@ -173,10 +173,10 @@ test("Graph Core snapshot survives a page reload", async ({ context, page }) => 
     );
     expect(secondSnapshotResponse.status()).toBe(200);
     const secondSnapshot = await secondSnapshotResponse.json();
-    expect(secondSnapshot.snapshot.nodes).toEqual([
+    expect(secondSnapshot.nodes).toEqual([
       expect.objectContaining({ id: nodeId, version: 1, name: "Persistent Node" }),
     ]);
-    expect(secondSnapshot.snapshot.boardNodes).toEqual([
+    expect(secondSnapshot.boardNodes).toEqual([
       expect.objectContaining({ nodeId, x: 120, y: 80 }),
     ]);
   } finally {

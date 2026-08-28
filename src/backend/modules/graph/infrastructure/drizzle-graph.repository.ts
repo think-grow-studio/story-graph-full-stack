@@ -21,13 +21,29 @@ import type {
 import type { GraphRepository } from "../domain/graph.repository";
 
 function toBoardNode(row: typeof boardNode.$inferSelect): BoardNode {
-  const { storyId: _storyId, ...value } = row;
-  return value;
+  return {
+    boardId: row.boardId,
+    nodeId: row.nodeId,
+    x: row.x,
+    y: row.y,
+    width: row.width,
+    height: row.height,
+    zIndex: row.zIndex,
+    style: row.style,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
 }
 
 function toBoardEdge(row: typeof boardEdge.$inferSelect): BoardEdge {
-  const { storyId: _storyId, ...value } = row;
-  return value;
+  return {
+    boardId: row.boardId,
+    edgeId: row.edgeId,
+    style: row.style,
+    labelPresentation: row.labelPresentation,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
 }
 
 export class DrizzleGraphRepository implements GraphRepository {

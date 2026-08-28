@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  Board,
-  BoardSnapshot,
-  GraphEdge,
-  GraphNode,
-} from "../domain/graph";
+import type { Board, BoardSnapshot } from "../domain/graph";
 import type { GraphRepository } from "../domain/graph.repository";
 import type { Story } from "@/backend/modules/story/domain/story";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
