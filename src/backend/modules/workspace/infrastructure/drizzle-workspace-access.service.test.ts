@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { workspaceRoleHasCapability } from "./drizzle-workspace-access.service";
+import { workspaceRoleHasCapability } from "../domain/workspace-capability.policy";
 
 describe("workspaceRoleHasCapability", () => {
   it("maps Better Auth roles to Story capabilities", () => {
