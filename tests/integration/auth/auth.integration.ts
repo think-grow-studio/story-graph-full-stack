@@ -1,8 +1,10 @@
-import { afterAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 
 import { auth } from "@/backend/infrastructure/auth/auth";
-import { db, pool } from "@/backend/infrastructure/database/client";
+import { db } from "@/backend/infrastructure/database/client";
 import { session, user } from "@/backend/infrastructure/database/schema";
 
 describe("Better Auth PostgreSQL integration", () => {
@@ -38,9 +40,5 @@ describe("Better Auth PostgreSQL integration", () => {
     } finally {
       await db.delete(user).where(eq(user.id, result.response.user.id));
     }
-  });
-
-  afterAll(async () => {
-    await pool.end();
   });
 });
