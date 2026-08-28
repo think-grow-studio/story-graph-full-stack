@@ -3,13 +3,17 @@ import {
   boardResponseSchema,
   boardSnapshotResponseSchema,
   createBoardRequestSchema,
+  createEdgeRequestSchema,
+  createEdgeResponseSchema,
   createNodeRequestSchema,
   createNodeResponseSchema,
   listBoardsResponseSchema,
   updateBoardNodeRequestSchema,
+  type BoardEdgeResponse,
   type BoardNodeResponse,
   type BoardResponse,
   type BoardSnapshotResponse,
+  type GraphEdgeResponse,
   type GraphNodeResponse,
 } from "@/contracts/graph/graph.contract";
 
@@ -76,6 +80,32 @@ export async function createNodeOnBoard(
   });
   const response = await apiClient.post(`/boards/${input.boardId}/nodes`, payload);
   return createNodeResponseSchema.parse(response.data);
+}
+
+export type CreateEdgeOnBoardInput = {
+  boardId: string;
+  workspaceId: string;
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  name: string;
+};
+
+export async function createEdgeOnBoard(
+  input: CreateEdgeOnBoardInput,
+): Promise<{ edge: GraphEdgeResponse; boardEdge: BoardEdgeResponse }> {
+  const payload = createEdgeRequestSchema.parse({
+    workspaceId: input.workspaceId,
+    id: input.id,
+    sourceNodeId: input.sourceNodeId,
+    targetNodeId: input.targetNodeId,
+    name: input.name,
+    description: "",
+    iconKey: null,
+    properties: {},
+  });
+  const response = await apiClient.post(`/boards/${input.boardId}/edges`, payload);
+  return createEdgeResponseSchema.parse(response.data);
 }
 
 export type UpdateBoardNodeInput = {
