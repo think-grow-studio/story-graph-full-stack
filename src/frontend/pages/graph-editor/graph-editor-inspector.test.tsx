@@ -30,19 +30,35 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
   GraphCanvas: ({
     nodes,
     edges = [],
+    onNodePositionChange,
     onSelectNode,
     onSelectEdge,
   }: {
-    nodes: Array<{ id: string; name: string }>;
+    nodes: Array<{ id: string; name: string; position: { x: number; y: number } }>;
     edges?: Array<{ id: string; name: string }>;
+    onNodePositionChange?: (
+      nodeId: string,
+      position: { x: number; y: number },
+    ) => void;
     onSelectNode?: (nodeId: string) => void;
     onSelectEdge?: (edgeId: string) => void;
   }) => (
     <div>
       {nodes.map((node) => (
-        <button key={node.id} onClick={() => onSelectNode?.(node.id)} type="button">
-          Select {node.name}
-        </button>
+        <div key={node.id}>
+          <button onClick={() => onSelectNode?.(node.id)} type="button">
+            Select {node.name}
+          </button>
+          <button
+            onClick={() => onNodePositionChange?.(node.id, { x: 999, y: 888 })}
+            type="button"
+          >
+            Move {node.name}
+          </button>
+          <span data-testid={`position-${node.id}`}>
+            {node.position.x},{node.position.y}
+          </span>
+        </div>
       ))}
       {edges.map((edge) => (
         <button key={edge.id} onClick={() => onSelectEdge?.(edge.id)} type="button">
@@ -161,7 +177,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Graph Editor inspector", () => {
-  it("edits a selected Node using its current optimistic-concurrency version", async () => {
+  it("edits a selected Node using its current version without overwriting local Board state", async () => {
     const user = userEvent.setup();
     const { queryClient } = renderPage();
 
@@ -170,6 +186,9 @@ describe("Graph Editor inspector", () => {
     expect(screen.getByLabelText("Name")).toHaveValue("Alice");
     expect(screen.getByLabelText("Description")).toHaveValue("Protagonist");
     expect(screen.getByLabelText("Properties JSON")).toHaveValue('{\n  "role": "lead"\n}');
+
+    await user.click(screen.getByRole("button", { name: "Move Alice" }));
+    expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent("999,888");
 
     await user.clear(screen.getByLabelText("Name"));
     await user.type(screen.getByLabelText("Name"), "Alicia");
@@ -190,6 +209,7 @@ describe("Graph Editor inspector", () => {
       properties: { role: "lead", age: 31 },
     });
     expect(await screen.findByDisplayValue("Alicia")).toBeInTheDocument();
+    expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent("999,888");
 
     const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof snapshot>>([
       "graph",
