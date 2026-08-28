@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getBoardSnapshot: vi.fn(),
   createNodeOnBoard: vi.fn(),
   updateBoardNode: vi.fn(),
+  createEdgeOnBoard: vi.fn(),
 }));
 
 vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
@@ -19,18 +20,28 @@ vi.mock("@/frontend/api/graph/graph.api", () => ({
   getBoardSnapshot: mocks.getBoardSnapshot,
   createNodeOnBoard: mocks.createNodeOnBoard,
   updateBoardNode: mocks.updateBoardNode,
+  createEdgeOnBoard: mocks.createEdgeOnBoard,
 }));
 
 vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
   GraphCanvas: ({
     nodes,
+    edges = [],
     onNodePositionChange,
     onNodeDragStop,
+    onConnectNodes,
     ref,
   }: {
     nodes: Array<{ id: string; name: string; position: { x: number; y: number } }>;
+    edges?: Array<{
+      id: string;
+      name: string;
+      sourceNodeId: string;
+      targetNodeId: string;
+    }>;
     onNodePositionChange: (nodeId: string, position: { x: number; y: number }) => void;
     onNodeDragStop: (nodeId: string) => void;
+    onConnectNodes?: (sourceNodeId: string, targetNodeId: string) => void;
     ref?: Ref<{ getCenterPosition: () => { x: number; y: number } }>;
   }) => {
     useImperativeHandle(ref, () => ({
@@ -54,6 +65,17 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
             </button>
           </div>
         ))}
+        {nodes.length >= 2 ? (
+          <button
+            onClick={() => onConnectNodes?.(nodes[0].id, nodes[1].id)}
+            type="button"
+          >
+            Connect {nodes[0].name} to {nodes[1].name}
+          </button>
+        ) : null}
+        {edges.map((edge) => (
+          <span key={edge.id}>{edge.name}</span>
+        ))}
       </div>
     );
   },
@@ -64,6 +86,7 @@ import { GraphEditorPage } from "./graph-editor-page";
 const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
 const nodeId = "33333333-3333-4333-8333-333333333333";
+const secondNodeId = "44444444-4444-4444-8444-444444444444";
 
 function snapshot() {
   return {
@@ -89,6 +112,17 @@ function snapshot() {
         createdAt: "2026-08-28T00:00:00.000Z",
         updatedAt: "2026-08-28T00:00:00.000Z",
       },
+      {
+        id: secondNodeId,
+        storyId,
+        name: "Bob",
+        description: "",
+        iconKey: null,
+        properties: {},
+        version: 1,
+        createdAt: "2026-08-28T00:00:00.000Z",
+        updatedAt: "2026-08-28T00:00:00.000Z",
+      },
     ],
     edges: [],
     boardNodes: [
@@ -97,6 +131,18 @@ function snapshot() {
         nodeId,
         x: 120,
         y: 80,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
+        createdAt: "2026-08-28T00:00:00.000Z",
+        updatedAt: "2026-08-28T00:00:00.000Z",
+      },
+      {
+        boardId,
+        nodeId: secondNodeId,
+        x: 420,
+        y: 240,
         width: null,
         height: null,
         zIndex: 0,
@@ -157,6 +203,29 @@ beforeEach(() => {
     x: 240,
     y: 160,
   });
+  mocks.createEdgeOnBoard.mockImplementation(async (input) => ({
+    edge: {
+      id: input.id,
+      storyId,
+      sourceNodeId: input.sourceNodeId,
+      targetNodeId: input.targetNodeId,
+      name: input.name,
+      description: "",
+      iconKey: null,
+      properties: {},
+      version: 1,
+      createdAt: "2026-08-28T00:00:00.000Z",
+      updatedAt: "2026-08-28T00:00:00.000Z",
+    },
+    boardEdge: {
+      boardId,
+      edgeId: input.id,
+      style: {},
+      labelPresentation: {},
+      createdAt: "2026-08-28T00:00:00.000Z",
+      updatedAt: "2026-08-28T00:00:00.000Z",
+    },
+  }));
 });
 
 afterEach(cleanup);
@@ -177,7 +246,7 @@ describe("GraphEditorPage", () => {
     await screen.findByText("Alice");
 
     await user.click(screen.getByRole("button", { name: "+ Node" }));
-    await user.type(screen.getByLabelText("Node name"), "Bob");
+    await user.type(screen.getByLabelText("Node name"), "Charlie");
     await user.click(screen.getByRole("button", { name: "Create Node" }));
 
     await waitFor(() => expect(mocks.createNodeOnBoard).toHaveBeenCalledTimes(1));
@@ -185,11 +254,11 @@ describe("GraphEditorPage", () => {
     expect(input).toMatchObject({
       boardId,
       workspaceId: "workspace-1",
-      name: "Bob",
+      name: "Charlie",
       position: { x: 320, y: 240 },
     });
     expect(input.id).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(await screen.findByText("Bob")).toBeInTheDocument();
+    expect(await screen.findByText("Charlie")).toBeInTheDocument();
     expect(screen.queryByLabelText("Node name")).not.toBeInTheDocument();
   });
 
@@ -225,5 +294,28 @@ describe("GraphEditorPage", () => {
 
     expect(await screen.findByText("Unable to save Node position.")).toBeInTheDocument();
     expect(screen.getByText("240,160")).toBeInTheDocument();
+  });
+
+  it("opens a Relationship name form after connecting Nodes and creates the Edge", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Alice");
+
+    await user.click(screen.getByRole("button", { name: "Connect Alice to Bob" }));
+    await user.type(screen.getByLabelText("Relationship name"), "sister");
+    await user.click(screen.getByRole("button", { name: "Create Relationship" }));
+
+    await waitFor(() => expect(mocks.createEdgeOnBoard).toHaveBeenCalledTimes(1));
+    const input = mocks.createEdgeOnBoard.mock.calls[0][0];
+    expect(input).toMatchObject({
+      boardId,
+      workspaceId: "workspace-1",
+      sourceNodeId: nodeId,
+      targetNodeId: secondNodeId,
+      name: "sister",
+    });
+    expect(input.id).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(await screen.findByText("sister")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Relationship name")).not.toBeInTheDocument();
   });
 });
