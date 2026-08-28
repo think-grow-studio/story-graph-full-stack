@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/backend/infrastructure/database/client";
 import {
@@ -57,6 +57,14 @@ export class DrizzleGraphRepository implements GraphRepository {
       .values({ id: crypto.randomUUID(), ...input })
       .returning();
     return created;
+  }
+
+  async listBoards(storyId: string): Promise<Board[]> {
+    return db
+      .select()
+      .from(board)
+      .where(eq(board.storyId, storyId))
+      .orderBy(asc(board.createdAt), asc(board.id));
   }
 
   async findBoard(id: string): Promise<Board | null> {

@@ -14,6 +14,7 @@ export interface GraphRepository {
     name: string;
     description: string;
   }): Promise<Board>;
+  listBoards(storyId: string): Promise<Board[]>;
   findBoard(id: string): Promise<Board | null>;
   findNode(id: string): Promise<GraphNode | null>;
   findEdge(id: string): Promise<GraphEdge | null>;
