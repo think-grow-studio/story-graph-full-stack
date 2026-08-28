@@ -2,6 +2,7 @@ import "server-only";
 
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 
 import { db } from "@/backend/infrastructure/database/client";
 import * as schema from "@/backend/infrastructure/database/schema";
@@ -12,6 +13,14 @@ import {
   createAuthPlugins,
   createSocialProviders,
 } from "./auth-options";
+
+const blockWorkspaceManagementRoutes = createAuthMiddleware(async (ctx) => {
+  if (ctx.request && ctx.path.startsWith("/organization/")) {
+    throw new APIError("FORBIDDEN", {
+      message: "Workspace management is handled by Story Graph.",
+    });
+  }
+});
 
 export const auth = betterAuth({
   appName: "Story Graph",
@@ -26,5 +35,8 @@ export const auth = betterAuth({
     clientId: serverEnv.GOOGLE_CLIENT_ID,
     clientSecret: serverEnv.GOOGLE_CLIENT_SECRET,
   }),
+  hooks: {
+    before: blockWorkspaceManagementRoutes,
+  },
   plugins: createAuthPlugins(),
 });
