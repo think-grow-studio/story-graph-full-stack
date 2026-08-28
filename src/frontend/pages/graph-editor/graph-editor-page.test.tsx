@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useImperativeHandle, type Ref } from "react";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,29 +26,37 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
     nodes,
     onNodePositionChange,
     onNodeDragStop,
+    ref,
   }: {
     nodes: Array<{ id: string; name: string; position: { x: number; y: number } }>;
     onNodePositionChange: (nodeId: string, position: { x: number; y: number }) => void;
     onNodeDragStop: (nodeId: string) => void;
-  }) => (
-    <div>
-      {nodes.map((node) => (
-        <div key={node.id}>
-          <span>{node.name}</span>
-          <span>{`${node.position.x},${node.position.y}`}</span>
-          <button
-            onClick={() => onNodePositionChange(node.id, { x: 240, y: 160 })}
-            type="button"
-          >
-            Drag {node.name}
-          </button>
-          <button onClick={() => onNodeDragStop(node.id)} type="button">
-            Stop {node.name}
-          </button>
-        </div>
-      ))}
-    </div>
-  ),
+    ref?: Ref<{ getCenterPosition: () => { x: number; y: number } }>;
+  }) => {
+    useImperativeHandle(ref, () => ({
+      getCenterPosition: () => ({ x: 320, y: 240 }),
+    }));
+
+    return (
+      <div>
+        {nodes.map((node) => (
+          <div key={node.id}>
+            <span>{node.name}</span>
+            <span>{`${node.position.x},${node.position.y}`}</span>
+            <button
+              onClick={() => onNodePositionChange(node.id, { x: 240, y: 160 })}
+              type="button"
+            >
+              Drag {node.name}
+            </button>
+            <button onClick={() => onNodeDragStop(node.id)} type="button">
+              Stop {node.name}
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  },
 }));
 
 import { GraphEditorPage } from "./graph-editor-page";
@@ -162,23 +171,26 @@ describe("GraphEditorPage", () => {
     expect(mocks.getBoardSnapshot).toHaveBeenCalledWith(boardId, "workspace-1");
   });
 
-  it("optimistically creates a client-id Node and reconciles the server result", async () => {
+  it("opens a name form and optimistically creates a Node at the canvas center", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Alice");
 
     await user.click(screen.getByRole("button", { name: "+ Node" }));
+    await user.type(screen.getByLabelText("Node name"), "Bob");
+    await user.click(screen.getByRole("button", { name: "Create Node" }));
 
     await waitFor(() => expect(mocks.createNodeOnBoard).toHaveBeenCalledTimes(1));
     const input = mocks.createNodeOnBoard.mock.calls[0][0];
     expect(input).toMatchObject({
       boardId,
       workspaceId: "workspace-1",
-      name: "New Node",
-      position: { x: 40, y: 40 },
+      name: "Bob",
+      position: { x: 320, y: 240 },
     });
     expect(input.id).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(await screen.findByText("New Node")).toBeInTheDocument();
+    expect(await screen.findByText("Bob")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Node name")).not.toBeInTheDocument();
   });
 
   it("keeps drag movement local and persists only when drag stops", async () => {
