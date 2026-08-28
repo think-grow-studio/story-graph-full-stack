@@ -17,7 +17,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
-    "auth:generate": "auth generate --config ./src/backend/infrastructure/auth/auth.ts --output ./src/backend/infrastructure/database/schema/auth.schema.ts --adapter drizzle --dialect postgresql --yes",
+    "auth:generate": "auth generate --config ./src/backend/infrastructure/auth/auth-schema.config.ts --output ./src/backend/infrastructure/database/schema/auth.schema.ts --adapter drizzle --dialect postgresql --yes",
     "check": "pnpm check:agents && pnpm check:boundaries && pnpm lint && pnpm typecheck && pnpm test",
     "ci": "pnpm check && pnpm build && pnpm e2e"
   },
