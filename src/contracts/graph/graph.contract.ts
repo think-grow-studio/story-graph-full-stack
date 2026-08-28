@@ -171,11 +171,9 @@ export const createEdgeResponseSchema = z.object({
 
 export const boardSnapshotResponseSchema = z.object({
   story: z.object({ id: graphIdSchema, name: z.string() }),
-  snapshot: z.object({
-    board: boardResponseSchema,
-    nodes: z.array(graphNodeResponseSchema),
-    edges: z.array(graphEdgeResponseSchema),
-    boardNodes: z.array(boardNodeResponseSchema),
-    boardEdges: z.array(boardEdgeResponseSchema),
-  }),
+  board: boardResponseSchema,
+  nodes: z.array(graphNodeResponseSchema),
+  edges: z.array(graphEdgeResponseSchema),
+  boardNodes: z.array(boardNodeResponseSchema),
+  boardEdges: z.array(boardEdgeResponseSchema),
 });
