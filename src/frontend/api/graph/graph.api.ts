@@ -7,8 +7,12 @@ import {
   createEdgeResponseSchema,
   createNodeRequestSchema,
   createNodeResponseSchema,
+  graphEdgeResponseSchema,
+  graphNodeResponseSchema,
   listBoardsResponseSchema,
   updateBoardNodeRequestSchema,
+  updateEdgeRequestSchema,
+  updateNodeRequestSchema,
   type BoardEdgeResponse,
   type BoardNodeResponse,
   type BoardResponse,
@@ -106,6 +110,48 @@ export async function createEdgeOnBoard(
   });
   const response = await apiClient.post(`/boards/${input.boardId}/edges`, payload);
   return createEdgeResponseSchema.parse(response.data);
+}
+
+export type UpdateNodeInput = {
+  nodeId: string;
+  workspaceId: string;
+  version: number;
+  name: string;
+  description: string;
+  properties: Record<string, unknown>;
+};
+
+export async function updateNode(input: UpdateNodeInput): Promise<GraphNodeResponse> {
+  const payload = updateNodeRequestSchema.parse({
+    workspaceId: input.workspaceId,
+    version: input.version,
+    name: input.name,
+    description: input.description,
+    properties: input.properties,
+  });
+  const response = await apiClient.patch(`/nodes/${input.nodeId}`, payload);
+  return graphNodeResponseSchema.parse(response.data);
+}
+
+export type UpdateEdgeInput = {
+  edgeId: string;
+  workspaceId: string;
+  version: number;
+  name: string;
+  description: string;
+  properties: Record<string, unknown>;
+};
+
+export async function updateEdge(input: UpdateEdgeInput): Promise<GraphEdgeResponse> {
+  const payload = updateEdgeRequestSchema.parse({
+    workspaceId: input.workspaceId,
+    version: input.version,
+    name: input.name,
+    description: input.description,
+    properties: input.properties,
+  });
+  const response = await apiClient.patch(`/edges/${input.edgeId}`, payload);
+  return graphEdgeResponseSchema.parse(response.data);
 }
 
 export type UpdateBoardNodeInput = {
