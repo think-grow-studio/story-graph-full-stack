@@ -1,5 +1,6 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import Link from "next/link";
 import {
   useEffect,
@@ -14,7 +15,14 @@ import {
   useCreateEdgeOnBoardMutation,
   useCreateNodeOnBoardMutation,
   useUpdateBoardNodeMutation,
+  useUpdateEdgeMutation,
+  useUpdateNodeMutation,
 } from "@/frontend/api/graph/graph.queries";
+import {
+  GraphInspector,
+  type GraphInspectorSaveInput,
+  type GraphInspectorSelection,
+} from "@/frontend/features/graph-editor/inspector/graph-inspector";
 import {
   GraphEditorStoreProvider,
   useGraphEditorStore,
@@ -39,6 +47,10 @@ export function GraphEditorPage({
   );
 }
 
+type SelectedGraphEntity =
+  | { kind: "node"; id: string }
+  | { kind: "edge"; id: string };
+
 function GraphEditorContent({
   storyId,
   boardId,
@@ -49,6 +61,8 @@ function GraphEditorContent({
   const [createError, setCreateError] = useState<string | null>(null);
   const [positionError, setPositionError] = useState<string | null>(null);
   const [relationshipError, setRelationshipError] = useState<string | null>(null);
+  const [inspectorError, setInspectorError] = useState<string | null>(null);
+  const [selectedEntity, setSelectedEntity] = useState<SelectedGraphEntity | null>(null);
   const [isNodeFormOpen, setNodeFormOpen] = useState(false);
   const [nodeName, setNodeName] = useState("");
   const [pendingConnection, setPendingConnection] = useState<{
@@ -62,6 +76,8 @@ function GraphEditorContent({
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
   const createNode = useCreateNodeOnBoardMutation();
   const createEdge = useCreateEdgeOnBoardMutation();
+  const updateNode = useUpdateNodeMutation();
+  const updateEdge = useUpdateEdgeMutation();
   const updatePlacement = useUpdateBoardNodeMutation();
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
@@ -217,6 +233,56 @@ function GraphEditorContent({
     }
   }
 
+  async function handleSaveInspector(input: GraphInspectorSaveInput) {
+    if (!workspaceId || !selectedEntity) return;
+    setInspectorError(null);
+
+    if (selectedEntity.kind === "node") {
+      const node = store
+        .getState()
+        .nodes.find((candidate) => candidate.id === selectedEntity.id);
+      if (!node) return;
+
+      try {
+        const persisted = await updateNode.mutateAsync({
+          nodeId: node.id,
+          workspaceId,
+          version: node.version,
+          ...input,
+        });
+        store.getState().replaceNode(persisted);
+      } catch (error) {
+        setInspectorError(
+          isAxiosError(error) && error.response?.status === 409
+            ? "This Node changed elsewhere. Reload before saving again."
+            : "Unable to save Node.",
+        );
+      }
+      return;
+    }
+
+    const edge = store
+      .getState()
+      .edges.find((candidate) => candidate.id === selectedEntity.id);
+    if (!edge) return;
+
+    try {
+      const persisted = await updateEdge.mutateAsync({
+        edgeId: edge.id,
+        workspaceId,
+        version: edge.version,
+        ...input,
+      });
+      store.getState().replaceEdge(persisted);
+    } catch (error) {
+      setInspectorError(
+        isAxiosError(error) && error.response?.status === 409
+          ? "This Relationship changed elsewhere. Reload before saving again."
+          : "Unable to save Relationship.",
+      );
+    }
+  }
+
   if (bootstrap.isPending || snapshot.isPending) {
     return <main className="p-8">Loading Board...</main>;
   }
@@ -245,6 +311,15 @@ function GraphEditorContent({
     sourceNodeId: edge.sourceNodeId,
     targetNodeId: edge.targetNodeId,
   }));
+
+  let inspectorSelection: GraphInspectorSelection | null = null;
+  if (selectedEntity?.kind === "node") {
+    const node = state.nodes.find((candidate) => candidate.id === selectedEntity.id);
+    if (node) inspectorSelection = { kind: "node", entity: node };
+  } else if (selectedEntity?.kind === "edge") {
+    const edge = state.edges.find((candidate) => candidate.id === selectedEntity.id);
+    if (edge) inspectorSelection = { kind: "edge", entity: edge };
+  }
 
   return (
     <main className="grid min-h-screen grid-rows-[auto_auto_1fr] gap-4 p-6">
@@ -344,14 +419,33 @@ function GraphEditorContent({
         ) : null}
       </div>
 
-      <GraphCanvas
-        edges={canvasEdges}
-        nodes={canvasNodes}
-        onConnectNodes={handleConnectNodes}
-        onNodeDragStop={handleNodeDragStop}
-        onNodePositionChange={handleNodePositionChange}
-        ref={canvasRef}
-      />
+      <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <GraphCanvas
+          edges={canvasEdges}
+          nodes={canvasNodes}
+          onConnectNodes={handleConnectNodes}
+          onNodeDragStop={handleNodeDragStop}
+          onNodePositionChange={handleNodePositionChange}
+          onSelectEdge={(edgeId) => {
+            setInspectorError(null);
+            setSelectedEntity({ kind: "edge", id: edgeId });
+          }}
+          onSelectNode={(nodeId) => {
+            setInspectorError(null);
+            setSelectedEntity({ kind: "node", id: nodeId });
+          }}
+          ref={canvasRef}
+        />
+        {inspectorSelection ? (
+          <GraphInspector
+            error={inspectorError}
+            isSaving={updateNode.isPending || updateEdge.isPending}
+            key={`${inspectorSelection.kind}:${inspectorSelection.entity.id}:${inspectorSelection.entity.version}`}
+            onSave={handleSaveInspector}
+            selection={inspectorSelection}
+          />
+        ) : null}
+      </div>
     </main>
   );
 }
