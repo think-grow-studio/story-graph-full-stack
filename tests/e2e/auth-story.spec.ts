@@ -32,6 +32,14 @@ test("authenticated user creates a Story that survives reload", async ({
 
   try {
     await context.addCookies(identity.cookies);
+
+    const bootstrapResponse = await context.request.get("/api/v1/bootstrap");
+    const bootstrapBody = await bootstrapResponse.text();
+    expect(bootstrapResponse.status(), bootstrapBody).toBe(200);
+    expect(JSON.parse(bootstrapBody).workspace.name).toBe(
+      "E2E Google User's Workspace",
+    );
+
     await page.goto("/dashboard");
 
     await expect(
