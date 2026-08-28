@@ -26,6 +26,19 @@ jobs:
           node-version-file: .nvmrc
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm check:agents
+      - run: pnpm lint
+      - name: Prove architecture import boundaries
+        run: |
+          cat > src/frontend/__architecture_violation__.ts <<'EOF'
+          import { getHealth } from "@/backend/modules/system/application/get-health/get-health.use-case";
+          export const violation = getHealth;
+          EOF
+          if pnpm eslint src/frontend/__architecture_violation__.ts; then
+            echo "Expected the frontend/backend import boundary to fail"
+            exit 1
+          fi
+          rm src/frontend/__architecture_violation__.ts
+          pnpm eslint src/app/api/v1/health/route.ts
       - run: pnpm test
       - run: pnpm typecheck
       - run: pnpm build
