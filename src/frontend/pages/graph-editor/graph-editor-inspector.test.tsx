@@ -127,11 +127,12 @@ function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <GraphEditorPage storyId={storyId} boardId={boardId} />
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
 
 beforeEach(() => {
@@ -162,7 +163,7 @@ afterEach(cleanup);
 describe("Graph Editor inspector", () => {
   it("edits a selected Node using its current optimistic-concurrency version", async () => {
     const user = userEvent.setup();
-    renderPage();
+    const { queryClient } = renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
     expect(screen.getByRole("heading", { name: "Node Inspector" })).toBeInTheDocument();
@@ -189,6 +190,16 @@ describe("Graph Editor inspector", () => {
       properties: { role: "lead", age: 31 },
     });
     expect(await screen.findByDisplayValue("Alicia")).toBeInTheDocument();
+
+    const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof snapshot>>([
+      "graph",
+      "snapshot",
+      "workspace-1",
+      boardId,
+    ]);
+    expect(cachedSnapshot?.nodes).toContainEqual(
+      expect.objectContaining({ id: aliceId, name: "Alicia", version: 4 }),
+    );
   });
 
   it("edits a selected Edge using its current optimistic-concurrency version", async () => {
