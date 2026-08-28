@@ -9,6 +9,8 @@ import {
   getBoardSnapshot,
   listBoards,
   updateBoardNode,
+  updateEdge,
+  updateNode,
 } from "./graph.api";
 
 export const graphQueryKeys = {
@@ -73,6 +75,14 @@ export function useCreateNodeOnBoardMutation() {
 
 export function useCreateEdgeOnBoardMutation() {
   return useMutation({ mutationFn: createEdgeOnBoard });
+}
+
+export function useUpdateNodeMutation() {
+  return useMutation({ mutationFn: updateNode });
+}
+
+export function useUpdateEdgeMutation() {
+  return useMutation({ mutationFn: updateEdge });
 }
 
 export function useUpdateBoardNodeMutation() {
