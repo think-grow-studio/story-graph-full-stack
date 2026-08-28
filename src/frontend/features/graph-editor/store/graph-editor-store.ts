@@ -23,6 +23,13 @@ export function createGraphEditorStore(): GraphEditorStore {
       }),
     addOptimisticNode: (input) => set((state) => upsertNodePair(state, input)),
     reconcileNode: (input) => set((state) => upsertNodePair(state, input)),
+    replaceNode: (node) =>
+      set((state) => ({
+        nodes: [
+          ...state.nodes.filter((current) => current.id !== node.id),
+          node,
+        ],
+      })),
     removeNode: (nodeId) =>
       set((state) => ({
         nodes: state.nodes.filter((node) => node.id !== nodeId),
@@ -49,6 +56,13 @@ export function createGraphEditorStore(): GraphEditorStore {
       })),
     addOptimisticEdge: (input) => set((state) => upsertEdgePair(state, input)),
     reconcileEdge: (input) => set((state) => upsertEdgePair(state, input)),
+    replaceEdge: (edge) =>
+      set((state) => ({
+        edges: [
+          ...state.edges.filter((current) => current.id !== edge.id),
+          edge,
+        ],
+      })),
     removeEdge: (edgeId) =>
       set((state) => ({
         edges: state.edges.filter((edge) => edge.id !== edgeId),
