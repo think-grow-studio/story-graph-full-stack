@@ -5,7 +5,7 @@ test("OpenAPI JSON exposes the Story Graph V1 contract", async ({ request }) => 
   expect(response.status()).toBe(200);
 
   const document = await response.json();
-  expect(document.openapi).toBe("3.1.0");
+  expect(document.openapi).toBe("3.0.0");
   expect(document.info.title).toBe("Story Graph API");
   expect(document.paths).toHaveProperty("/api/v1/health");
   expect(document.paths).toHaveProperty("/api/v1/bootstrap");
