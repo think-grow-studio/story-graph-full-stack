@@ -183,3 +183,88 @@ test("Graph Core snapshot survives a page reload", async ({ context, page }) => 
     await cleanupE2EIdentity(identity);
   }
 });
+
+test("Graph Editor creates and repositions a Node through the UI", async ({
+  context,
+  page,
+}) => {
+  const identity = await createE2EIdentity("Graph Editor User");
+
+  try {
+    await context.addCookies(identity.cookies);
+
+    const bootstrapResponse = await context.request.get("/api/v1/bootstrap");
+    expect(bootstrapResponse.status()).toBe(200);
+    const bootstrap = await bootstrapResponse.json();
+    const workspaceId = bootstrap.workspace.id as string;
+
+    await page.goto("/dashboard");
+    await page.getByLabel("Story name").fill("Editor E2E Story");
+    await page.getByRole("button", { name: "Create Story" }).click();
+    await page.getByRole("link", { name: "Editor E2E Story" }).click();
+    await expect(page).toHaveURL(/\/stories\/[0-9a-f-]+$/i);
+
+    await page.getByLabel("Board name").fill("Characters");
+    await page.getByRole("button", { name: "Create Board" }).click();
+    await page.getByRole("link", { name: "Characters" }).click();
+    await expect(page).toHaveURL(
+      /\/stories\/[0-9a-f-]+\/boards\/[0-9a-f-]+$/i,
+    );
+
+    const boardId = page.url().split("/").at(-1)!;
+    await expect(page.getByLabel("Graph canvas")).toBeVisible();
+
+    await page.getByRole("button", { name: "+ Node" }).click();
+    const node = page.locator(".react-flow__node").filter({ hasText: "New Node" });
+    await expect(node).toBeVisible();
+
+    const nodeId = await node.getAttribute("data-id");
+    expect(nodeId).toBeTruthy();
+    const box = await node.boundingBox();
+    expect(box).not.toBeNull();
+
+    const placementResponsePromise = page.waitForResponse((response) => {
+      const path = new URL(response.url()).pathname;
+      return (
+        response.request().method() === "PATCH" &&
+        path === `/api/v1/boards/${boardId}/nodes/${nodeId}`
+      );
+    });
+
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      box!.x + box!.width / 2 + 120,
+      box!.y + box!.height / 2 + 90,
+      { steps: 8 },
+    );
+    await page.mouse.up();
+
+    const placementResponse = await placementResponsePromise;
+    expect(placementResponse.status()).toBe(200);
+    const persistedPlacement = await placementResponse.json();
+    expect(persistedPlacement.nodeId).toBe(nodeId);
+    expect(persistedPlacement.x).not.toBe(40);
+    expect(persistedPlacement.y).not.toBe(40);
+
+    await page.reload();
+    await expect(
+      page.locator(".react-flow__node").filter({ hasText: "New Node" }),
+    ).toBeVisible();
+
+    const snapshotResponse = await context.request.get(
+      `/api/v1/boards/${boardId}/snapshot?workspaceId=${workspaceId}`,
+    );
+    expect(snapshotResponse.status()).toBe(200);
+    const editorSnapshot = await snapshotResponse.json();
+    expect(editorSnapshot.boardNodes).toContainEqual(
+      expect.objectContaining({
+        nodeId,
+        x: persistedPlacement.x,
+        y: persistedPlacement.y,
+      }),
+    );
+  } finally {
+    await cleanupE2EIdentity(identity);
+  }
+});
