@@ -204,7 +204,7 @@ describe("Graph Editor inspector", () => {
 
   it("edits a selected Edge using its current optimistic-concurrency version", async () => {
     const user = userEvent.setup();
-    renderPage();
+    const { queryClient } = renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select knows" }));
     expect(screen.getByRole("heading", { name: "Relationship Inspector" })).toBeInTheDocument();
@@ -227,5 +227,49 @@ describe("Graph Editor inspector", () => {
       description: "Childhood friends",
       properties: { since: 2012 },
     });
+
+    const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof snapshot>>([
+      "graph",
+      "snapshot",
+      "workspace-1",
+      boardId,
+    ]);
+    expect(cachedSnapshot?.edges).toContainEqual(
+      expect.objectContaining({ id: edgeId, name: "best friend", version: 5 }),
+    );
+  });
+
+  it("blocks invalid Properties JSON before calling the canonical API", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+    fireEvent.change(screen.getByLabelText("Properties JSON"), {
+      target: { value: "[1,2,3]" },
+    });
+    await user.click(screen.getByRole("button", { name: "Save Node" }));
+
+    expect(await screen.findByText("Properties must be a JSON object.")).toBeInTheDocument();
+    expect(mocks.updateNode).not.toHaveBeenCalled();
+  });
+
+  it("keeps local Node input when a stale version returns 409", async () => {
+    mocks.updateNode.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { status: 409 },
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Alicia local draft");
+    await user.click(screen.getByRole("button", { name: "Save Node" }));
+
+    expect(
+      await screen.findByText("This Node changed elsewhere. Reload before saving again."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("Alicia local draft");
+    expect(mocks.updateNode.mock.calls[0][0]).toMatchObject({ version: 3 });
   });
 });
