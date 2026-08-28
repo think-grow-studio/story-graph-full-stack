@@ -204,15 +204,14 @@ describe("GraphEditorPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Stop Alice" }));
 
-    await waitFor(() =>
-      expect(mocks.updateBoardNode).toHaveBeenCalledWith({
-        boardId,
-        nodeId,
-        workspaceId: "workspace-1",
-        x: 240,
-        y: 160,
-      }),
-    );
+    await waitFor(() => expect(mocks.updateBoardNode).toHaveBeenCalledTimes(1));
+    expect(mocks.updateBoardNode.mock.calls[0][0]).toEqual({
+      boardId,
+      nodeId,
+      workspaceId: "workspace-1",
+      x: 240,
+      y: 160,
+    });
   });
 
   it("preserves local drag position and shows an inline error when persistence fails", async () => {
