@@ -1,0 +1,218 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  getBootstrap: vi.fn(),
+  getBoardSnapshot: vi.fn(),
+  createNodeOnBoard: vi.fn(),
+  updateBoardNode: vi.fn(),
+  createEdgeOnBoard: vi.fn(),
+  updateNode: vi.fn(),
+  updateEdge: vi.fn(),
+}));
+
+vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
+  getBootstrap: mocks.getBootstrap,
+}));
+
+vi.mock("@/frontend/api/graph/graph.api", () => ({
+  getBoardSnapshot: mocks.getBoardSnapshot,
+  createNodeOnBoard: mocks.createNodeOnBoard,
+  updateBoardNode: mocks.updateBoardNode,
+  createEdgeOnBoard: mocks.createEdgeOnBoard,
+  updateNode: mocks.updateNode,
+  updateEdge: mocks.updateEdge,
+}));
+
+vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
+  GraphCanvas: ({
+    nodes,
+    edges = [],
+    onSelectNode,
+    onSelectEdge,
+  }: {
+    nodes: Array<{ id: string; name: string }>;
+    edges?: Array<{ id: string; name: string }>;
+    onSelectNode?: (nodeId: string) => void;
+    onSelectEdge?: (edgeId: string) => void;
+  }) => (
+    <div>
+      {nodes.map((node) => (
+        <button key={node.id} onClick={() => onSelectNode?.(node.id)} type="button">
+          Select {node.name}
+        </button>
+      ))}
+      {edges.map((edge) => (
+        <button key={edge.id} onClick={() => onSelectEdge?.(edge.id)} type="button">
+          Select {edge.name}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+
+import { GraphEditorPage } from "./graph-editor-page";
+
+const storyId = "11111111-1111-4111-8111-111111111111";
+const boardId = "22222222-2222-4222-8222-222222222222";
+const aliceId = "33333333-3333-4333-8333-333333333333";
+const bobId = "44444444-4444-4444-8444-444444444444";
+const edgeId = "55555555-5555-4555-8555-555555555555";
+const now = "2026-08-28T00:00:00.000Z";
+
+function snapshot() {
+  return {
+    story: { id: storyId, name: "Novel" },
+    board: {
+      id: boardId,
+      storyId,
+      name: "Characters",
+      description: "",
+      revision: 1,
+      createdAt: now,
+      updatedAt: now,
+    },
+    nodes: [
+      {
+        id: aliceId,
+        storyId,
+        name: "Alice",
+        description: "Protagonist",
+        iconKey: null,
+        properties: { role: "lead" },
+        version: 3,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: bobId,
+        storyId,
+        name: "Bob",
+        description: "",
+        iconKey: null,
+        properties: {},
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    edges: [
+      {
+        id: edgeId,
+        storyId,
+        sourceNodeId: aliceId,
+        targetNodeId: bobId,
+        name: "knows",
+        description: "Old friends",
+        iconKey: null,
+        properties: { since: 2020 },
+        version: 4,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    boardNodes: [
+      { boardId, nodeId: aliceId, x: 100, y: 100, width: null, height: null, zIndex: 0, style: {}, createdAt: now, updatedAt: now },
+      { boardId, nodeId: bobId, x: 400, y: 100, width: null, height: null, zIndex: 0, style: {}, createdAt: now, updatedAt: now },
+    ],
+    boardEdges: [
+      { boardId, edgeId, style: {}, labelPresentation: {}, createdAt: now, updatedAt: now },
+    ],
+  };
+}
+
+function renderPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <GraphEditorPage storyId={storyId} boardId={boardId} />
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.getBootstrap.mockResolvedValue({
+    actor: { id: "user-1", email: "user@example.com", name: "Writer" },
+    workspace: { id: "workspace-1", name: "Workspace", slug: "workspace" },
+  });
+  mocks.getBoardSnapshot.mockResolvedValue(snapshot());
+  mocks.updateNode.mockResolvedValue({
+    ...snapshot().nodes[0],
+    name: "Alicia",
+    description: "Main protagonist",
+    properties: { role: "lead", age: 31 },
+    version: 4,
+  });
+  mocks.updateEdge.mockResolvedValue({
+    ...snapshot().edges[0],
+    name: "best friend",
+    description: "Childhood friends",
+    properties: { since: 2012 },
+    version: 5,
+  });
+});
+
+afterEach(cleanup);
+
+describe("Graph Editor inspector", () => {
+  it("edits a selected Node using its current optimistic-concurrency version", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+    expect(screen.getByRole("heading", { name: "Node Inspector" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("Alice");
+    expect(screen.getByLabelText("Description")).toHaveValue("Protagonist");
+    expect(screen.getByLabelText("Properties JSON")).toHaveValue('{\n  "role": "lead"\n}');
+
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Alicia");
+    await user.clear(screen.getByLabelText("Description"));
+    await user.type(screen.getByLabelText("Description"), "Main protagonist");
+    await user.clear(screen.getByLabelText("Properties JSON"));
+    await user.type(screen.getByLabelText("Properties JSON"), '{"role":"lead","age":31}');
+    await user.click(screen.getByRole("button", { name: "Save Node" }));
+
+    await waitFor(() => expect(mocks.updateNode).toHaveBeenCalledTimes(1));
+    expect(mocks.updateNode.mock.calls[0][0]).toEqual({
+      nodeId: aliceId,
+      workspaceId: "workspace-1",
+      version: 3,
+      name: "Alicia",
+      description: "Main protagonist",
+      properties: { role: "lead", age: 31 },
+    });
+    expect(await screen.findByDisplayValue("Alicia")).toBeInTheDocument();
+  });
+
+  it("edits a selected Edge using its current optimistic-concurrency version", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Select knows" }));
+    expect(screen.getByRole("heading", { name: "Relationship Inspector" })).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "best friend");
+    await user.clear(screen.getByLabelText("Description"));
+    await user.type(screen.getByLabelText("Description"), "Childhood friends");
+    await user.clear(screen.getByLabelText("Properties JSON"));
+    await user.type(screen.getByLabelText("Properties JSON"), '{"since":2012}');
+    await user.click(screen.getByRole("button", { name: "Save Relationship" }));
+
+    await waitFor(() => expect(mocks.updateEdge).toHaveBeenCalledTimes(1));
+    expect(mocks.updateEdge.mock.calls[0][0]).toEqual({
+      edgeId,
+      workspaceId: "workspace-1",
+      version: 4,
+      name: "best friend",
+      description: "Childhood friends",
+      properties: { since: 2012 },
+    });
+  });
+});
