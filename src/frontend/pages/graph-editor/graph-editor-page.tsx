@@ -11,6 +11,7 @@ import {
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
 import {
   useBoardSnapshotQuery,
+  useCreateEdgeOnBoardMutation,
   useCreateNodeOnBoardMutation,
   useUpdateBoardNodeMutation,
 } from "@/frontend/api/graph/graph.queries";
@@ -49,11 +50,17 @@ function GraphEditorContent({
   const [positionError, setPositionError] = useState<string | null>(null);
   const [isNodeFormOpen, setNodeFormOpen] = useState(false);
   const [nodeName, setNodeName] = useState("");
+  const [pendingConnection, setPendingConnection] = useState<{
+    sourceNodeId: string;
+    targetNodeId: string;
+  } | null>(null);
+  const [relationshipName, setRelationshipName] = useState("");
   const canvasRef = useRef<GraphCanvasHandle>(null);
   const bootstrap = useBootstrapQuery();
   const workspaceId = bootstrap.data?.workspace.id;
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
   const createNode = useCreateNodeOnBoardMutation();
+  const createEdge = useCreateEdgeOnBoardMutation();
   const updatePlacement = useUpdateBoardNodeMutation();
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
@@ -120,6 +127,58 @@ function GraphEditorContent({
     }
   }
 
+  function handleConnectNodes(sourceNodeId: string, targetNodeId: string) {
+    setPendingConnection({ sourceNodeId, targetNodeId });
+    setRelationshipName("");
+  }
+
+  async function handleCreateRelationship(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspaceId || !snapshot.data || !pendingConnection) return;
+
+    const name = relationshipName.trim();
+    if (!name) return;
+
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const optimistic = {
+      edge: {
+        id,
+        storyId: snapshot.data.story.id,
+        sourceNodeId: pendingConnection.sourceNodeId,
+        targetNodeId: pendingConnection.targetNodeId,
+        name,
+        description: "",
+        iconKey: null,
+        properties: {},
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+      boardEdge: {
+        boardId,
+        edgeId: id,
+        style: {},
+        labelPresentation: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+    };
+
+    store.getState().addOptimisticEdge(optimistic);
+    const persisted = await createEdge.mutateAsync({
+      boardId,
+      workspaceId,
+      id,
+      sourceNodeId: pendingConnection.sourceNodeId,
+      targetNodeId: pendingConnection.targetNodeId,
+      name,
+    });
+    store.getState().reconcileEdge(persisted);
+    setRelationshipName("");
+    setPendingConnection(null);
+  }
+
   function handleNodePositionChange(
     nodeId: string,
     position: { x: number; y: number },
@@ -174,6 +233,7 @@ function GraphEditorContent({
   });
   const canvasEdges = state.edges.map((edge) => ({
     id: edge.id,
+    name: edge.name,
     sourceNodeId: edge.sourceNodeId,
     targetNodeId: edge.targetNodeId,
   }));
@@ -242,6 +302,31 @@ function GraphEditorContent({
             </button>
           </form>
         ) : null}
+        {pendingConnection ? (
+          <form
+            className="flex max-w-md gap-2 rounded-lg border border-neutral-200 bg-white p-3"
+            onSubmit={handleCreateRelationship}
+          >
+            <label className="sr-only" htmlFor="relationship-name">
+              Relationship name
+            </label>
+            <input
+              autoFocus
+              className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2"
+              id="relationship-name"
+              onChange={(event) => setRelationshipName(event.target.value)}
+              placeholder="Relationship name"
+              value={relationshipName}
+            />
+            <button
+              className="rounded-md bg-neutral-900 px-3 py-2 font-medium text-white disabled:opacity-50"
+              disabled={createEdge.isPending || !relationshipName.trim()}
+              type="submit"
+            >
+              {createEdge.isPending ? "Creating..." : "Create Relationship"}
+            </button>
+          </form>
+        ) : null}
         {createError ? <p className="text-sm text-red-600">{createError}</p> : null}
         {positionError ? (
           <p className="text-sm text-red-600">{positionError}</p>
@@ -251,6 +336,7 @@ function GraphEditorContent({
       <GraphCanvas
         edges={canvasEdges}
         nodes={canvasNodes}
+        onConnectNodes={handleConnectNodes}
         onNodeDragStop={handleNodeDragStop}
         onNodePositionChange={handleNodePositionChange}
         ref={canvasRef}
