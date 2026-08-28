@@ -1,29 +1,59 @@
+import { createStore, type StoreApi } from "zustand/vanilla";
+
 import type {
   GraphEditorNodePair,
   GraphEditorState,
 } from "../model/editor-types";
 
-type Listener = () => void;
-
-export type GraphEditorStore = {
-  getState: () => GraphEditorState;
-  subscribe: (listener: Listener) => () => void;
-};
+export type GraphEditorStore = StoreApi<GraphEditorState>;
 
 export function createGraphEditorStore(): GraphEditorStore {
-  const listeners = new Set<Listener>();
-  let state: GraphEditorState;
+  return createStore<GraphEditorState>()((set) => ({
+    nodes: [],
+    edges: [],
+    boardNodes: [],
+    boardEdges: [],
+    hydrate: (snapshot) =>
+      set({
+        nodes: [...snapshot.nodes],
+        edges: [...snapshot.edges],
+        boardNodes: [...snapshot.boardNodes],
+        boardEdges: [...snapshot.boardEdges],
+      }),
+    addOptimisticNode: (input) => set((state) => upsertNodePair(state, input)),
+    reconcileNode: (input) => set((state) => upsertNodePair(state, input)),
+    removeNode: (nodeId) =>
+      set((state) => ({
+        nodes: state.nodes.filter((node) => node.id !== nodeId),
+        boardNodes: state.boardNodes.filter(
+          (boardNode) => boardNode.nodeId !== nodeId,
+        ),
+      })),
+    setNodePosition: (nodeId, position) =>
+      set((state) => ({
+        boardNodes: state.boardNodes.map((boardNode) =>
+          boardNode.nodeId === nodeId
+            ? { ...boardNode, x: position.x, y: position.y }
+            : boardNode,
+        ),
+      })),
+    replaceBoardNode: (boardNode) =>
+      set((state) => ({
+        boardNodes: [
+          ...state.boardNodes.filter(
+            (current) => current.nodeId !== boardNode.nodeId,
+          ),
+          boardNode,
+        ],
+      })),
+  }));
+}
 
-  const publish = (next: GraphEditorState) => {
-    state = next;
-    for (const listener of listeners) {
-      listener();
-    }
-  };
-
-  const upsertNodePair = (
-    input: GraphEditorNodePair,
-  ): Pick<GraphEditorState, "nodes" | "boardNodes"> => ({
+function upsertNodePair(
+  state: GraphEditorState,
+  input: GraphEditorNodePair,
+): Pick<GraphEditorState, "nodes" | "boardNodes"> {
+  return {
     nodes: [
       ...state.nodes.filter((node) => node.id !== input.node.id),
       input.node,
@@ -34,77 +64,5 @@ export function createGraphEditorStore(): GraphEditorStore {
       ),
       input.boardNode,
     ],
-  });
-
-  const hydrate: GraphEditorState["hydrate"] = (snapshot) => {
-    publish({
-      ...state,
-      nodes: [...snapshot.nodes],
-      edges: [...snapshot.edges],
-      boardNodes: [...snapshot.boardNodes],
-      boardEdges: [...snapshot.boardEdges],
-    });
-  };
-
-  const addOptimisticNode: GraphEditorState["addOptimisticNode"] = (input) => {
-    publish({ ...state, ...upsertNodePair(input) });
-  };
-
-  const reconcileNode: GraphEditorState["reconcileNode"] = (input) => {
-    publish({ ...state, ...upsertNodePair(input) });
-  };
-
-  const removeNode: GraphEditorState["removeNode"] = (nodeId) => {
-    publish({
-      ...state,
-      nodes: state.nodes.filter((node) => node.id !== nodeId),
-      boardNodes: state.boardNodes.filter(
-        (boardNode) => boardNode.nodeId !== nodeId,
-      ),
-    });
-  };
-
-  const setNodePosition: GraphEditorState["setNodePosition"] = (nodeId, position) => {
-    publish({
-      ...state,
-      boardNodes: state.boardNodes.map((boardNode) =>
-        boardNode.nodeId === nodeId
-          ? { ...boardNode, x: position.x, y: position.y }
-          : boardNode,
-      ),
-    });
-  };
-
-  const replaceBoardNode: GraphEditorState["replaceBoardNode"] = (boardNode) => {
-    publish({
-      ...state,
-      boardNodes: [
-        ...state.boardNodes.filter(
-          (current) => current.nodeId !== boardNode.nodeId,
-        ),
-        boardNode,
-      ],
-    });
-  };
-
-  state = {
-    nodes: [],
-    edges: [],
-    boardNodes: [],
-    boardEdges: [],
-    hydrate,
-    addOptimisticNode,
-    reconcileNode,
-    removeNode,
-    setNodePosition,
-    replaceBoardNode,
-  };
-
-  return {
-    getState: () => state,
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
   };
 }
