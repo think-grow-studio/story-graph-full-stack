@@ -1,0 +1,29 @@
+import { ApplicationError } from "@/backend/common/errors/application-error";
+import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
+import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
+import type { GraphRepository } from "../../domain/graph.repository";
+import { requireGraphStory } from "../_shared/require-graph-story";
+
+export async function deleteNode(
+  input: { actorId: string; workspaceId: string; storyId: string; nodeId: string },
+  dependencies: {
+    graph: GraphRepository;
+    stories: StoryRepository;
+    access: WorkspaceAccessService;
+  },
+): Promise<void> {
+  await requireGraphStory(
+    { ...input, capability: "graph:update" },
+    { stories: dependencies.stories, access: dependencies.access },
+  );
+
+  const existing = await dependencies.graph.findNodeById(input.nodeId);
+  if (!existing || existing.storyId !== input.storyId) {
+    throw new ApplicationError("NOT_FOUND", 404);
+  }
+
+  const deleted = await dependencies.graph.deleteNode(input.nodeId);
+  if (!deleted) {
+    throw new ApplicationError("NOT_FOUND", 404);
+  }
+}
