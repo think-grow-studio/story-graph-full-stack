@@ -6,6 +6,8 @@ on:
 jobs:
   generate:
     runs-on: ubuntu-24.04
+    env:
+      DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
