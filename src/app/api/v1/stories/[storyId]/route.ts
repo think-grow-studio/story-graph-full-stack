@@ -12,6 +12,7 @@ import {
   storyWorkspaceQuerySchema,
   updateStoryRequestSchema,
 } from "@/contracts/story/story.contract";
+import { identityDependencies } from "../../_shared/identity-dependencies";
 import { routeErrorResponse } from "../../_shared/route-error";
 
 const dependencies = {
@@ -33,7 +34,7 @@ function toResponse(story: Story) {
 
 export async function GET(request: Request, context: RouteContext) {
   try {
-    const actor = await requireCurrentActor(request.headers);
+    const actor = await requireCurrentActor(request.headers, identityDependencies);
     const { storyId } = await context.params;
     const query = storyWorkspaceQuerySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams.entries()),
@@ -51,7 +52,7 @@ export async function GET(request: Request, context: RouteContext) {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const actor = await requireCurrentActor(request.headers);
+    const actor = await requireCurrentActor(request.headers, identityDependencies);
     const { storyId } = await context.params;
     const body = updateStoryRequestSchema.parse(await request.json());
     const story = await updateStory(
@@ -73,7 +74,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 export async function DELETE(request: Request, context: RouteContext) {
   try {
-    const actor = await requireCurrentActor(request.headers);
+    const actor = await requireCurrentActor(request.headers, identityDependencies);
     const { storyId } = await context.params;
     const query = storyWorkspaceQuerySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams.entries()),
