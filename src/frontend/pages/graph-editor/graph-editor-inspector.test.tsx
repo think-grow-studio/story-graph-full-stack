@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -174,8 +174,9 @@ describe("Graph Editor inspector", () => {
     await user.type(screen.getByLabelText("Name"), "Alicia");
     await user.clear(screen.getByLabelText("Description"));
     await user.type(screen.getByLabelText("Description"), "Main protagonist");
-    await user.clear(screen.getByLabelText("Properties JSON"));
-    await user.type(screen.getByLabelText("Properties JSON"), '{"role":"lead","age":31}');
+    fireEvent.change(screen.getByLabelText("Properties JSON"), {
+      target: { value: '{"role":"lead","age":31}' },
+    });
     await user.click(screen.getByRole("button", { name: "Save Node" }));
 
     await waitFor(() => expect(mocks.updateNode).toHaveBeenCalledTimes(1));
@@ -201,8 +202,9 @@ describe("Graph Editor inspector", () => {
     await user.type(screen.getByLabelText("Name"), "best friend");
     await user.clear(screen.getByLabelText("Description"));
     await user.type(screen.getByLabelText("Description"), "Childhood friends");
-    await user.clear(screen.getByLabelText("Properties JSON"));
-    await user.type(screen.getByLabelText("Properties JSON"), '{"since":2012}');
+    fireEvent.change(screen.getByLabelText("Properties JSON"), {
+      target: { value: '{"since":2012}' },
+    });
     await user.click(screen.getByRole("button", { name: "Save Relationship" }));
 
     await waitFor(() => expect(mocks.updateEdge).toHaveBeenCalledTimes(1));
