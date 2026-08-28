@@ -10,4 +10,12 @@ describe("workspaceRoleHasCapability", () => {
     expect(workspaceRoleHasCapability("member", "story:update")).toBe(false);
     expect(workspaceRoleHasCapability("member,admin", "story:delete")).toBe(true);
   });
+
+  it("maps Better Auth roles to graph capabilities", () => {
+    expect(workspaceRoleHasCapability("owner", "graph:read")).toBe(true);
+    expect(workspaceRoleHasCapability("admin", "graph:update")).toBe(true);
+    expect(workspaceRoleHasCapability("member", "graph:read")).toBe(true);
+    expect(workspaceRoleHasCapability("member", "graph:update")).toBe(false);
+    expect(workspaceRoleHasCapability("member,admin", "graph:update")).toBe(true);
+  });
 });
