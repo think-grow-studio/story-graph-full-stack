@@ -13,6 +13,8 @@ jobs:
       DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
       BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters
       BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
     services:
       postgres:
         image: postgres:16-alpine

@@ -5,40 +5,26 @@ vi.mock("server-only", () => ({}));
 
 import { auth } from "@/backend/infrastructure/auth/auth";
 import { db } from "@/backend/infrastructure/database/client";
-import { session, user } from "@/backend/infrastructure/database/schema";
+import { session } from "@/backend/infrastructure/database/schema";
+import { createTestIdentity } from "../../helpers/test-auth";
 
 describe("Better Auth PostgreSQL integration", () => {
-  it("persists a session that can be resolved from the returned cookie", async () => {
-    const email = `auth-${crypto.randomUUID()}@example.com`;
-    const result = await auth.api.signUpEmail({
-      returnHeaders: true,
-      body: {
-        email,
-        password: "Password123!",
-        name: "Auth Test",
-      },
-    });
+  it("persists a session that production auth resolves from the test cookie", async () => {
+    const identity = await createTestIdentity("Auth Test");
 
     try {
       const sessions = await db
         .select()
         .from(session)
-        .where(eq(session.userId, result.response.user.id));
+        .where(eq(session.userId, identity.user.id));
 
       expect(sessions).toHaveLength(1);
 
-      const cookie = result.headers
-        .getSetCookie()
-        .map((value) => value.split(";", 1)[0])
-        .join("; ");
-
-      const resolved = await auth.api.getSession({
-        headers: new Headers({ cookie }),
-      });
-
-      expect(resolved?.user.email).toBe(email);
+      const resolved = await auth.api.getSession({ headers: identity.headers });
+      expect(resolved?.user.id).toBe(identity.user.id);
+      expect(resolved?.user.email).toBe(identity.user.email);
     } finally {
-      await db.delete(user).where(eq(user.id, result.response.user.id));
+      await identity.helpers.deleteUser(identity.user.id);
     }
   });
 });

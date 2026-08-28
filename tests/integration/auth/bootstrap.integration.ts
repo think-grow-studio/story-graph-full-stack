@@ -3,36 +3,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { auth } from "@/backend/infrastructure/auth/auth";
+import { GET } from "@/app/api/v1/bootstrap/route";
 import { db } from "@/backend/infrastructure/database/client";
 import { organization, user } from "@/backend/infrastructure/database/schema";
-import { GET } from "@/app/api/v1/bootstrap/route";
+import { createTestIdentity } from "../../helpers/test-auth";
 
 const createdUserIds: string[] = [];
 const createdOrganizationIds: string[] = [];
 
 async function createAuthenticatedRequest() {
-  const email = `bootstrap-${crypto.randomUUID()}@example.com`;
-  const result = await auth.api.signUpEmail({
-    returnHeaders: true,
-    body: {
-      email,
-      password: "Password123!",
-      name: "Bootstrap User",
-    },
-  });
-
-  createdUserIds.push(result.response.user.id);
-
-  const cookie = result.headers
-    .getSetCookie()
-    .map((value) => value.split(";", 1)[0])
-    .join("; ");
+  const identity = await createTestIdentity("Bootstrap User");
+  createdUserIds.push(identity.user.id);
 
   return {
-    user: result.response.user,
+    user: identity.user,
     request: new Request("http://localhost/api/v1/bootstrap", {
-      headers: { cookie },
+      headers: identity.headers,
     }),
   };
 }

@@ -7,7 +7,11 @@ import { db } from "@/backend/infrastructure/database/client";
 import * as schema from "@/backend/infrastructure/database/schema";
 import { serverEnv } from "@/config/env.server";
 
-import { authEmailAndPassword, createAuthPlugins } from "./auth-options";
+import {
+  authEmailAndPassword,
+  createAuthPlugins,
+  createSocialProviders,
+} from "./auth-options";
 
 export const auth = betterAuth({
   appName: "Story Graph",
@@ -18,5 +22,9 @@ export const auth = betterAuth({
     schema,
   }),
   emailAndPassword: authEmailAndPassword,
+  socialProviders: createSocialProviders({
+    clientId: serverEnv.GOOGLE_CLIENT_ID,
+    clientSecret: serverEnv.GOOGLE_CLIENT_SECRET,
+  }),
   plugins: createAuthPlugins(),
 });

@@ -3,27 +3,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { auth } from "@/backend/infrastructure/auth/auth";
 import { db } from "@/backend/infrastructure/database/client";
 import { member, organization, user } from "@/backend/infrastructure/database/schema";
 import { ensurePersonalWorkspace } from "@/backend/modules/workspace/application/ensure-personal-workspace/ensure-personal-workspace";
 import { BetterAuthWorkspaceProvisioner } from "@/backend/modules/workspace/infrastructure/better-auth-workspace-provisioner";
 import { DrizzleWorkspaceAccessService } from "@/backend/modules/workspace/infrastructure/drizzle-workspace-access.service";
+import { createTestIdentity } from "../../helpers/test-auth";
 
 const createdUserIds: string[] = [];
 const createdOrganizationIds: string[] = [];
 
 async function createUser(name: string) {
-  const response = await auth.api.signUpEmail({
-    body: {
-      email: `workspace-integration-${crypto.randomUUID()}@example.com`,
-      password: "password1234",
-      name,
-    },
-  });
-
-  createdUserIds.push(response.user.id);
-  return response.user;
+  const identity = await createTestIdentity(name);
+  createdUserIds.push(identity.user.id);
+  return identity.user;
 }
 
 afterEach(async () => {

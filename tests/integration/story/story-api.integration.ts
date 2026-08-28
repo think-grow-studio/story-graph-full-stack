@@ -6,36 +6,24 @@ vi.mock("server-only", () => ({}));
 import { DELETE, GET as GET_STORY, PATCH } from "@/app/api/v1/stories/[storyId]/route";
 import { GET as LIST_STORIES, POST } from "@/app/api/v1/stories/route";
 import { GET as BOOTSTRAP } from "@/app/api/v1/bootstrap/route";
-import { auth } from "@/backend/infrastructure/auth/auth";
 import { db } from "@/backend/infrastructure/database/client";
 import { organization, user } from "@/backend/infrastructure/database/schema";
+import { createTestIdentity } from "../../helpers/test-auth";
 
 const createdUserIds: string[] = [];
 const createdOrganizationIds: string[] = [];
 
 async function createSession(name: string) {
-  const result = await auth.api.signUpEmail({
-    returnHeaders: true,
-    body: {
-      email: `story-api-${crypto.randomUUID()}@example.com`,
-      password: "Password123!",
-      name,
-    },
-  });
-  createdUserIds.push(result.response.user.id);
-
-  const cookie = result.headers
-    .getSetCookie()
-    .map((value) => value.split(";", 1)[0])
-    .join("; ");
+  const identity = await createTestIdentity(name);
+  createdUserIds.push(identity.user.id);
 
   const bootstrapResponse = await BOOTSTRAP(
-    new Request("http://localhost/api/v1/bootstrap", { headers: { cookie } }),
+    new Request("http://localhost/api/v1/bootstrap", { headers: identity.headers }),
   );
   const bootstrap = await bootstrapResponse.json();
   createdOrganizationIds.push(bootstrap.workspace.id);
 
-  return { cookie, workspaceId: bootstrap.workspace.id };
+  return { cookie: identity.cookie, workspaceId: bootstrap.workspace.id };
 }
 
 function request(
