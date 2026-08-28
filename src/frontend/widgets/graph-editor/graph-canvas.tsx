@@ -43,6 +43,8 @@ export type GraphCanvasProps = {
   ) => void;
   onNodeDragStop: (nodeId: string) => void;
   onConnectNodes: (sourceNodeId: string, targetNodeId: string) => void;
+  onSelectNode?: (nodeId: string) => void;
+  onSelectEdge?: (edgeId: string) => void;
   ref?: Ref<GraphCanvasHandle>;
 };
 
@@ -54,6 +56,8 @@ export function GraphCanvas({
   onNodePositionChange,
   onNodeDragStop,
   onConnectNodes,
+  onSelectNode,
+  onSelectEdge,
   ref,
 }: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -123,9 +127,11 @@ export function GraphCanvas({
         fitView
         nodes={flowNodes}
         onConnect={handleConnect}
+        onEdgeClick={(_, edge) => onSelectEdge?.(edge.id)}
         onInit={(instance) => {
           instanceRef.current = instance;
         }}
+        onNodeClick={(_, node) => onSelectNode?.(node.id)}
         onNodeDrag={handleNodeDrag}
         onNodeDragStop={handleNodeDragStop}
       >
