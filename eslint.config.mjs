@@ -23,6 +23,18 @@ const eslintConfig = defineConfig([
           ],
         },
       ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportExpression[source.value=/^(?:@\\u002Fbackend(?:\\u002F|$)|\\..*\\u002Fbackend(?:\\u002F|$))/]",
+          message: "Frontend must use frontend/api and /api/v1 contracts.",
+        },
+        {
+          selector: "ImportExpression[source.value=/^drizzle-orm(?:\\u002F|$)/]",
+          message: "Frontend must not import Drizzle directly.",
+        },
+      ],
     },
   },
   {
@@ -37,6 +49,14 @@ const eslintConfig = defineConfig([
               message: "Backend must not depend on frontend implementation.",
             },
           ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportExpression[source.value=/^(?:@\\u002Ffrontend(?:\\u002F|$)|\\..*\\u002Ffrontend(?:\\u002F|$))/]",
+          message: "Backend must not depend on frontend implementation.",
         },
       ],
     },
@@ -59,6 +79,18 @@ const eslintConfig = defineConfig([
           ],
         },
       ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportExpression[source.value=/^(?:@\\u002F(?:frontend|backend|app)(?:\\u002F|$)|\\..*\\u002F(?:frontend|backend|app)(?:\\u002F|$))/]",
+          message: "Contracts may contain only transport schemas/types and contract-local helpers.",
+        },
+        {
+          selector: "ImportExpression[source.value=/^react(?:\\u002F|$)/]",
+          message: "Contracts must not depend on React.",
+        },
+      ],
     },
   },
   {
@@ -77,6 +109,18 @@ const eslintConfig = defineConfig([
               message: "Pages/layouts must not access Drizzle directly.",
             },
           ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportExpression[source.value=/^(?:@\\u002Fbackend(?:\\u002F|$)|\\..*\\u002Fbackend(?:\\u002F|$))/]",
+          message: "Pages/layouts must not bypass the HTTP application boundary.",
+        },
+        {
+          selector: "ImportExpression[source.value=/^drizzle-orm(?:\\u002F|$)/]",
+          message: "Pages/layouts must not access Drizzle directly.",
         },
       ],
     },
