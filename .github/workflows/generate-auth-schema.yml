@@ -41,7 +41,7 @@ jobs:
         run: printf '%s\n' 'export * from "./auth.schema";' > src/backend/infrastructure/database/schema/index.ts
 
       - name: Generate Drizzle migration
-        run: pnpm db:generate -- --name=auth-foundation
+        run: pnpm exec drizzle-kit generate --name=auth-foundation
 
       - name: Commit generated persistence files
         run: |
