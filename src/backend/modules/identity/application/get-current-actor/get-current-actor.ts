@@ -1,24 +1,23 @@
-import "server-only";
-
 import { ApplicationError } from "@/backend/common/errors/application-error";
-import { auth } from "@/backend/infrastructure/auth/auth";
 import type { Actor } from "../../domain/actor";
+import type { AuthSessionService } from "../../domain/auth-session.service";
 
-export async function getCurrentActor(requestHeaders: Headers): Promise<Actor | null> {
-  const currentSession = await auth.api.getSession({ headers: requestHeaders });
-  if (!currentSession) {
-    return null;
-  }
+type Dependencies = {
+  session: AuthSessionService;
+};
 
-  return {
-    id: currentSession.user.id,
-    email: currentSession.user.email,
-    name: currentSession.user.name,
-  };
+export async function getCurrentActor(
+  requestHeaders: Headers,
+  dependencies: Dependencies,
+): Promise<Actor | null> {
+  return dependencies.session.getCurrentActor(requestHeaders);
 }
 
-export async function requireCurrentActor(requestHeaders: Headers): Promise<Actor> {
-  const actor = await getCurrentActor(requestHeaders);
+export async function requireCurrentActor(
+  requestHeaders: Headers,
+  dependencies: Dependencies,
+): Promise<Actor> {
+  const actor = await getCurrentActor(requestHeaders, dependencies);
   if (!actor) {
     throw new ApplicationError("UNAUTHORIZED", 401);
   }
