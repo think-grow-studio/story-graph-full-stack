@@ -11,6 +11,10 @@ export type GraphEditorNodePair = {
   node: GraphNodeResponse;
   boardNode: BoardNodeResponse;
 };
+export type GraphEditorEdgePair = {
+  edge: GraphEdgeResponse;
+  boardEdge: BoardEdgeResponse;
+};
 
 export type GraphEditorState = {
   nodes: GraphNodeResponse[];
@@ -26,4 +30,7 @@ export type GraphEditorState = {
     position: { x: number; y: number },
   ) => void;
   replaceBoardNode: (boardNode: BoardNodeResponse) => void;
+  addOptimisticEdge: (input: GraphEditorEdgePair) => void;
+  reconcileEdge: (input: GraphEditorEdgePair) => void;
+  removeEdge: (edgeId: string) => void;
 };
