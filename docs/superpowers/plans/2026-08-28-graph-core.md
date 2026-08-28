@@ -30,7 +30,7 @@
 ### Database and infrastructure
 - Create `src/backend/infrastructure/database/schema/graph.schema.ts`: graph tables, indexes, composite foreign keys, cascades.
 - Modify `src/backend/infrastructure/database/schema/index.ts`: export graph schema.
-- Generate `drizzle/0002_graph-core.sql` and metadata using `pnpm db:generate`.
+- Generate the next `drizzle/0002_*.sql` migration and metadata using `pnpm db:generate`; do not hand-write migration state ahead of Drizzle generation.
 - Create `src/backend/modules/graph/infrastructure/drizzle-graph.repository.ts`: all graph reads/writes and required PostgreSQL transactions.
 
 ### Domain/application
@@ -69,7 +69,7 @@
 
 - [ ] **Step 1: Write failing capability tests**
 
-Add assertions equivalent to:
+Add assertions:
 
 ```ts
 expect(workspaceRoleHasCapability("owner", "graph:read")).toBe(true);
@@ -82,8 +82,6 @@ Also add a compile-level use of `new ApplicationError("CONFLICT", 409)` in the c
 
 - [ ] **Step 2: Run targeted tests and verify RED**
 
-Run:
-
 ```bash
 pnpm vitest run src/backend/modules/workspace/infrastructure/drizzle-workspace-access.service.test.ts
 pnpm typecheck
@@ -92,8 +90,6 @@ pnpm typecheck
 Expected: capability/type checks fail because graph capabilities and `CONFLICT` are not declared.
 
 - [ ] **Step 3: Implement capability/error types**
-
-Use these exact capability rules:
 
 ```ts
 export type WorkspaceCapability =
@@ -105,13 +101,9 @@ export type WorkspaceCapability =
   | "graph:update";
 ```
 
-Owner/admin capabilities contain all Story capabilities plus both graph capabilities. Member capabilities are exactly `story:read` and `graph:read`.
-
-Extend error code union with `"CONFLICT"`.
+Owner/admin capabilities contain all Story capabilities plus both graph capabilities. Member capabilities are exactly `story:read` and `graph:read`. Extend `ApplicationErrorCode` with `"CONFLICT"`.
 
 - [ ] **Step 4: Run targeted tests and typecheck**
-
-Run:
 
 ```bash
 pnpm vitest run src/backend/modules/workspace/infrastructure/drizzle-workspace-access.service.test.ts
@@ -136,14 +128,10 @@ git commit -m "feat: add graph capabilities and conflict error"
 - Create: `src/backend/modules/graph/domain/graph.repository.ts`
 - Create: `src/backend/infrastructure/database/schema/graph.schema.ts`
 - Modify: `src/backend/infrastructure/database/schema/index.ts`
-- Create via generator: `drizzle/0002_graph-core.sql`
-- Modify via generator: `drizzle/meta/_journal.json`
-- Create via generator: next snapshot under `drizzle/meta/`
+- Generate: next `drizzle/0002_*.sql` and matching `drizzle/meta/*` entries
 - Test: `tests/integration/graph/graph-repository.integration.ts`
 
 **Interfaces:**
-
-Define domain types:
 
 ```ts
 export type JsonObject = Record<string, unknown>;
@@ -215,7 +203,7 @@ export interface BoardSnapshot {
 }
 ```
 
-Define `GraphRepository` with exact operations later application tasks consume:
+Define the port exactly:
 
 ```ts
 export interface GraphRepository {
@@ -248,10 +236,7 @@ export interface GraphRepository {
     style?: JsonObject;
   }): Promise<BoardNode | null>;
   removeNodeFromBoard(boardId: string, nodeId: string): Promise<boolean>;
-  createEdgeOnBoard(input: {
-    boardId: string;
-    edge: GraphEdge;
-  }): Promise<{ edge: GraphEdge; boardEdge: BoardEdge }>;
+  createEdgeOnBoard(input: { boardId: string; edge: GraphEdge }): Promise<{ edge: GraphEdge; boardEdge: BoardEdge }>;
   updateEdge(input: {
     id: string;
     expectedVersion: number;
@@ -266,23 +251,16 @@ export interface GraphRepository {
 
 - [ ] **Step 1: Write PostgreSQL constraint tests first**
 
-Create tests that insert two Stories and prove:
+Create two Stories and prove:
 
 ```ts
-// allowed: same source/target pair twice with different edge ids
 expect(await createEdge("edge-1", nodeA.id, nodeB.id)).toBeDefined();
 expect(await createEdge("edge-2", nodeA.id, nodeB.id)).toBeDefined();
-
-// rejected: edge storyId does not match source/target story
 await expect(insertCrossStoryEdge()).rejects.toThrow();
-
-// rejected: board-node / board-edge cross-story linkage
 await expect(insertCrossStoryBoardNode()).rejects.toThrow();
 ```
 
 - [ ] **Step 2: Run integration test and verify RED**
-
-Run:
 
 ```bash
 pnpm vitest run --config vitest.integration.config.ts tests/integration/graph/graph-repository.integration.ts
@@ -292,11 +270,9 @@ Expected: FAIL because graph schema/tables do not exist.
 
 - [ ] **Step 3: Implement schema with DB-enforced Story identity**
 
-Use five tables: `graph_node`, `graph_edge`, `board`, `board_node`, `board_edge`.
+Use `graph_node`, `graph_edge`, `board`, `board_node`, `board_edge`. `board_node` and `board_edge` carry an internal `story_id` solely for integrity constraints; it is not exposed in the API/domain response.
 
-Important integrity detail: `board_node` and `board_edge` include an internal `story_id` column even though it is not exposed in API/domain response. It exists solely so PostgreSQL can enforce same-Story composite foreign keys.
-
-Required composite uniqueness/FKs:
+Required constraints:
 
 ```text
 graph_node UNIQUE(id, story_id)
@@ -311,32 +287,18 @@ board_edge(board_id, story_id)        → board(id, story_id) ON DELETE CASCADE
 board_edge(edge_id, story_id)         → graph_edge(id, story_id) ON DELETE CASCADE
 ```
 
-Do not create a source/target uniqueness constraint.
-
-Defaults:
-
-```text
-Node.version = 1
-Edge.version = 1
-Board.revision = 0
-properties/style/labelPresentation = '{}'::jsonb
-BoardNode.zIndex = 0
-```
+Do not create a source/target uniqueness constraint. Defaults: Node/Edge version 1, Board revision 0, JSON object fields `{}`, BoardNode zIndex 0.
 
 - [ ] **Step 4: Generate and inspect migration**
-
-Run:
 
 ```bash
 pnpm db:generate
 pnpm db:check
 ```
 
-Expected: a new `0002_*` migration with all five tables, composite unique constraints/FKs, indexes on `story_id`, board membership keys, source/target IDs, and no source-target unique index.
+Expected: one new `0002_*` migration containing all five tables, composite uniqueness/FKs, relevant indexes, and no source-target unique index.
 
 - [ ] **Step 5: Apply migration and run constraint tests**
-
-Run:
 
 ```bash
 pnpm db:migrate
@@ -360,7 +322,7 @@ git commit -m "feat: add graph core schema and domain"
 - Create: `src/backend/modules/graph/infrastructure/drizzle-graph.repository.ts`
 - Expand: `tests/integration/graph/graph-repository.integration.ts`
 
-**Interfaces:** Implements the `GraphRepository` interface from Task 2.
+**Interfaces:** Implements `GraphRepository` from Task 2.
 
 - [ ] **Step 1: Add failing repository behavior tests**
 
@@ -369,22 +331,20 @@ Cover:
 ```text
 createBoard persists revision 0
 createNodeOnBoard creates Node + BoardNode atomically and increments Board revision 0→1
-updateBoardNode persists placement and increments Board revision by exactly 1
-removeNodeFromBoard removes BoardNode only and increments revision by exactly 1
+updateBoardNode persists placement and increments Board revision exactly once
+removeNodeFromBoard removes BoardNode only and increments revision exactly once
 createEdgeOnBoard creates Edge + BoardEdge atomically and increments revision
 removeEdgeFromBoard preserves canonical Edge and increments revision
 getBoardSnapshot returns represented entities only
 Node optimistic update 1→2
-stale Node update returns null and preserves version 2 data
-Edge optimistic update behaves the same
+stale Node update returns null and preserves newer data
+Edge optimistic update behaves identically
 canonical Node/Edge update does not increment Board revision
 ```
 
-For atomicity, intentionally use a cross-Story node/edge input that violates a composite FK and assert no canonical half-record survives after rejection.
+For atomicity, intentionally trigger a composite-FK violation and assert no canonical half-record survives.
 
 - [ ] **Step 2: Run repository integration tests and verify RED**
-
-Run:
 
 ```bash
 pnpm vitest run --config vitest.integration.config.ts tests/integration/graph/graph-repository.integration.ts
@@ -394,9 +354,9 @@ Expected: FAIL because repository implementation is missing.
 
 - [ ] **Step 3: Implement `DrizzleGraphRepository`**
 
-Use `db.transaction(async (tx) => ...)` for `createNodeOnBoard`, `createEdgeOnBoard`, every Board membership/presentation mutation that must increment revision atomically, and snapshot reads.
+Use `db.transaction(async (tx) => ...)` for `createNodeOnBoard`, `createEdgeOnBoard`, and every Board membership/presentation mutation that increments revision. Revision updates use SQL `revision = revision + 1` inside the same transaction.
 
-Optimistic updates must use a SQL predicate equivalent to:
+Optimistic updates use compare-and-swap:
 
 ```ts
 .where(and(eq(graphNode.id, input.id), eq(graphNode.version, input.expectedVersion)))
@@ -410,19 +370,20 @@ Optimistic updates must use a SQL predicate equivalent to:
 
 Do not implement read-then-unconditional-update.
 
-Snapshot query semantics:
-- load Board;
-- load BoardNode rows for Board;
-- load only Nodes referenced by those BoardNode rows;
-- load BoardEdge rows for Board;
-- load only Edges referenced by those BoardEdge rows;
-- return all data from the same transaction callback.
+`getBoardSnapshot` must use a PostgreSQL `REPEATABLE READ` transaction because default `READ COMMITTED` can expose different snapshots to separate SELECT statements in one transaction. Within that repeatable-read transaction:
 
-Map internal `storyId` columns in BoardNode/BoardEdge away before returning domain objects.
+```text
+load Board
+load BoardNode rows for Board
+load only Nodes referenced by those BoardNode rows
+load BoardEdge rows for Board
+load only Edges referenced by those BoardEdge rows
+return one BoardSnapshot
+```
+
+Use Drizzle transaction configuration equivalent to `isolationLevel: "repeatable read"`; read-only mode may be used if supported by the current adapter. Map internal `storyId` fields out of BoardNode/BoardEdge domain objects.
 
 - [ ] **Step 4: Run repository integration tests**
-
-Run:
 
 ```bash
 pnpm vitest run --config vitest.integration.config.ts tests/integration/graph/graph-repository.integration.ts
@@ -462,18 +423,9 @@ getBoardSnapshot(
 
 - [ ] **Step 1: Write failing unit tests**
 
-Create Board behavior:
-1. `StoryRepository.findById(storyId)` first.
-2. If missing or `story.workspaceId !== workspaceId`, throw `NOT_FOUND 404`.
-3. Then require `graph:update` for that Workspace.
-4. Then create Board.
+Create Board: load Story; missing or wrong `workspaceId` → `404`; then require `graph:update`; then create Board.
 
-Snapshot behavior:
-1. Load Board.
-2. Load owning Story.
-3. If either missing or Story Workspace differs from supplied Workspace, return `404` before capability check.
-4. Require `graph:read`.
-5. Fetch snapshot and return Story summary + snapshot.
+Snapshot: load Board then owning Story; missing/wrong Workspace → `404` before capability check; require `graph:read`; fetch snapshot; return Story summary + snapshot.
 
 - [ ] **Step 2: Run unit test and verify RED**
 
@@ -481,13 +433,11 @@ Snapshot behavior:
 pnpm vitest run src/backend/modules/graph/application/board.use-cases.test.ts
 ```
 
-Expected: FAIL because use-cases do not exist.
-
 - [ ] **Step 3: Implement minimal use-cases**
 
-Use only repository/access ports. Do not import Drizzle/database/infrastructure.
+Use only ports. No Drizzle/database/infrastructure imports.
 
-- [ ] **Step 4: Run unit test and boundary checks**
+- [ ] **Step 4: Run unit and boundary tests**
 
 ```bash
 pnpm vitest run src/backend/modules/graph/application/board.use-cases.test.ts
@@ -538,19 +488,11 @@ removeNodeFromBoard(input: {
 }, deps): Promise<void>
 ```
 
-Each deps object contains `stories`, `graph`, and `access` using the same ports as Task 4.
+Each deps object contains `stories`, `graph`, and `access`.
 
 - [ ] **Step 1: Write failing unit tests**
 
-Verify:
-- Board/Node owning Story is resolved before capability check.
-- Cross-Workspace addressing becomes `404`.
-- Every mutation requires `graph:update`.
-- `createNodeOnBoard` creates a canonical Node with `version: 1` and Board placement but does not put canonical fields on BoardNode.
-- `updateNode` calls `graph.updateNode` with `expectedVersion`.
-- If an existing Node is resolved but `graph.updateNode` returns `null`, throw `new ApplicationError("CONFLICT", 409)`.
-- `updateBoardNode` does not call canonical Node update.
-- `removeNodeFromBoard` does not call any canonical delete operation.
+Verify ownership resolution precedes capability checks, cross-Workspace addressing returns `404`, every mutation requires `graph:update`, create uses `version: 1`, BoardNode contains no canonical fields, update passes `expectedVersion`, stale repository update becomes `CONFLICT 409`, BoardNode update never mutates canonical Node, and remove-from-Board never requests canonical deletion.
 
 - [ ] **Step 2: Run unit tests and verify RED**
 
@@ -560,7 +502,7 @@ pnpm vitest run src/backend/modules/graph/application/node.use-cases.test.ts
 
 - [ ] **Step 3: Implement minimal use-cases**
 
-Create canonical Node timestamp/version in application code:
+Canonical creation uses:
 
 ```ts
 const now = new Date();
@@ -576,8 +518,6 @@ const node: GraphNode = {
   updatedAt: now,
 };
 ```
-
-Repository transaction enforces final atomicity and DB constraints.
 
 - [ ] **Step 4: Run unit and boundary tests**
 
@@ -626,13 +566,7 @@ removeEdgeFromBoard(input: {
 
 - [ ] **Step 1: Write failing unit tests**
 
-Verify create flow resolves Board + source Node + target Node and rejects with `404` unless all three `storyId` values are equal and belong to supplied Workspace. Require `graph:update` only after resource ownership has been validated.
-
-Verify no application rule rejects duplicate `(sourceNodeId, targetNodeId)` pairs; identity is Edge ID.
-
-Verify stale canonical update maps to `CONFLICT 409` exactly like Node.
-
-Verify remove-from-Board does not delete canonical Edge.
+Create flow resolves Board + source Node + target Node and returns `404` unless all three Story IDs match and belong to supplied Workspace. Require `graph:update` only after ownership validation. Do not reject duplicate source/target pairs. Stale canonical update maps to `CONFLICT 409`. Remove-from-Board preserves canonical Edge.
 
 - [ ] **Step 2: Run unit tests and verify RED**
 
@@ -642,7 +576,7 @@ pnpm vitest run src/backend/modules/graph/application/edge.use-cases.test.ts
 
 - [ ] **Step 3: Implement minimal use-cases**
 
-Edge creation uses Board Story as canonical `storyId`, keeps source/target direction exactly as submitted, sets `version: 1`, and delegates atomic create to repository.
+Use Board Story as canonical `storyId`, preserve submitted edge direction, set `version: 1`, and delegate atomic creation to repository.
 
 - [ ] **Step 4: Run unit, repository integration, and boundary tests**
 
@@ -679,8 +613,6 @@ git commit -m "feat: add graph edge use cases"
 
 **Interfaces:**
 
-Contract primitives:
-
 ```ts
 const idSchema = z.string().uuid();
 const jsonObjectSchema = z.record(z.string(), z.unknown());
@@ -688,24 +620,11 @@ const finiteNumberSchema = z.number().finite();
 const positiveNullableNumberSchema = z.number().finite().positive().nullable();
 ```
 
-Use UUID validation for client-created Node/Edge IDs and generated resource IDs. Workspace/Story/Board/Node/Edge path/query IDs use the same UUID shape once created by this application.
-
-Response schemas serialize dates with `z.iso.datetime()`.
+Use UUID validation for generated/client-generated application resource IDs. Response dates use `z.iso.datetime()`.
 
 - [ ] **Step 1: Write failing API integration tests**
 
-Cover:
-- unauthenticated graph mutation → `401`;
-- invalid UUID/coordinate/JSON object → `400 VALIDATION_ERROR`;
-- create Board → `201`;
-- create Node from Board → `201` with node version 1 and placement;
-- snapshot → `200` with Story + Board + canonical/presentation arrays;
-- Node PATCH version 1 → version 2;
-- repeated stale Node PATCH version 1 → `409 CONFLICT`;
-- create two same-pair Edges → both `201` with different IDs;
-- Edge stale PATCH → `409`;
-- cross-Workspace Board/Node/Edge access → `404`;
-- remove Node/Edge from Board → `204` and snapshot membership disappears while canonical row remains in DB.
+Cover unauthenticated `401`; invalid UUID/coordinate/JSON object `400`; Board `201`; Node-on-Board `201`; snapshot `200`; Node update `1→2`; stale Node `409`; two same-pair Edges both `201`; stale Edge `409`; cross-Workspace `404`; Board Node/Edge removal `204` while canonical rows remain.
 
 - [ ] **Step 2: Run API integration tests and verify RED**
 
@@ -715,7 +634,7 @@ pnpm vitest run --config vitest.integration.config.ts tests/integration/graph/gr
 
 - [ ] **Step 3: Implement Zod contracts**
 
-Required request fields and defaults:
+Required request fields/defaults:
 
 ```text
 Create Board: workspaceId, name, description=""
@@ -727,11 +646,11 @@ Update Edge: workspaceId, version>=1, at least one of name/description/iconKey/p
 Delete query: workspaceId
 ```
 
-`properties`, `style`, and `labelPresentation` must reject arrays/primitives.
+Object-valued JSON fields reject arrays/primitives.
 
 - [ ] **Step 4: Implement thin Route Handlers**
 
-Every handler follows the established pattern:
+Follow:
 
 ```ts
 try {
@@ -744,7 +663,7 @@ try {
 }
 ```
 
-Composition dependencies instantiate `DrizzleStoryRepository`, `DrizzleGraphRepository`, and `DrizzleWorkspaceAccessService` only in Route Handler modules.
+Composition modules instantiate `DrizzleStoryRepository`, `DrizzleGraphRepository`, and `DrizzleWorkspaceAccessService`; application modules never do.
 
 - [ ] **Step 5: Run graph API integration tests**
 
@@ -781,15 +700,13 @@ git commit -m "feat: expose graph core API"
 
 - [ ] **Step 1: Write failing OpenAPI tests**
 
-Assert paths exist for all eight graph route groups and that Node/Edge PATCH operations declare `409` responses.
-
-Example:
-
 ```ts
 expect(document.paths["/api/v1/boards/{boardId}/snapshot"]?.get).toBeDefined();
 expect(document.paths["/api/v1/nodes/{nodeId}"]?.patch?.responses?.["409"]).toBeDefined();
 expect(document.paths["/api/v1/edges/{edgeId}"]?.patch?.responses?.["409"]).toBeDefined();
 ```
+
+Also assert all graph paths created in Task 7 are registered.
 
 - [ ] **Step 2: Run OpenAPI test and verify RED**
 
@@ -799,7 +716,7 @@ pnpm vitest run src/backend/infrastructure/openapi/openapi-document.test.ts
 
 - [ ] **Step 3: Register graph contracts and paths**
 
-Dynamically import `@/contracts/graph/graph.contract`, register named schemas, use the existing session cookie security scheme and `apiErrorResponseSchema`, and document `400/401/403/404/409` exactly where applicable.
+Dynamically import `@/contracts/graph/graph.contract`, register named schemas, reuse session-cookie security and `apiErrorResponseSchema`, and document `400/401/403/404/409` where applicable.
 
 - [ ] **Step 4: Run OpenAPI and full unit checks**
 
@@ -823,14 +740,12 @@ git commit -m "docs: add graph core OpenAPI paths"
 
 **Files:**
 - Modify: `tests/e2e/auth-story.spec.ts`
-- Modify if cleanup support is needed: `tests/e2e/helpers/e2e-auth.ts`
-- Update: `docs/superpowers/plans/2026-08-28-graph-core.md` status/checkmarks after implementation only.
+- Modify if cleanup support is required by the new persisted rows: `tests/e2e/helpers/e2e-auth.ts`
+- Update: `docs/superpowers/plans/2026-08-28-graph-core.md` checkmarks/status after implementation.
 
-**Interfaces:** E2E uses real Better Auth test sessions and real PostgreSQL, without Google network calls.
+**Interfaces:** E2E uses real Better Auth test sessions and real PostgreSQL without Google network calls.
 
 - [ ] **Step 1: Write the E2E persistence flow**
-
-Add one authenticated workflow using API requests with the test session cookie:
 
 ```text
 bootstrap personal Workspace
@@ -838,11 +753,12 @@ bootstrap personal Workspace
 → POST Board
 → POST Node on Board at {x:120,y:80}
 → GET Board snapshot and assert Node + BoardNode
-→ request snapshot again after page/request reload boundary
+→ cross a page/request reload boundary
+→ GET snapshot again
 → assert same Node ID, version 1, x=120, y=80
 ```
 
-Use a UUID generated client-side for the Node request.
+Use a client-generated UUID for Node creation.
 
 - [ ] **Step 2: Run E2E and fix only Graph Core defects**
 
@@ -850,11 +766,16 @@ Use a UUID generated client-side for the Node request.
 pnpm e2e
 ```
 
-Expected: all existing E2E plus Graph Core flow pass.
+Expected: all existing E2E plus Graph Core persistence flow pass.
 
-- [ ] **Step 3: Run the complete repository gate**
+- [ ] **Step 3: Commit the E2E/docs candidate before the clean-tree gate**
 
-Run in this order:
+```bash
+git add tests/e2e docs/superpowers/plans/2026-08-28-graph-core.md
+git commit -m "test: verify graph core persistence flow"
+```
+
+- [ ] **Step 4: Run the complete repository gate on the committed candidate**
 
 ```bash
 pnpm db:check
@@ -865,17 +786,11 @@ git diff --exit-code
 pnpm e2e
 ```
 
-Expected:
-- architecture/AGENTS checks pass;
-- ESLint/typecheck/unit tests pass;
-- PostgreSQL integration tests pass;
-- production build succeeds;
-- build leaves tracked files clean;
-- Chromium E2E passes.
+Expected: architecture/AGENTS checks, lint, typecheck, unit, PostgreSQL integration, production build, clean-tree check, and Chromium E2E all pass.
 
-- [ ] **Step 4: Inspect final diff against spec**
+- [ ] **Step 5: Inspect the branch diff against the spec**
 
-Verify explicitly:
+Review `main...HEAD` and verify:
 
 ```text
 no React Flow/editor UI introduced
@@ -885,16 +800,9 @@ composite same-Story FKs exist
 Node/Edge stale writes are 409
 Board revision changes only for BoardNode/BoardEdge membership/presentation changes
 remove-from-Board preserves canonical entities
-snapshot contains represented entities only
+snapshot contains represented entities only and uses repeatable-read consistency
 application code has no Drizzle imports
 OpenAPI includes graph paths + 409
-```
-
-- [ ] **Step 5: Commit final E2E/docs changes**
-
-```bash
-git add tests/e2e docs/superpowers/plans/2026-08-28-graph-core.md
-git commit -m "test: verify graph core persistence flow"
 ```
 
 - [ ] **Step 6: Create PR only after fresh full verification**
