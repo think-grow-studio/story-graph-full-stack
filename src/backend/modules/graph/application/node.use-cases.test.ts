@@ -13,8 +13,63 @@ const modulePaths = {
   delete: "./delete-node/delete-node",
 } as const;
 
-async function loadModule(path: string) {
-  return vi.importActual<Record<string, (...args: any[]) => Promise<any>>>(path).catch(() => null);
+type TestGraphNode = {
+  id: string;
+  storyId: string;
+  name: string;
+  description: string;
+  iconKey: string | null;
+  properties: Record<string, unknown>;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type UpdateNodeInput = {
+  id: string;
+  expectedVersion: number;
+  name?: string;
+  description?: string;
+  iconKey?: string | null;
+  properties?: Record<string, unknown>;
+};
+
+type UpdateNodeResult =
+  | { kind: "updated"; node: TestGraphNode }
+  | { kind: "conflict" }
+  | { kind: "not-found" };
+
+type GraphDependencies = {
+  graph: FakeGraphRepository;
+  stories: FakeStoryRepository;
+  access: WorkspaceAccessService;
+};
+
+type GraphModule = {
+  createNode?: (
+    input: Record<string, unknown>,
+    dependencies: GraphDependencies,
+  ) => Promise<TestGraphNode>;
+  listNodes?: (
+    input: Record<string, unknown>,
+    dependencies: GraphDependencies,
+  ) => Promise<TestGraphNode[]>;
+  getNode?: (
+    input: Record<string, unknown>,
+    dependencies: GraphDependencies,
+  ) => Promise<TestGraphNode>;
+  updateNode?: (
+    input: Record<string, unknown>,
+    dependencies: GraphDependencies,
+  ) => Promise<TestGraphNode>;
+  deleteNode?: (
+    input: Record<string, unknown>,
+    dependencies: GraphDependencies,
+  ) => Promise<void>;
+};
+
+async function loadGraphModule(path: string): Promise<GraphModule | null> {
+  return vi.importActual<GraphModule>(path).catch(() => null);
 }
 
 class FakeStoryRepository implements StoryRepository {
@@ -43,9 +98,9 @@ class FakeStoryRepository implements StoryRepository {
 }
 
 class FakeGraphRepository {
-  nodes = new Map<string, any>();
+  nodes = new Map<string, TestGraphNode>();
 
-  async createNode(node: any) {
+  async createNode(node: TestGraphNode) {
     this.nodes.set(node.id, node);
     return node;
   }
@@ -58,12 +113,12 @@ class FakeGraphRepository {
     return [...this.nodes.values()].filter((node) => node.storyId === storyId);
   }
 
-  async updateNode(input: any) {
+  async updateNode(input: UpdateNodeInput): Promise<UpdateNodeResult> {
     const current = this.nodes.get(input.id);
     if (!current) return { kind: "not-found" };
     if (current.version !== input.expectedVersion) return { kind: "conflict" };
 
-    const updated = {
+    const updated: TestGraphNode = {
       ...current,
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(input.description === undefined ? {} : { description: input.description }),
@@ -94,7 +149,7 @@ function storyFixture(overrides: Partial<Story> = {}): Story {
   };
 }
 
-function nodeFixture(overrides: Record<string, unknown> = {}) {
+function nodeFixture(overrides: Partial<TestGraphNode> = {}): TestGraphNode {
   const now = new Date("2026-08-28T00:00:00.000Z");
   return {
     id: crypto.randomUUID(),
@@ -130,12 +185,12 @@ describe("Graph Node use-cases", () => {
   });
 
   it("creates a canonical Node with the client supplied ID and version 1", async () => {
-    const module = await loadModule(modulePaths.create);
-    expect(module).not.toBeNull();
-    if (!module) return;
+    const imported = await loadGraphModule(modulePaths.create);
+    expect(imported?.createNode).toBeTypeOf("function");
+    if (!imported?.createNode) return;
 
     const id = crypto.randomUUID();
-    const node = await module.createNode(
+    const node = await imported.createNode(
       {
         actorId: "user-1",
         workspaceId: "workspace-1",
@@ -164,22 +219,22 @@ describe("Graph Node use-cases", () => {
   });
 
   it("lists and gets only Nodes from the requested Story after graph:read authorization", async () => {
-    const listModule = await loadModule(modulePaths.list);
-    const getModule = await loadModule(modulePaths.get);
-    expect(listModule).not.toBeNull();
-    expect(getModule).not.toBeNull();
-    if (!listModule || !getModule) return;
+    const listImported = await loadGraphModule(modulePaths.list);
+    const getImported = await loadGraphModule(modulePaths.get);
+    expect(listImported?.listNodes).toBeTypeOf("function");
+    expect(getImported?.getNode).toBeTypeOf("function");
+    if (!listImported?.listNodes || !getImported?.getNode) return;
 
     await graph.createNode(nodeFixture({ id: "node-1" }));
     await graph.createNode(nodeFixture({ id: "node-2", storyId: "story-2" }));
 
-    const nodes = await listModule.listNodes(
+    const nodes = await listImported.listNodes(
       { actorId: "user-1", workspaceId: "workspace-1", storyId: "story-1" },
       { graph, stories, access },
     );
-    expect(nodes.map((node: any) => node.id)).toEqual(["node-1"]);
+    expect(nodes.map((node) => node.id)).toEqual(["node-1"]);
 
-    const found = await getModule.getNode(
+    const found = await getImported.getNode(
       {
         actorId: "user-1",
         workspaceId: "workspace-1",
@@ -195,14 +250,14 @@ describe("Graph Node use-cases", () => {
   });
 
   it("returns NOT_FOUND before exposing a cross-workspace or cross-Story Node", async () => {
-    const getModule = await loadModule(modulePaths.get);
-    expect(getModule).not.toBeNull();
-    if (!getModule) return;
+    const imported = await loadGraphModule(modulePaths.get);
+    expect(imported?.getNode).toBeTypeOf("function");
+    if (!imported?.getNode) return;
 
     await graph.createNode(nodeFixture({ id: "hidden-node", storyId: "story-2" }));
 
     await expect(
-      getModule.getNode(
+      imported.getNode(
         {
           actorId: "user-1",
           workspaceId: "workspace-2",
@@ -217,13 +272,13 @@ describe("Graph Node use-cases", () => {
   });
 
   it("updates with optimistic locking and returns 409 for a stale version", async () => {
-    const module = await loadModule(modulePaths.update);
-    expect(module).not.toBeNull();
-    if (!module) return;
+    const imported = await loadGraphModule(modulePaths.update);
+    expect(imported?.updateNode).toBeTypeOf("function");
+    if (!imported?.updateNode) return;
 
     await graph.createNode(nodeFixture({ id: "node-1" }));
 
-    const updated = await module.updateNode(
+    const updated = await imported.updateNode(
       {
         actorId: "user-1",
         workspaceId: "workspace-1",
@@ -237,7 +292,7 @@ describe("Graph Node use-cases", () => {
     expect(updated).toMatchObject({ name: "Alice II", version: 2 });
 
     await expect(
-      module.updateNode(
+      imported.updateNode(
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
@@ -252,14 +307,14 @@ describe("Graph Node use-cases", () => {
   });
 
   it("deletes an existing Node and returns NOT_FOUND for an unknown Node", async () => {
-    const module = await loadModule(modulePaths.delete);
-    expect(module).not.toBeNull();
-    if (!module) return;
+    const imported = await loadGraphModule(modulePaths.delete);
+    expect(imported?.deleteNode).toBeTypeOf("function");
+    if (!imported?.deleteNode) return;
 
     await graph.createNode(nodeFixture({ id: "node-1" }));
 
     await expect(
-      module.deleteNode(
+      imported.deleteNode(
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
@@ -273,7 +328,7 @@ describe("Graph Node use-cases", () => {
     expect(await graph.findNodeById("node-1")).toBeNull();
 
     await expect(
-      module.deleteNode(
+      imported.deleteNode(
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
@@ -286,16 +341,16 @@ describe("Graph Node use-cases", () => {
   });
 
   it("propagates workspace authorization failures", async () => {
-    const module = await loadModule(modulePaths.create);
-    expect(module).not.toBeNull();
-    if (!module) return;
+    const imported = await loadGraphModule(modulePaths.create);
+    expect(imported?.createNode).toBeTypeOf("function");
+    if (!imported?.createNode) return;
 
     vi.mocked(access.requireCapability).mockRejectedValueOnce(
       new ApplicationError("FORBIDDEN", 403),
     );
 
     await expect(
-      module.createNode(
+      imported.createNode(
         {
           actorId: "user-2",
           workspaceId: "workspace-1",
