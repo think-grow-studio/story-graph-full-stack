@@ -25,6 +25,7 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: pnpm install --no-frozen-lockfile
+      - run: pnpm check:agents
       - run: pnpm typecheck
       - run: pnpm build
       - name: Commit generated lockfile
@@ -34,6 +35,6 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add pnpm-lock.yaml
-            git commit -m "chore: lock foundation dependencies"
+            git commit -m "chore: refresh foundation lockfile"
             git push origin HEAD:feat/foundation
           fi
