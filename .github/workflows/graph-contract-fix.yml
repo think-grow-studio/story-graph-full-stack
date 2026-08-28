@@ -1,0 +1,76 @@
+name: Graph Contract Fix
+
+on:
+  push:
+    branches:
+      - feat/graph-core
+    paths:
+      - .github/workflows/graph-contract-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/graph-core
+      - name: Apply focused review fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  raise SystemExit(f"expected text not found in {path}: {old!r}")
+              file.write_text(text.replace(old, new))
+
+          replace(
+              "tests/integration/graph/graph-api.integration.ts",
+              "snapshot.snapshot.nodes",
+              "snapshot.nodes",
+          )
+          replace(
+              "tests/integration/graph/graph-api.integration.ts",
+              "snapshot.snapshot.boardNodes",
+              "snapshot.boardNodes",
+          )
+
+          for old, new in [
+              ("firstSnapshot.snapshot.nodes", "firstSnapshot.nodes"),
+              ("firstSnapshot.snapshot.boardNodes", "firstSnapshot.boardNodes"),
+              ("secondSnapshot.snapshot.nodes", "secondSnapshot.nodes"),
+              ("secondSnapshot.snapshot.boardNodes", "secondSnapshot.boardNodes"),
+          ]:
+              replace("tests/e2e/auth-story.spec.ts", old, new)
+
+          replace(
+              "src/backend/infrastructure/openapi/openapi-document.ts",
+              '  const boardEdgeResponse = registry.register("BoardEdgeResponse", boardEdgeResponseSchema);',
+              '  registry.register("BoardEdgeResponse", boardEdgeResponseSchema);',
+          )
+
+          replace(
+              "src/backend/modules/graph/application/board.use-cases.test.ts",
+              'import type {\n  Board,\n  BoardSnapshot,\n  GraphEdge,\n  GraphNode,\n} from "../domain/graph";',
+              'import type { Board, BoardSnapshot } from "../domain/graph";',
+          )
+
+          replace(
+              "src/backend/modules/graph/infrastructure/drizzle-graph.repository.ts",
+              '''function toBoardNode(row: typeof boardNode.$inferSelect): BoardNode {\n  const { storyId: _storyId, ...value } = row;\n  return value;\n}\n\nfunction toBoardEdge(row: typeof boardEdge.$inferSelect): BoardEdge {\n  const { storyId: _storyId, ...value } = row;\n  return value;\n}''',
+              '''function toBoardNode(row: typeof boardNode.$inferSelect): BoardNode {\n  return {\n    boardId: row.boardId,\n    nodeId: row.nodeId,\n    x: row.x,\n    y: row.y,\n    width: row.width,\n    height: row.height,\n    zIndex: row.zIndex,\n    style: row.style,\n    createdAt: row.createdAt,\n    updatedAt: row.updatedAt,\n  };\n}\n\nfunction toBoardEdge(row: typeof boardEdge.$inferSelect): BoardEdge {\n  return {\n    boardId: row.boardId,\n    edgeId: row.edgeId,\n    style: row.style,\n    labelPresentation: row.labelPresentation,\n    createdAt: row.createdAt,\n    updatedAt: row.updatedAt,\n  };\n}''',
+          )
+          PY
+
+          rm .github/workflows/graph-contract-fix.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: align graph snapshot tests and lint"
+          git push origin HEAD:feat/graph-core
