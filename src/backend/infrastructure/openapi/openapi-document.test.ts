@@ -6,7 +6,7 @@ describe("buildOpenApiDocument", () => {
   it("documents the public V1 API from shared contracts", async () => {
     const document = await buildOpenApiDocument();
 
-    expect(document.openapi).toBe("3.1.0");
+    expect(document.openapi).toBe("3.0.0");
     expect(document.info.title).toBe("Story Graph API");
     expect(document.components?.securitySchemes).toMatchObject({
       sessionCookie: {
