@@ -19,9 +19,13 @@ describe("environment schemas", () => {
   });
 
   it("rejects a missing database URL", () => {
-    const { DATABASE_URL: _databaseUrl, ...withoutDatabaseUrl } = validServerEnv;
-
-    expect(() => parseServerEnv(withoutDatabaseUrl)).toThrow();
+    expect(() =>
+      parseServerEnv({
+        NODE_ENV: validServerEnv.NODE_ENV,
+        BETTER_AUTH_SECRET: validServerEnv.BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL: validServerEnv.BETTER_AUTH_URL,
+      }),
+    ).toThrow();
   });
 
   it("rejects a short Better Auth secret", () => {
