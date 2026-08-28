@@ -1,50 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getSession = vi.hoisted(() => vi.fn());
-
-vi.mock("server-only", () => ({}));
-vi.mock("@/backend/infrastructure/auth/auth", () => ({
-  auth: {
-    api: {
-      getSession,
-    },
-  },
-}));
-
+import type { AuthSessionService } from "../../domain/auth-session.service";
 import {
   getCurrentActor,
   requireCurrentActor,
 } from "./get-current-actor";
 
+function createSessionService(): AuthSessionService & {
+  getCurrentActor: ReturnType<typeof vi.fn>;
+} {
+  return {
+    getCurrentActor: vi.fn(),
+  };
+}
+
 describe("getCurrentActor", () => {
+  let session: ReturnType<typeof createSessionService>;
+
   beforeEach(() => {
-    getSession.mockReset();
+    session = createSessionService();
   });
 
-  it("returns null when there is no Better Auth session", async () => {
+  it("returns null when there is no authenticated actor", async () => {
     const headers = new Headers();
-    getSession.mockResolvedValue(null);
+    session.getCurrentActor.mockResolvedValue(null);
 
-    await expect(getCurrentActor(headers)).resolves.toBeNull();
-    expect(getSession).toHaveBeenCalledWith({ headers });
+    await expect(getCurrentActor(headers, { session })).resolves.toBeNull();
+    expect(session.getCurrentActor).toHaveBeenCalledWith(headers);
   });
 
-  it("maps the Better Auth user to the identity Actor", async () => {
+  it("returns the actor supplied by the auth session port", async () => {
     const headers = new Headers({ cookie: "session=example" });
-    getSession.mockResolvedValue({
-      session: { id: "session-1" },
-      user: {
-        id: "user-1",
-        email: "ada@example.com",
-        name: "Ada",
-        image: null,
-        emailVerified: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
+    session.getCurrentActor.mockResolvedValue({
+      id: "user-1",
+      email: "ada@example.com",
+      name: "Ada",
     });
 
-    await expect(getCurrentActor(headers)).resolves.toEqual({
+    await expect(getCurrentActor(headers, { session })).resolves.toEqual({
       id: "user-1",
       email: "ada@example.com",
       name: "Ada",
@@ -53,14 +46,18 @@ describe("getCurrentActor", () => {
 });
 
 describe("requireCurrentActor", () => {
+  let session: ReturnType<typeof createSessionService>;
+
   beforeEach(() => {
-    getSession.mockReset();
+    session = createSessionService();
   });
 
   it("throws UNAUTHORIZED when the request has no session", async () => {
-    getSession.mockResolvedValue(null);
+    session.getCurrentActor.mockResolvedValue(null);
 
-    await expect(requireCurrentActor(new Headers())).rejects.toMatchObject({
+    await expect(
+      requireCurrentActor(new Headers(), { session }),
+    ).rejects.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });
