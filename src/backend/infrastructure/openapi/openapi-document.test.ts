@@ -16,15 +16,18 @@ describe("buildOpenApiDocument", () => {
       },
     });
 
-    expect(document.paths).toHaveProperty("/api/v1/health");
-    expect(document.paths).toHaveProperty("/api/v1/bootstrap");
-    expect(document.paths).toHaveProperty("/api/v1/stories");
-    expect(document.paths).toHaveProperty("/api/v1/stories/{storyId}");
+    expect(document.paths).toBeDefined();
+    const paths = document.paths ?? {};
 
-    expect(document.paths["/api/v1/stories"]?.post).toBeDefined();
-    expect(document.paths["/api/v1/stories"]?.get).toBeDefined();
-    expect(document.paths["/api/v1/stories/{storyId}"]?.get).toBeDefined();
-    expect(document.paths["/api/v1/stories/{storyId}"]?.patch).toBeDefined();
-    expect(document.paths["/api/v1/stories/{storyId}"]?.delete).toBeDefined();
+    expect(paths).toHaveProperty("/api/v1/health");
+    expect(paths).toHaveProperty("/api/v1/bootstrap");
+    expect(paths).toHaveProperty("/api/v1/stories");
+    expect(paths).toHaveProperty("/api/v1/stories/{storyId}");
+
+    expect(paths["/api/v1/stories"]?.post).toBeDefined();
+    expect(paths["/api/v1/stories"]?.get).toBeDefined();
+    expect(paths["/api/v1/stories/{storyId}"]?.get).toBeDefined();
+    expect(paths["/api/v1/stories/{storyId}"]?.patch).toBeDefined();
+    expect(paths["/api/v1/stories/{storyId}"]?.delete).toBeDefined();
   });
 });
