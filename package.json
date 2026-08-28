@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "check:agents": "node scripts/validate-agent-files.mjs"
+    "check:agents": "node scripts/validate-agent-files.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "next": "16.3.3",
@@ -18,12 +20,19 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.6",
     "@types/node": "24.10.1",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.0",
     "eslint": "10.9.1",
     "eslint-config-next": "16.3.3",
+    "jsdom": "30.0.1",
     "tailwindcss": "4.3.3",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite-tsconfig-paths": "6.1.1",
+    "vitest": "4.1.10"
   }
 }
