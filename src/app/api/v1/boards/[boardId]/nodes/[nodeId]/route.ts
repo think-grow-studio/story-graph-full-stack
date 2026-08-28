@@ -9,10 +9,10 @@ import {
   updateBoardNodeRequestSchema,
   workspaceQuerySchema,
 } from "@/contracts/graph/graph.contract";
-import { graphDependencies } from "../../../_shared/graph-dependencies";
-import { toBoardNodeResponse } from "../../../_shared/graph-http";
-import { identityDependencies } from "../../../_shared/identity-dependencies";
-import { routeErrorResponse } from "../../../_shared/route-error";
+import { graphDependencies } from "../../../../_shared/graph-dependencies";
+import { toBoardNodeResponse } from "../../../../_shared/graph-http";
+import { identityDependencies } from "../../../../_shared/identity-dependencies";
+import { routeErrorResponse } from "../../../../_shared/route-error";
 
 export async function PATCH(
   request: Request,
