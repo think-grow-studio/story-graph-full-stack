@@ -12,6 +12,7 @@ import {
   listStoriesResponseSchema,
   storyResponseSchema,
 } from "@/contracts/story/story.contract";
+import { identityDependencies } from "../_shared/identity-dependencies";
 import { routeErrorResponse } from "../_shared/route-error";
 
 const dependencies = {
@@ -29,7 +30,7 @@ function toResponse(story: Story) {
 
 export async function GET(request: Request) {
   try {
-    const actor = await requireCurrentActor(request.headers);
+    const actor = await requireCurrentActor(request.headers, identityDependencies);
     const query = listStoriesQuerySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams.entries()),
     );
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const actor = await requireCurrentActor(request.headers);
+    const actor = await requireCurrentActor(request.headers, identityDependencies);
     const body = createStoryRequestSchema.parse(await request.json());
     const story = await createStory(
       {
