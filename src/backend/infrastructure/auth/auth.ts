@@ -2,11 +2,12 @@ import "server-only";
 
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { organization } from "better-auth/plugins";
 
-import { serverEnv } from "@/config/env.server";
 import { db } from "@/backend/infrastructure/database/client";
 import * as schema from "@/backend/infrastructure/database/schema";
+import { serverEnv } from "@/config/env.server";
+
+import { authEmailAndPassword, createAuthPlugins } from "./auth-options";
 
 export const auth = betterAuth({
   appName: "Story Graph",
@@ -16,8 +17,6 @@ export const auth = betterAuth({
     provider: "pg",
     schema,
   }),
-  emailAndPassword: {
-    enabled: true,
-  },
-  plugins: [organization()],
+  emailAndPassword: authEmailAndPassword,
+  plugins: createAuthPlugins(),
 });
