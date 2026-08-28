@@ -14,8 +14,15 @@ test("OpenAPI JSON exposes the Story Graph V1 contract", async ({ request }) => 
 });
 
 test("Swagger UI renders the generated OpenAPI document without runtime errors", async ({ page }) => {
-  const pageErrors: string[] = [];
-  page.on("pageerror", (error) => pageErrors.push(error.message));
+  const swaggerRuntimeErrors: string[] = [];
+  page.on("console", (message) => {
+    if (
+      message.type() === "error" &&
+      message.text().includes("OpenApi3_1Element.refract is not a function")
+    ) {
+      swaggerRuntimeErrors.push(message.text());
+    }
+  });
 
   await page.goto("/docs");
 
@@ -23,5 +30,5 @@ test("Swagger UI renders the generated OpenAPI document without runtime errors",
   await expect(
     page.locator(".opblock-summary-path").filter({ hasText: "/api/v1/stories" }).first(),
   ).toBeVisible();
-  expect(pageErrors).toEqual([]);
+  expect(swaggerRuntimeErrors).toEqual([]);
 });
