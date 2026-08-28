@@ -14,14 +14,15 @@ test("OpenAPI JSON exposes the Story Graph V1 contract", async ({ request }) => 
 });
 
 test("Swagger UI renders the generated OpenAPI document without runtime errors", async ({ page }) => {
-  const swaggerRuntimeErrors: string[] = [];
-  page.on("console", (message) => {
-    if (
-      message.type() === "error" &&
-      message.text().includes("OpenApi3_1Element.refract is not a function")
-    ) {
-      swaggerRuntimeErrors.push(message.text());
-    }
+  await page.addInitScript(() => {
+    const runtimeWindow = window as typeof window & { __swaggerConsoleErrors?: string[] };
+    runtimeWindow.__swaggerConsoleErrors = [];
+    const originalConsoleError = console.error.bind(console);
+
+    console.error = (...args: unknown[]) => {
+      runtimeWindow.__swaggerConsoleErrors?.push(args.map(String).join(" "));
+      originalConsoleError(...args);
+    };
   });
 
   await page.goto("/docs");
@@ -30,5 +31,12 @@ test("Swagger UI renders the generated OpenAPI document without runtime errors",
   await expect(
     page.locator(".opblock-summary-path").filter({ hasText: "/api/v1/stories" }).first(),
   ).toBeVisible();
+
+  const swaggerRuntimeErrors = await page.evaluate(() => {
+    const runtimeWindow = window as typeof window & { __swaggerConsoleErrors?: string[] };
+    return (runtimeWindow.__swaggerConsoleErrors ?? []).filter((message) =>
+      message.includes("OpenApi3_1Element.refract is not a function"),
+    );
+  });
   expect(swaggerRuntimeErrors).toEqual([]);
 });
