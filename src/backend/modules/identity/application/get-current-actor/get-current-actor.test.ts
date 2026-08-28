@@ -6,11 +6,9 @@ import {
   requireCurrentActor,
 } from "./get-current-actor";
 
-function createSessionService(): AuthSessionService & {
-  getCurrentActor: ReturnType<typeof vi.fn>;
-} {
+function createSessionService() {
   return {
-    getCurrentActor: vi.fn(),
+    getCurrentActor: vi.fn<AuthSessionService["getCurrentActor"]>(),
   };
 }
 
