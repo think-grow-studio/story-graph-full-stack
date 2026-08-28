@@ -2,16 +2,31 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { StoryResponse } from "@/contracts/story/story.contract";
 
-import { createStory, listStories } from "./story.api";
+import { createStory, getStory, listStories } from "./story.api";
 
 export const storyQueryKeys = {
   list: (workspaceId: string) => ["stories", workspaceId] as const,
+  detail: (workspaceId: string, storyId: string) =>
+    ["stories", workspaceId, storyId] as const,
 };
 
 export function useStoriesQuery(workspaceId: string | undefined) {
   return useQuery({
     queryKey: workspaceId ? storyQueryKeys.list(workspaceId) : ["stories", "pending"],
     queryFn: () => listStories(workspaceId!),
+    enabled: Boolean(workspaceId),
+  });
+}
+
+export function useStoryQuery(
+  workspaceId: string | undefined,
+  storyId: string,
+) {
+  return useQuery({
+    queryKey: workspaceId
+      ? storyQueryKeys.detail(workspaceId, storyId)
+      : ["stories", "pending", storyId],
+    queryFn: () => getStory(workspaceId!, storyId),
     enabled: Boolean(workspaceId),
   });
 }
