@@ -12,7 +12,9 @@
     "check:agents": "node scripts/validate-agent-files.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "check": "pnpm check:agents && pnpm lint && pnpm typecheck && pnpm test",
+    "ci": "pnpm check && pnpm build && pnpm e2e"
   },
   "dependencies": {
     "@tanstack/react-query": "5.102.3",
