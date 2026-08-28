@@ -3,7 +3,7 @@
 import {
   createContext,
   useContext,
-  useRef,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -17,13 +17,10 @@ import type { GraphEditorState } from "../model/editor-types";
 const GraphEditorStoreContext = createContext<GraphEditorStore | null>(null);
 
 export function GraphEditorStoreProvider({ children }: { children: ReactNode }) {
-  const storeRef = useRef<GraphEditorStore | null>(null);
-  if (!storeRef.current) {
-    storeRef.current = createGraphEditorStore();
-  }
+  const [store] = useState(createGraphEditorStore);
 
   return (
-    <GraphEditorStoreContext.Provider value={storeRef.current}>
+    <GraphEditorStoreContext.Provider value={store}>
       {children}
     </GraphEditorStoreContext.Provider>
   );
