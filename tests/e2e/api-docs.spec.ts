@@ -13,11 +13,15 @@ test("OpenAPI JSON exposes the Story Graph V1 contract", async ({ request }) => 
   expect(document.paths).toHaveProperty("/api/v1/stories/{storyId}");
 });
 
-test("Swagger UI renders the generated OpenAPI document", async ({ page }) => {
+test("Swagger UI renders the generated OpenAPI document without runtime errors", async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
   await page.goto("/docs");
 
   await expect(page.locator(".info .title")).toContainText("Story Graph API");
   await expect(
     page.locator(".opblock-summary-path").filter({ hasText: "/api/v1/stories" }).first(),
   ).toBeVisible();
+  expect(pageErrors).toEqual([]);
 });
