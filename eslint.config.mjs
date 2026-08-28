@@ -13,8 +13,12 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              group: ["@/backend/**", "drizzle-orm", "drizzle-orm/**"],
+              regex: "^(?:@/backend(?:/|$)|\\..*/backend(?:/|$))",
               message: "Frontend must use frontend/api and /api/v1 contracts.",
+            },
+            {
+              group: ["drizzle-orm", "drizzle-orm/**"],
+              message: "Frontend must not import Drizzle directly.",
             },
           ],
         },
@@ -29,7 +33,7 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              group: ["@/frontend/**"],
+              regex: "^(?:@/frontend(?:/|$)|\\..*/frontend(?:/|$))",
               message: "Backend must not depend on frontend implementation.",
             },
           ],
@@ -45,8 +49,12 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              group: ["@/frontend/**", "@/backend/**", "@/app/**", "react", "react/**"],
+              regex: "^(?:@/(?:frontend|backend|app)(?:/|$)|\\..*/(?:frontend|backend|app)(?:/|$))",
               message: "Contracts may contain only transport schemas/types and contract-local helpers.",
+            },
+            {
+              group: ["react", "react/**"],
+              message: "Contracts must not depend on React.",
             },
           ],
         },
@@ -61,8 +69,12 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              group: ["@/backend/**", "drizzle-orm", "drizzle-orm/**"],
+              regex: "^(?:@/backend(?:/|$)|\\..*/backend(?:/|$))",
               message: "Pages/layouts must not bypass the HTTP application boundary.",
+            },
+            {
+              group: ["drizzle-orm", "drizzle-orm/**"],
+              message: "Pages/layouts must not access Drizzle directly.",
             },
           ],
         },
