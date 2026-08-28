@@ -35,10 +35,12 @@ test("authenticated users cannot manage the hidden Workspace through Better Auth
     const bootstrapResponse = await context.request.get("/api/v1/bootstrap");
     expect(bootstrapResponse.status()).toBe(200);
     const bootstrap = await bootstrapResponse.json();
+    const sameOriginHeaders = { origin: "http://localhost:3000" };
 
     const createResponse = await context.request.post(
       "/api/auth/organization/create",
       {
+        headers: sameOriginHeaders,
         data: {
           name: "Rogue Workspace",
           slug: `rogue-${crypto.randomUUID()}`,
@@ -49,6 +51,7 @@ test("authenticated users cannot manage the hidden Workspace through Better Auth
     const updateResponse = await context.request.post(
       "/api/auth/organization/update",
       {
+        headers: sameOriginHeaders,
         data: {
           organizationId: bootstrap.workspace.id,
           data: {
@@ -61,6 +64,7 @@ test("authenticated users cannot manage the hidden Workspace through Better Auth
     const deleteResponse = await context.request.post(
       "/api/auth/organization/delete",
       {
+        headers: sameOriginHeaders,
         data: {
           organizationId: bootstrap.workspace.id,
         },
