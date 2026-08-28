@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { BoardResponse } from "@/contracts/graph/graph.contract";
+import type {
+  BoardResponse,
+  BoardSnapshotResponse,
+  GraphEdgeResponse,
+  GraphNodeResponse,
+} from "@/contracts/graph/graph.contract";
 
 import {
   createBoard,
@@ -79,14 +84,66 @@ export function useCreateEdgeOnBoardMutation() {
   return useMutation({ mutationFn: createEdgeOnBoard });
 }
 
-export function useUpdateNodeMutation() {
-  return useMutation({ mutationFn: (input: UpdateNodeInput) => updateNode(input) });
+export function useUpdateNodeMutation(
+  workspaceId: string | undefined,
+  boardId: string,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateNodeInput) => updateNode(input),
+    onSuccess: (node) => {
+      if (!workspaceId) return;
+      queryClient.setQueryData<BoardSnapshotResponse>(
+        graphQueryKeys.snapshot(workspaceId, boardId),
+        (current) => replaceSnapshotNode(current, node),
+      );
+    },
+  });
 }
 
-export function useUpdateEdgeMutation() {
-  return useMutation({ mutationFn: (input: UpdateEdgeInput) => updateEdge(input) });
+export function useUpdateEdgeMutation(
+  workspaceId: string | undefined,
+  boardId: string,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateEdgeInput) => updateEdge(input),
+    onSuccess: (edge) => {
+      if (!workspaceId) return;
+      queryClient.setQueryData<BoardSnapshotResponse>(
+        graphQueryKeys.snapshot(workspaceId, boardId),
+        (current) => replaceSnapshotEdge(current, edge),
+      );
+    },
+  });
 }
 
 export function useUpdateBoardNodeMutation() {
   return useMutation({ mutationFn: updateBoardNode });
+}
+
+function replaceSnapshotNode(
+  current: BoardSnapshotResponse | undefined,
+  node: GraphNodeResponse,
+): BoardSnapshotResponse | undefined {
+  if (!current) return current;
+  return {
+    ...current,
+    nodes: current.nodes.map((candidate) =>
+      candidate.id === node.id ? node : candidate,
+    ),
+  };
+}
+
+function replaceSnapshotEdge(
+  current: BoardSnapshotResponse | undefined,
+  edge: GraphEdgeResponse,
+): BoardSnapshotResponse | undefined {
+  if (!current) return current;
+  return {
+    ...current,
+    edges: current.edges.map((candidate) =>
+      candidate.id === edge.id ? edge : candidate,
+    ),
+  };
 }
