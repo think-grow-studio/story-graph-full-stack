@@ -1,6 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type {
+  GraphEditorEdgePair,
   GraphEditorNodePair,
   GraphEditorState,
 } from "../model/editor-types";
@@ -46,6 +47,13 @@ export function createGraphEditorStore(): GraphEditorStore {
           boardNode,
         ],
       })),
+    addOptimisticEdge: (input) => set((state) => upsertEdgePair(state, input)),
+    reconcileEdge: (input) => set((state) => upsertEdgePair(state, input)),
+    removeEdge: (edgeId) =>
+      set((state) => ({
+        edges: state.edges.filter((edge) => edge.id !== edgeId),
+        boardEdges: state.boardEdges.filter((boardEdge) => boardEdge.edgeId !== edgeId),
+      })),
   }));
 }
 
@@ -63,6 +71,22 @@ function upsertNodePair(
         (boardNode) => boardNode.nodeId !== input.boardNode.nodeId,
       ),
       input.boardNode,
+    ],
+  };
+}
+
+function upsertEdgePair(
+  state: GraphEditorState,
+  input: GraphEditorEdgePair,
+): Pick<GraphEditorState, "edges" | "boardEdges"> {
+  return {
+    edges: [
+      ...state.edges.filter((edge) => edge.id !== input.edge.id),
+      input.edge,
+    ],
+    boardEdges: [
+      ...state.boardEdges.filter((boardEdge) => boardEdge.edgeId !== input.boardEdge.edgeId),
+      input.boardEdge,
     ],
   };
 }
