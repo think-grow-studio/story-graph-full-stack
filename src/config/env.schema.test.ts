@@ -7,6 +7,8 @@ const validServerEnv = {
   DATABASE_URL: "postgresql://story_graph:story_graph@localhost:5432/story_graph",
   BETTER_AUTH_SECRET: "01234567890123456789012345678901",
   BETTER_AUTH_URL: "http://localhost:3000",
+  GOOGLE_CLIENT_ID: "test-google-client-id",
+  GOOGLE_CLIENT_SECRET: "test-google-client-secret",
 } as const;
 
 describe("environment schemas", () => {
@@ -21,9 +23,8 @@ describe("environment schemas", () => {
   it("rejects a missing database URL", () => {
     expect(() =>
       parseServerEnv({
-        NODE_ENV: validServerEnv.NODE_ENV,
-        BETTER_AUTH_SECRET: validServerEnv.BETTER_AUTH_SECRET,
-        BETTER_AUTH_URL: validServerEnv.BETTER_AUTH_URL,
+        ...validServerEnv,
+        DATABASE_URL: undefined,
       }),
     ).toThrow();
   });
@@ -31,6 +32,15 @@ describe("environment schemas", () => {
   it("rejects a short Better Auth secret", () => {
     expect(() =>
       parseServerEnv({ ...validServerEnv, BETTER_AUTH_SECRET: "too-short" }),
+    ).toThrow();
+  });
+
+  it("requires Google OAuth credentials", () => {
+    expect(() =>
+      parseServerEnv({ ...validServerEnv, GOOGLE_CLIENT_ID: undefined }),
+    ).toThrow();
+    expect(() =>
+      parseServerEnv({ ...validServerEnv, GOOGLE_CLIENT_SECRET: undefined }),
     ).toThrow();
   });
 
