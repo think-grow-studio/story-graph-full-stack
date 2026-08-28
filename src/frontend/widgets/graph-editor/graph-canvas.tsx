@@ -6,6 +6,7 @@ import {
   ReactFlow,
   type Edge,
   type Node,
+  type OnConnect,
   type OnNodeDrag,
   type ReactFlowInstance,
 } from "@xyflow/react";
@@ -52,6 +53,7 @@ export function GraphCanvas({
   edges = [],
   onNodePositionChange,
   onNodeDragStop,
+  onConnectNodes,
   ref,
 }: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +73,7 @@ export function GraphCanvas({
         id: edge.id,
         source: edge.sourceNodeId,
         target: edge.targetNodeId,
+        label: edge.name,
       })),
     [edges],
   );
@@ -104,6 +107,11 @@ export function GraphCanvas({
     onNodeDragStop(node.id);
   };
 
+  const handleConnect: OnConnect = (connection) => {
+    if (!connection.source || !connection.target) return;
+    onConnectNodes(connection.source, connection.target);
+  };
+
   return (
     <div
       aria-label="Graph canvas"
@@ -114,6 +122,7 @@ export function GraphCanvas({
         edges={flowEdges}
         fitView
         nodes={flowNodes}
+        onConnect={handleConnect}
         onInit={(instance) => {
           instanceRef.current = instance;
         }}
