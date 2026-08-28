@@ -21,13 +21,13 @@ export async function removeEdgeFromBoard(
     throw new ApplicationError("NOT_FOUND", 404, "Board edge not found");
   }
 
-  const edge = await dependencies.graph.findEdge(input.edgeId);
-  if (!edge || edge.storyId !== board.storyId) {
+  const story = await dependencies.stories.findById(board.storyId);
+  if (!story || story.workspaceId !== input.workspaceId) {
     throw new ApplicationError("NOT_FOUND", 404, "Board edge not found");
   }
 
-  const story = await dependencies.stories.findById(board.storyId);
-  if (!story || story.workspaceId !== input.workspaceId) {
+  const edge = await dependencies.graph.findEdge(input.edgeId);
+  if (!edge || edge.storyId !== board.storyId) {
     throw new ApplicationError("NOT_FOUND", 404, "Board edge not found");
   }
 
