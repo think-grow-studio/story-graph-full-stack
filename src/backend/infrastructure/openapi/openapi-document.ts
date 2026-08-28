@@ -1,6 +1,6 @@
 import {
   OpenAPIRegistry,
-  OpenApiGeneratorV31,
+  OpenApiGeneratorV3,
   extendZodWithOpenApi,
 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
@@ -150,9 +150,9 @@ export async function buildOpenApiDocument() {
     },
   });
 
-  const generator = new OpenApiGeneratorV31(registry.definitions);
+  const generator = new OpenApiGeneratorV3(registry.definitions);
   return generator.generateDocument({
-    openapi: "3.1.0",
+    openapi: "3.0.0",
     info: {
       title: "Story Graph API",
       version: "1.0.0",
