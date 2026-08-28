@@ -1,12 +1,7 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
+import { useStore } from "zustand";
 
 import {
   createGraphEditorStore,
@@ -37,10 +32,5 @@ export function useGraphEditorStoreApi() {
 export function useGraphEditorStore<T>(
   selector: (state: GraphEditorState) => T,
 ): T {
-  const store = useGraphEditorStoreApi();
-  return useSyncExternalStore(
-    store.subscribe,
-    () => selector(store.getState()),
-    () => selector(store.getState()),
-  );
+  return useStore(useGraphEditorStoreApi(), selector);
 }
