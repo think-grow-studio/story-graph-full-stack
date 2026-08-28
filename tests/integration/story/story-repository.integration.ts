@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { auth } from "@/backend/infrastructure/auth/auth";
 import { db } from "@/backend/infrastructure/database/client";
 import { organization, user } from "@/backend/infrastructure/database/schema";
 import type { Story } from "@/backend/modules/story/domain/story";
@@ -11,22 +10,17 @@ import { DrizzleStoryRepository } from "@/backend/modules/story/infrastructure/d
 import { ensurePersonalWorkspace } from "@/backend/modules/workspace/application/ensure-personal-workspace/ensure-personal-workspace";
 import { BetterAuthWorkspaceProvisioner } from "@/backend/modules/workspace/infrastructure/better-auth-workspace-provisioner";
 import { DrizzleWorkspaceAccessService } from "@/backend/modules/workspace/infrastructure/drizzle-workspace-access.service";
+import { createTestIdentity } from "../../helpers/test-auth";
 
 const createdUserIds: string[] = [];
 const createdOrganizationIds: string[] = [];
 
 async function createWorkspace() {
-  const result = await auth.api.signUpEmail({
-    body: {
-      email: `story-repository-${crypto.randomUUID()}@example.com`,
-      password: "Password123!",
-      name: "Story Owner",
-    },
-  });
-  createdUserIds.push(result.user.id);
+  const identity = await createTestIdentity("Story Owner");
+  createdUserIds.push(identity.user.id);
 
   const workspace = await ensurePersonalWorkspace(
-    { userId: result.user.id, userName: result.user.name },
+    { userId: identity.user.id, userName: identity.user.name },
     {
       access: new DrizzleWorkspaceAccessService(),
       provisioner: new BetterAuthWorkspaceProvisioner(),
