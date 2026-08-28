@@ -1,12 +1,45 @@
 import { NextResponse } from "next/server";
 
-import { requireCurrentActor } from "@/backend/modules/identity/application/get-current-actor/get-current-actor";
 import { createBoard } from "@/backend/modules/graph/application/create-board/create-board";
-import { createBoardRequestSchema, graphIdSchema } from "@/contracts/graph/graph.contract";
+import { listBoards } from "@/backend/modules/graph/application/list-boards/list-boards";
+import { requireCurrentActor } from "@/backend/modules/identity/application/get-current-actor/get-current-actor";
+import {
+  createBoardRequestSchema,
+  graphIdSchema,
+  listBoardsResponseSchema,
+  workspaceQuerySchema,
+} from "@/contracts/graph/graph.contract";
 import { graphDependencies } from "../../../_shared/graph-dependencies";
 import { toBoardResponse } from "../../../_shared/graph-http";
 import { identityDependencies } from "../../../_shared/identity-dependencies";
 import { routeErrorResponse } from "../../../_shared/route-error";
+
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ storyId: string }> },
+) {
+  try {
+    const actor = await requireCurrentActor(request.headers, identityDependencies);
+    const { storyId } = await context.params;
+    const validatedStoryId = graphIdSchema.parse(storyId);
+    const query = workspaceQuerySchema.parse(
+      Object.fromEntries(new URL(request.url).searchParams.entries()),
+    );
+    const boards = await listBoards(
+      {
+        actorId: actor.id,
+        workspaceId: query.workspaceId,
+        storyId: validatedStoryId,
+      },
+      graphDependencies,
+    );
+    return NextResponse.json(
+      listBoardsResponseSchema.parse({ boards: boards.map(toBoardResponse) }),
+    );
+  } catch (error) {
+    return routeErrorResponse(error);
+  }
+}
 
 export async function POST(
   request: Request,
