@@ -16,6 +16,44 @@ const graphRepositoryModulePath = "@/backend/modules/graph/infrastructure/drizzl
 const createdUserIds: string[] = [];
 const createdOrganizationIds: string[] = [];
 
+type TestGraphNode = {
+  id: string;
+  storyId: string;
+  name: string;
+  description: string;
+  iconKey: string | null;
+  properties: Record<string, unknown>;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type UpdateNodeInput = {
+  id: string;
+  expectedVersion: number;
+  name?: string;
+  description?: string;
+  iconKey?: string | null;
+  properties?: Record<string, unknown>;
+};
+
+type UpdateNodeResult =
+  | { kind: "updated"; node: TestGraphNode }
+  | { kind: "conflict" }
+  | { kind: "not-found" };
+
+interface GraphNodeRepositoryUnderTest {
+  createNode(node: TestGraphNode): Promise<TestGraphNode>;
+  findNodeById(id: string): Promise<TestGraphNode | null>;
+  listNodesByStory(storyId: string): Promise<TestGraphNode[]>;
+  updateNode(input: UpdateNodeInput): Promise<UpdateNodeResult>;
+  deleteNode(id: string): Promise<boolean>;
+}
+
+type GraphRepositoryModule = {
+  DrizzleGraphRepository: new () => GraphNodeRepositoryUnderTest;
+};
+
 async function createStory() {
   const identity = await createTestIdentity("Graph Owner");
   createdUserIds.push(identity.user.id);
@@ -42,7 +80,7 @@ async function createStory() {
   return story;
 }
 
-function nodeFixture(storyId: string, overrides: Record<string, unknown> = {}) {
+function nodeFixture(storyId: string, overrides: Partial<TestGraphNode> = {}): TestGraphNode {
   const now = new Date();
   return {
     id: crypto.randomUUID(),
@@ -69,14 +107,14 @@ afterEach(async () => {
 
 describe("DrizzleGraphRepository nodes", () => {
   it("creates, lists, reads, version-updates, and deletes canonical Nodes", async () => {
-    const module = await vi
-      .importActual<Record<string, new () => any>>(graphRepositoryModulePath)
+    const imported = await vi
+      .importActual<GraphRepositoryModule>(graphRepositoryModulePath)
       .catch(() => null);
-    expect(module).not.toBeNull();
-    if (!module) return;
+    expect(imported?.DrizzleGraphRepository).toBeTypeOf("function");
+    if (!imported?.DrizzleGraphRepository) return;
 
     const story = await createStory();
-    const repository = new module.DrizzleGraphRepository();
+    const repository = new imported.DrizzleGraphRepository();
     const first = nodeFixture(story.id, { id: crypto.randomUUID() });
     const second = nodeFixture(story.id, { id: crypto.randomUUID(), name: "Bob" });
 
