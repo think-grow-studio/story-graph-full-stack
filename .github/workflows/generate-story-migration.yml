@@ -1,0 +1,44 @@
+name: Generate Story Migration
+
+on:
+  pull_request:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate migration
+        run: pnpm exec drizzle-kit generate --name=story-foundation
+
+      - name: Print generated migration
+        run: |
+          echo '=== GENERATED FILES ==='
+          find drizzle -maxdepth 2 -type f -print | sort
+          echo '=== SQL ==='
+          cat drizzle/0001_story-foundation.sql
+          echo '=== JOURNAL ==='
+          cat drizzle/meta/_journal.json
+          echo '=== SNAPSHOT BASE64 ==='
+          base64 -w0 drizzle/meta/0001_snapshot.json
+          echo
