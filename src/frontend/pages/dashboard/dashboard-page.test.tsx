@@ -60,11 +60,12 @@ afterEach(() => {
 });
 
 describe("DashboardPage", () => {
-  it("shows the personal workspace and Stories after bootstrap", async () => {
+  it("shows the personal workspace and links Stories to their detail page", async () => {
     renderDashboard();
 
     expect(await screen.findByRole("heading", { name: "Google User's Workspace" })).toBeInTheDocument();
-    expect(await screen.findByText("Existing Story")).toBeInTheDocument();
+    const storyLink = await screen.findByRole("link", { name: "Existing Story" });
+    expect(storyLink).toHaveAttribute("href", "/stories/story-1");
     expect(mocks.listStories).toHaveBeenCalledWith("workspace-1");
   });
 
