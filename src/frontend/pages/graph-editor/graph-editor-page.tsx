@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
 import {
@@ -14,7 +19,10 @@ import {
   useGraphEditorStore,
   useGraphEditorStoreApi,
 } from "@/frontend/features/graph-editor/store/graph-editor-store-provider";
-import { GraphCanvas } from "@/frontend/widgets/graph-editor/graph-canvas";
+import {
+  GraphCanvas,
+  type GraphCanvasHandle,
+} from "@/frontend/widgets/graph-editor/graph-canvas";
 
 export function GraphEditorPage({
   storyId,
@@ -39,6 +47,9 @@ function GraphEditorContent({
 }) {
   const [createError, setCreateError] = useState<string | null>(null);
   const [positionError, setPositionError] = useState<string | null>(null);
+  const [isNodeFormOpen, setNodeFormOpen] = useState(false);
+  const [nodeName, setNodeName] = useState("");
+  const canvasRef = useRef<GraphCanvasHandle>(null);
   const bootstrap = useBootstrapQuery();
   const workspaceId = bootstrap.data?.workspace.id;
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
@@ -53,17 +64,21 @@ function GraphEditorContent({
     }
   }, [snapshot.data, store]);
 
-  async function handleCreateNode() {
+  async function handleCreateNode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     if (!workspaceId || !snapshot.data) return;
+
+    const name = nodeName.trim();
+    if (!name) return;
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const position = { x: 40, y: 40 };
+    const position = canvasRef.current?.getCenterPosition() ?? { x: 0, y: 0 };
     const optimistic = {
       node: {
         id,
         storyId: snapshot.data.story.id,
-        name: "New Node",
+        name,
         description: "",
         iconKey: null,
         properties: {},
@@ -93,10 +108,12 @@ function GraphEditorContent({
         boardId,
         workspaceId,
         id,
-        name: "New Node",
+        name,
         position,
       });
       store.getState().reconcileNode(persisted);
+      setNodeName("");
+      setNodeFormOpen(false);
     } catch {
       store.getState().removeNode(id);
       setCreateError("Unable to create Node.");
@@ -162,7 +179,7 @@ function GraphEditorContent({
   }));
 
   return (
-    <main className="grid min-h-screen grid-rows-[auto_1fr] gap-4 p-6">
+    <main className="grid min-h-screen grid-rows-[auto_auto_1fr] gap-4 p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Link
@@ -177,23 +194,66 @@ function GraphEditorContent({
         <button
           className="rounded-md bg-neutral-900 px-4 py-2 font-medium text-white disabled:opacity-50"
           disabled={createNode.isPending}
-          onClick={handleCreateNode}
+          onClick={() => {
+            setCreateError(null);
+            setNodeFormOpen(true);
+          }}
           type="button"
         >
           + Node
         </button>
       </header>
 
-      {createError ? <p className="text-sm text-red-600">{createError}</p> : null}
-      {positionError ? (
-        <p className="text-sm text-red-600">{positionError}</p>
-      ) : null}
+      <div className="grid gap-2">
+        {isNodeFormOpen ? (
+          <form
+            className="flex max-w-md gap-2 rounded-lg border border-neutral-200 bg-white p-3"
+            onSubmit={handleCreateNode}
+          >
+            <label className="sr-only" htmlFor="node-name">
+              Node name
+            </label>
+            <input
+              autoFocus
+              className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2"
+              id="node-name"
+              onChange={(event) => setNodeName(event.target.value)}
+              placeholder="Node name"
+              value={nodeName}
+            />
+            <button
+              className="rounded-md bg-neutral-900 px-3 py-2 font-medium text-white disabled:opacity-50"
+              disabled={createNode.isPending || !nodeName.trim()}
+              type="submit"
+            >
+              {createNode.isPending ? "Creating..." : "Create Node"}
+            </button>
+            <button
+              className="rounded-md border border-neutral-300 px-3 py-2"
+              disabled={createNode.isPending}
+              onClick={() => {
+                setNodeName("");
+                setNodeFormOpen(false);
+                setCreateError(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+          </form>
+        ) : null}
+        {createError ? <p className="text-sm text-red-600">{createError}</p> : null}
+        {positionError ? (
+          <p className="text-sm text-red-600">{positionError}</p>
+        ) : null}
+      </div>
 
       <GraphCanvas
         edges={canvasEdges}
         nodes={canvasNodes}
         onNodeDragStop={handleNodeDragStop}
         onNodePositionChange={handleNodePositionChange}
+        ref={canvasRef}
       />
     </main>
   );
