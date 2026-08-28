@@ -47,6 +47,31 @@ const snapshot = {
   boardEdges: [],
 };
 
+const optimisticNode = {
+  id: "44444444-4444-4444-8444-444444444444",
+  storyId: "11111111-1111-4111-8111-111111111111",
+  name: "New Node",
+  description: "",
+  iconKey: null,
+  properties: {},
+  version: 1,
+  createdAt: "2026-08-28T00:00:00.000Z",
+  updatedAt: "2026-08-28T00:00:00.000Z",
+};
+
+const optimisticBoardNode = {
+  boardId: "22222222-2222-4222-8222-222222222222",
+  nodeId: optimisticNode.id,
+  x: 40,
+  y: 40,
+  width: null,
+  height: null,
+  zIndex: 0,
+  style: {},
+  createdAt: "2026-08-28T00:00:00.000Z",
+  updatedAt: "2026-08-28T00:00:00.000Z",
+};
+
 describe("graph editor store", () => {
   it("hydrates canonical graph data separately from Board presentation", () => {
     const store = createGraphEditorStore();
@@ -85,5 +110,51 @@ describe("graph editor store", () => {
       properties: { role: "lead" },
       version: 1,
     });
+  });
+
+  it("adds, reconciles, and removes one optimistic Node without duplicating truth", () => {
+    const store = createGraphEditorStore();
+    store.getState().hydrate(snapshot);
+
+    store.getState().addOptimisticNode({
+      node: optimisticNode,
+      boardNode: optimisticBoardNode,
+    });
+
+    expect(store.getState().nodes).toHaveLength(2);
+    expect(store.getState().boardNodes).toHaveLength(2);
+
+    store.getState().reconcileNode({
+      node: { ...optimisticNode, name: "Bob", version: 2 },
+      boardNode: { ...optimisticBoardNode, x: 60, y: 70 },
+    });
+
+    expect(store.getState().nodes.filter((node) => node.id === optimisticNode.id)).toEqual([
+      expect.objectContaining({ name: "Bob", version: 2 }),
+    ]);
+    expect(
+      store.getState().boardNodes.filter((boardNode) => boardNode.nodeId === optimisticNode.id),
+    ).toEqual([expect.objectContaining({ x: 60, y: 70 })]);
+
+    store.getState().removeNode(optimisticNode.id);
+
+    expect(store.getState().nodes.some((node) => node.id === optimisticNode.id)).toBe(false);
+    expect(
+      store.getState().boardNodes.some((boardNode) => boardNode.nodeId === optimisticNode.id),
+    ).toBe(false);
+  });
+
+  it("replaces one persisted BoardNode without changing canonical data", () => {
+    const store = createGraphEditorStore();
+    store.getState().hydrate(snapshot);
+
+    store.getState().replaceBoardNode({
+      ...snapshot.boardNodes[0],
+      x: 320,
+      y: 220,
+    });
+
+    expect(store.getState().boardNodes[0]).toMatchObject({ x: 320, y: 220 });
+    expect(store.getState().nodes[0]).toMatchObject({ name: "Alice", version: 1 });
   });
 });
