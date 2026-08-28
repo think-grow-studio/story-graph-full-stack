@@ -14,6 +14,18 @@ const violations = [
       'import { getHealth } from "../backend/modules/system/application/get-health/get-health.use-case";\nexport const violation = getHealth;\n',
     label: "frontend relative import of backend",
   },
+  {
+    path: "src/frontend/__architecture_dynamic_violation__.ts",
+    source:
+      'export const loadBackend = () => import("@/backend/modules/system/application/get-health/get-health.use-case");\n',
+    label: "frontend dynamic import of backend",
+  },
+  {
+    path: "src/frontend/__architecture_require_violation__.ts",
+    source:
+      'export const backend = require("@/backend/modules/system/application/get-health/get-health.use-case");\n',
+    label: "frontend require of backend",
+  },
 ];
 
 function runEslint(path) {
