@@ -48,6 +48,7 @@ function GraphEditorContent({
 }) {
   const [createError, setCreateError] = useState<string | null>(null);
   const [positionError, setPositionError] = useState<string | null>(null);
+  const [relationshipError, setRelationshipError] = useState<string | null>(null);
   const [isNodeFormOpen, setNodeFormOpen] = useState(false);
   const [nodeName, setNodeName] = useState("");
   const [pendingConnection, setPendingConnection] = useState<{
@@ -130,6 +131,7 @@ function GraphEditorContent({
   function handleConnectNodes(sourceNodeId: string, targetNodeId: string) {
     setPendingConnection({ sourceNodeId, targetNodeId });
     setRelationshipName("");
+    setRelationshipError(null);
   }
 
   async function handleCreateRelationship(event: FormEvent<HTMLFormElement>) {
@@ -165,18 +167,24 @@ function GraphEditorContent({
       },
     };
 
+    setRelationshipError(null);
     store.getState().addOptimisticEdge(optimistic);
-    const persisted = await createEdge.mutateAsync({
-      boardId,
-      workspaceId,
-      id,
-      sourceNodeId: pendingConnection.sourceNodeId,
-      targetNodeId: pendingConnection.targetNodeId,
-      name,
-    });
-    store.getState().reconcileEdge(persisted);
-    setRelationshipName("");
-    setPendingConnection(null);
+    try {
+      const persisted = await createEdge.mutateAsync({
+        boardId,
+        workspaceId,
+        id,
+        sourceNodeId: pendingConnection.sourceNodeId,
+        targetNodeId: pendingConnection.targetNodeId,
+        name,
+      });
+      store.getState().reconcileEdge(persisted);
+      setRelationshipName("");
+      setPendingConnection(null);
+    } catch {
+      store.getState().removeEdge(id);
+      setRelationshipError("Unable to create Relationship.");
+    }
   }
 
   function handleNodePositionChange(
@@ -328,6 +336,9 @@ function GraphEditorContent({
           </form>
         ) : null}
         {createError ? <p className="text-sm text-red-600">{createError}</p> : null}
+        {relationshipError ? (
+          <p className="text-sm text-red-600">{relationshipError}</p>
+        ) : null}
         {positionError ? (
           <p className="text-sm text-red-600">{positionError}</p>
         ) : null}
