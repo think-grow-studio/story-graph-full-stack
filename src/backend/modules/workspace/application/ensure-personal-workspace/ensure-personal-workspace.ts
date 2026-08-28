@@ -2,6 +2,9 @@ import type {
   WorkspaceAccessService,
   WorkspaceSummary,
 } from "../../domain/workspace-access.service";
+import { personalWorkspaceSlug } from "../../domain/personal-workspace";
+
+export { personalWorkspaceSlug } from "../../domain/personal-workspace";
 
 export interface WorkspaceProvisioner {
   createPersonalWorkspace(input: {
@@ -9,16 +12,6 @@ export interface WorkspaceProvisioner {
     name: string;
     slug: string;
   }): Promise<WorkspaceSummary>;
-}
-
-export function personalWorkspaceSlug(userId: string): string {
-  const normalized = userId
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return `personal-${normalized}`;
 }
 
 export async function ensurePersonalWorkspace(
