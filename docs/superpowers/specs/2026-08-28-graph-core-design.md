@@ -21,9 +21,10 @@ The slice intentionally excludes the graph editor UI, Zustand working state, aut
 5. Multiple Edges between the same source and target are allowed. No `(sourceNodeId, targetNodeId)` uniqueness constraint is permitted.
 6. An Edge may connect only Nodes belonging to the same Story as the Edge.
 7. A Board may reference only Nodes and Edges belonging to its own Story.
-8. Canonical Node/Edge updates use optimistic locking through an integer `version`.
-9. Stale canonical updates return HTTP `409 Conflict` and do not overwrite newer state.
-10. Workspace authorization remains backend-enforced through capability checks in application use-cases.
+8. Same-Story graph membership is enforced in PostgreSQL as well as in application use-cases; application checks are not the sole integrity boundary.
+9. Canonical Node/Edge updates use optimistic locking through an integer `version`.
+10. Stale canonical updates return HTTP `409 Conflict` and do not overwrite newer state.
+11. Workspace authorization remains backend-enforced through capability checks in application use-cases.
 
 ## 3. Domain model
 
@@ -55,6 +56,8 @@ createdAt    timestamp
 updatedAt    timestamp
 ```
 
+The table has primary key `id` plus a redundant unique key `(id, storyId)` used as the target of same-Story composite foreign keys.
+
 The model has no hard-coded entity type enum. User-defined classification can be added later without changing the canonical Node identity.
 
 ### Edge
@@ -77,9 +80,18 @@ createdAt      timestamp
 updatedAt      timestamp
 ```
 
-The database must not add uniqueness across source/target because a story may have multiple simultaneous relationships between the same two Nodes.
+The table has primary key `id` plus a redundant unique key `(id, storyId)` for BoardEdge same-Story references.
 
-Cross-Story Node references are rejected by the application transaction even if individual foreign keys are structurally valid.
+PostgreSQL enforces:
+
+```text
+(sourceNodeId, storyId) → Node(id, storyId)
+(targetNodeId, storyId) → Node(id, storyId)
+```
+
+so a cross-Story Edge cannot be persisted even if an application validation path regresses.
+
+The database must not add uniqueness across source/target because a story may have multiple simultaneous relationships between the same two Nodes.
 
 ### Board
 
@@ -97,7 +109,16 @@ createdAt    timestamp
 updatedAt    timestamp
 ```
 
-`revision` is a coarse Board snapshot generation marker. It is not the optimistic lock for canonical Node/Edge data.
+The table has primary key `id` plus a redundant unique key `(id, storyId)` used by presentation-state composite foreign keys.
+
+`revision` is a coarse Board presentation generation marker. It is not the optimistic lock for canonical Node/Edge data.
+
+Revision rules are explicit:
+
+- Board creation starts at `revision = 0`.
+- Creating, updating, or removing a BoardNode increments revision by exactly 1 in the same transaction.
+- Creating, updating, or removing a BoardEdge increments revision by exactly 1 in the same transaction.
+- Updating canonical Node/Edge content does not increment Board revision.
 
 ### BoardNode
 
@@ -108,6 +129,7 @@ Fields:
 ```text
 boardId     FK → Board
 nodeId      FK → Node
+storyId     denormalized Story id used for integrity constraints
 x           finite number
 y           finite number
 width       nullable positive number
@@ -120,6 +142,15 @@ updatedAt   timestamp
 
 Primary/unique identity is `(boardId, nodeId)`.
 
+PostgreSQL enforces both:
+
+```text
+(boardId, storyId) → Board(id, storyId)
+(nodeId, storyId)  → Node(id, storyId)
+```
+
+so a Board cannot reference a Node from another Story.
+
 ### BoardEdge
 
 Presentation state for one canonical Edge on one Board.
@@ -129,6 +160,7 @@ Fields:
 ```text
 boardId           FK → Board
 edgeId            FK → Edge
+storyId           denormalized Story id used for integrity constraints
 style             JSONB object
 labelPresentation JSONB object
 createdAt         timestamp
@@ -136,6 +168,15 @@ updatedAt         timestamp
 ```
 
 Primary/unique identity is `(boardId, edgeId)`.
+
+PostgreSQL enforces both:
+
+```text
+(boardId, storyId) → Board(id, storyId)
+(edgeId, storyId)  → Edge(id, storyId)
+```
+
+so a Board cannot reference an Edge from another Story.
 
 ## 4. Deletion semantics
 
@@ -187,8 +228,9 @@ The infrastructure layer implements PostgreSQL/Drizzle repositories and transact
 
 Transactions are mandatory for operations that must create or validate multiple records atomically:
 
-- create Node from Board → create canonical Node + BoardNode
-- create Edge from Board → validate source/target/Board Story identity + create canonical Edge + BoardEdge
+- create Node from Board → create canonical Node + BoardNode + increment Board revision
+- create Edge from Board → validate source/target/Board Story identity + create canonical Edge + BoardEdge + increment Board revision
+- update/remove BoardNode or BoardEdge → presentation mutation + increment Board revision
 - optimistic Node/Edge update → compare expected version + update exactly one row
 
 ## 7. API contracts
@@ -211,7 +253,7 @@ Request:
 }
 ```
 
-Returns the created Board.
+Returns the created Board with `revision = 0`.
 
 ### Board snapshot
 
@@ -262,7 +304,7 @@ Request:
 }
 ```
 
-The use-case atomically creates the canonical Node and BoardNode presentation row.
+The use-case atomically creates the canonical Node and BoardNode presentation row and increments Board revision.
 
 ### Update canonical Node
 
@@ -291,9 +333,9 @@ Only supplied mutable fields change. A successful update increments `version` fr
 PATCH /api/v1/boards/{boardId}/nodes/{nodeId}
 ```
 
-Request may update `x`, `y`, `width`, `height`, `zIndex`, or `style`.
+Request may update `x`, `y`, `width`, `height`, `zIndex`, or `style` and must include `workspaceId`.
 
-This operation does not mutate canonical Node fields or version.
+This operation does not mutate canonical Node fields or version. It increments Board revision by 1.
 
 ### Remove Node from Board
 
@@ -301,7 +343,7 @@ This operation does not mutate canonical Node fields or version.
 DELETE /api/v1/boards/{boardId}/nodes/{nodeId}?workspaceId=...
 ```
 
-Deletes BoardNode only.
+Deletes BoardNode only and increments Board revision by 1.
 
 ### Create Edge from Board
 
@@ -324,7 +366,7 @@ Request:
 }
 ```
 
-The use-case validates that Board, source Node, and target Node all belong to the same Story, then atomically creates canonical Edge + BoardEdge.
+The use-case validates that Board, source Node, and target Node all belong to the same Story, then atomically creates canonical Edge + BoardEdge and increments Board revision.
 
 The same source/target pair may be submitted repeatedly with different Edge IDs.
 
@@ -342,7 +384,7 @@ Uses the same expected-version optimistic locking semantics as Node updates. Sou
 DELETE /api/v1/boards/{boardId}/edges/{edgeId}?workspaceId=...
 ```
 
-Deletes BoardEdge only.
+Deletes BoardEdge only and increments Board revision by 1.
 
 ## 8. Validation and error semantics
 
@@ -373,7 +415,7 @@ If the resource was resolved first but the conditional update returns no row, th
 
 A blind read-then-update without the version predicate is not acceptable.
 
-Board presentation writes are last-write-wins in this slice. Board `revision` may increment when Board presentation membership/state changes so snapshot consumers can observe coarse changes, but no `409` policy is attached to Board revision yet.
+Board presentation writes are last-write-wins in this slice. Board revision is incremented transactionally according to Section 3, but no `409` policy is attached to Board revision yet.
 
 ## 10. Snapshot consistency
 
@@ -412,7 +454,8 @@ Cover graph application invariants without a database where possible:
 Use real PostgreSQL and committed Drizzle migrations to verify:
 
 - JSONB round-trip for properties/style
-- Board + Node + BoardNode atomic creation
+- database-level same-Story composite foreign keys reject cross-Story Edge, BoardNode, and BoardEdge references
+- Board + Node + BoardNode atomic creation and revision increment
 - same source/target supports two or more directed Edges
 - cross-Story Edge creation rejected atomically
 - optimistic Node update increments version
@@ -420,6 +463,8 @@ Use real PostgreSQL and committed Drizzle migrations to verify:
 - optimistic Edge update behaves identically
 - FK/cascade behavior matches Section 4
 - Board removal preserves canonical Node/Edge
+- Board presentation mutations increment revision exactly once
+- canonical Node/Edge updates do not increment Board revision
 - snapshot contains only entities represented on that Board
 
 ### API integration tests
@@ -462,11 +507,12 @@ This slice does not implement:
 
 The slice is complete when:
 
-1. Drizzle migrations create the graph tables and constraints described here.
+1. Drizzle migrations create the graph tables and same-Story constraints described here.
 2. Application code does not import Drizzle/database infrastructure.
 3. Graph capabilities are enforced through the Workspace access abstraction.
 4. All specified APIs are represented by shared Zod contracts and OpenAPI.
 5. Node/Edge optimistic locking returns deterministic `409` on stale writes.
 6. Directed multi-edge behavior is proven against PostgreSQL.
 7. Board snapshot is a single editor bootstrap payload containing canonical + presentation state.
-8. Full repository CI passes: architecture checks, lint, typecheck, unit tests, PostgreSQL integration tests, production build, clean-tree check, and Chromium E2E.
+8. Board presentation mutations increment revision transactionally and canonical content updates do not.
+9. Full repository CI passes: architecture checks, lint, typecheck, unit tests, PostgreSQL integration tests, production build, clean-tree check, and Chromium E2E.
