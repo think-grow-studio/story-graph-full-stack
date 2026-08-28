@@ -1,0 +1,54 @@
+name: Generate Auth Schema
+
+on:
+  push:
+    branches: [feat/auth-workspace-story]
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
+      BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/auth-workspace-story
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies and refresh lockfile
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Generate Better Auth Drizzle schema
+        run: pnpm auth:generate
+
+      - name: Export generated auth schema
+        run: printf '%s\n' 'export * from "./auth.schema";' > src/backend/infrastructure/database/schema/index.ts
+
+      - name: Generate Drizzle migration
+        run: pnpm db:generate -- --name=auth-foundation
+
+      - name: Commit generated persistence files
+        run: |
+          if [ -n "$(git status --porcelain pnpm-lock.yaml src/backend/infrastructure/database/schema drizzle)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pnpm-lock.yaml src/backend/infrastructure/database/schema drizzle
+            git commit -m "feat: generate Better Auth database schema"
+            git push origin HEAD:feat/auth-workspace-story
+          fi
