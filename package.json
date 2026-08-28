@@ -17,12 +17,14 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
+    "auth:generate": "auth generate --config ./src/backend/infrastructure/auth/auth.ts --output ./src/backend/infrastructure/database/schema/auth.schema.ts --adapter drizzle --dialect postgresql --yes",
     "check": "pnpm check:agents && pnpm check:boundaries && pnpm lint && pnpm typecheck && pnpm test",
     "ci": "pnpm check && pnpm build && pnpm e2e"
   },
   "dependencies": {
     "@tanstack/react-query": "5.102.3",
     "axios": "1.20.0",
+    "better-auth": "1.6.29",
     "drizzle-orm": "0.45.2",
     "next": "16.3.3",
     "pg": "8.16.3",
@@ -42,6 +44,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.0",
+    "auth": "1.6.29",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.3",
