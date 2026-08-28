@@ -35,6 +35,7 @@ describe("buildOpenApiDocument", () => {
     const document = await buildOpenApiDocument();
     const paths = document.paths ?? {};
 
+    expect(paths["/api/v1/stories/{storyId}/boards"]?.get).toBeDefined();
     expect(paths["/api/v1/stories/{storyId}/boards"]?.post).toBeDefined();
     expect(paths["/api/v1/boards/{boardId}/snapshot"]?.get).toBeDefined();
     expect(paths["/api/v1/boards/{boardId}/nodes"]?.post).toBeDefined();
