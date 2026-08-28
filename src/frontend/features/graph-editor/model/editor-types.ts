@@ -24,6 +24,7 @@ export type GraphEditorState = {
   hydrate: (snapshot: GraphEditorSnapshot) => void;
   addOptimisticNode: (input: GraphEditorNodePair) => void;
   reconcileNode: (input: GraphEditorNodePair) => void;
+  replaceNode: (node: GraphNodeResponse) => void;
   removeNode: (nodeId: string) => void;
   setNodePosition: (
     nodeId: string,
@@ -32,5 +33,6 @@ export type GraphEditorState = {
   replaceBoardNode: (boardNode: BoardNodeResponse) => void;
   addOptimisticEdge: (input: GraphEditorEdgePair) => void;
   reconcileEdge: (input: GraphEditorEdgePair) => void;
+  replaceEdge: (edge: GraphEdgeResponse) => void;
   removeEdge: (edgeId: string) => void;
 };
