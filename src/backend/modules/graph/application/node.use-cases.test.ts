@@ -87,6 +87,7 @@ function createGraph(): GraphRepository {
   const boardNode = boardNodeFixture();
   return {
     createBoard: vi.fn(),
+    listBoards: vi.fn(),
     findBoard: vi.fn(async (id) => (id === board.id ? board : null)),
     findNode: vi.fn(async (id) => (id === node.id ? node : null)),
     findEdge: vi.fn(),

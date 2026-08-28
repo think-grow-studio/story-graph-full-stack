@@ -58,6 +58,7 @@ function createStories(stories: Story[] = []): StoryRepository {
 function createGraph(boardValue: Board = boardFixture()): GraphRepository {
   return {
     createBoard: vi.fn(async (input) => ({ ...boardValue, ...input })),
+    listBoards: vi.fn(async () => [boardValue]),
     findBoard: vi.fn(async (id) => (id === boardValue.id ? boardValue : null)),
     findNode: vi.fn(async () => null),
     findEdge: vi.fn(async () => null),

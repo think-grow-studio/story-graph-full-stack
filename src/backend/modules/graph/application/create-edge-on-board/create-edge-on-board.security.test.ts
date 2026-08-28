@@ -25,6 +25,7 @@ describe("createEdgeOnBoard workspace isolation", () => {
     };
     const graph: GraphRepository = {
       createBoard: vi.fn(),
+      listBoards: vi.fn(),
       findBoard: vi.fn().mockResolvedValue({
         id: "board-1",
         storyId: "story-1",
