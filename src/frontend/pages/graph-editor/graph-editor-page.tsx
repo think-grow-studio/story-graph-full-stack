@@ -71,6 +71,7 @@ function GraphEditorContent({
   } | null>(null);
   const [relationshipName, setRelationshipName] = useState("");
   const canvasRef = useRef<GraphCanvasHandle>(null);
+  const hydratedBoardIdRef = useRef<string | null>(null);
   const bootstrap = useBootstrapQuery();
   const workspaceId = bootstrap.data?.workspace.id;
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
@@ -83,10 +84,12 @@ function GraphEditorContent({
   const state = useGraphEditorStore((current) => current);
 
   useEffect(() => {
-    if (snapshot.data) {
-      store.getState().hydrate(snapshot.data);
-    }
-  }, [snapshot.data, store]);
+    if (!snapshot.data || snapshot.data.board.id !== boardId) return;
+    if (hydratedBoardIdRef.current === boardId) return;
+
+    store.getState().hydrate(snapshot.data);
+    hydratedBoardIdRef.current = boardId;
+  }, [boardId, snapshot.data, store]);
 
   async function handleCreateNode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
