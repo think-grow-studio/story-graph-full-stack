@@ -88,11 +88,11 @@ class FakeStoryRepository implements StoryRepository {
     return [...this.stories.values()].filter((story) => story.workspaceId === workspaceId);
   }
 
-  async update() {
+  async update(): Promise<Story | null> {
     throw new Error("not used");
   }
 
-  async delete() {
+  async delete(): Promise<boolean> {
     throw new Error("not used");
   }
 }
