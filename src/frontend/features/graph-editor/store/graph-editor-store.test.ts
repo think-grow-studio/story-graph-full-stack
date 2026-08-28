@@ -72,6 +72,29 @@ const optimisticBoardNode = {
   updatedAt: "2026-08-28T00:00:00.000Z",
 };
 
+const optimisticEdge = {
+  id: "55555555-5555-4555-8555-555555555555",
+  storyId: "11111111-1111-4111-8111-111111111111",
+  sourceNodeId: "33333333-3333-4333-8333-333333333333",
+  targetNodeId: optimisticNode.id,
+  name: "knows",
+  description: "",
+  iconKey: null,
+  properties: {},
+  version: 1,
+  createdAt: "2026-08-28T00:00:00.000Z",
+  updatedAt: "2026-08-28T00:00:00.000Z",
+};
+
+const optimisticBoardEdge = {
+  boardId: "22222222-2222-4222-8222-222222222222",
+  edgeId: optimisticEdge.id,
+  style: {},
+  labelPresentation: {},
+  createdAt: "2026-08-28T00:00:00.000Z",
+  updatedAt: "2026-08-28T00:00:00.000Z",
+};
+
 describe("graph editor store", () => {
   it("hydrates canonical graph data separately from Board presentation", () => {
     const store = createGraphEditorStore();
@@ -156,5 +179,43 @@ describe("graph editor store", () => {
 
     expect(store.getState().boardNodes[0]).toMatchObject({ x: 320, y: 220 });
     expect(store.getState().nodes[0]).toMatchObject({ name: "Alice", version: 1 });
+  });
+
+  it("adds, reconciles, and removes one optimistic Edge without mixing Board presentation", () => {
+    const store = createGraphEditorStore();
+    store.getState().hydrate(snapshot);
+
+    store.getState().addOptimisticEdge({
+      edge: optimisticEdge,
+      boardEdge: optimisticBoardEdge,
+    });
+
+    expect(store.getState().edges).toEqual([optimisticEdge]);
+    expect(store.getState().boardEdges).toEqual([optimisticBoardEdge]);
+    expect(store.getState().edges[0]).not.toHaveProperty("style");
+    expect(store.getState().boardEdges[0]).not.toHaveProperty("name");
+
+    store.getState().reconcileEdge({
+      edge: { ...optimisticEdge, name: "sister", version: 2 },
+      boardEdge: {
+        ...optimisticBoardEdge,
+        labelPresentation: { placement: "center" },
+      },
+    });
+
+    expect(store.getState().edges).toEqual([
+      expect.objectContaining({ id: optimisticEdge.id, name: "sister", version: 2 }),
+    ]);
+    expect(store.getState().boardEdges).toEqual([
+      expect.objectContaining({
+        edgeId: optimisticEdge.id,
+        labelPresentation: { placement: "center" },
+      }),
+    ]);
+
+    store.getState().removeEdge(optimisticEdge.id);
+
+    expect(store.getState().edges).toHaveLength(0);
+    expect(store.getState().boardEdges).toHaveLength(0);
   });
 });
