@@ -405,3 +405,152 @@ test("Graph Editor connects two Nodes and restores the Relationship after reload
     await cleanupE2EIdentity(identity);
   }
 });
+
+test("Graph Editor edits canonical Node and Relationship data through the Inspector", async ({
+  context,
+  page,
+}) => {
+  const identity = await createE2EIdentity("Graph Inspector User");
+
+  try {
+    await context.addCookies(identity.cookies);
+
+    const bootstrapResponse = await context.request.get("/api/v1/bootstrap");
+    expect(bootstrapResponse.status()).toBe(200);
+    const bootstrap = await bootstrapResponse.json();
+    const workspaceId = bootstrap.workspace.id as string;
+
+    const storyResponse = await context.request.post("/api/v1/stories", {
+      data: { workspaceId, name: "Inspector Story" },
+    });
+    expect(storyResponse.status()).toBe(201);
+    const story = await storyResponse.json();
+
+    const boardResponse = await context.request.post(
+      `/api/v1/stories/${story.id}/boards`,
+      { data: { workspaceId, name: "Inspector Board" } },
+    );
+    expect(boardResponse.status()).toBe(201);
+    const board = await boardResponse.json();
+
+    const aliceId = crypto.randomUUID();
+    const bobId = crypto.randomUUID();
+    for (const node of [
+      { id: aliceId, name: "Alice", position: { x: 120, y: 180 } },
+      { id: bobId, name: "Bob", position: { x: 520, y: 180 } },
+    ]) {
+      const response = await context.request.post(
+        `/api/v1/boards/${board.id}/nodes`,
+        {
+          data: {
+            workspaceId,
+            id: node.id,
+            name: node.name,
+            position: node.position,
+          },
+        },
+      );
+      expect(response.status()).toBe(201);
+    }
+
+    const edgeId = crypto.randomUUID();
+    const edgeResponse = await context.request.post(
+      `/api/v1/boards/${board.id}/edges`,
+      {
+        data: {
+          workspaceId,
+          id: edgeId,
+          sourceNodeId: aliceId,
+          targetNodeId: bobId,
+          name: "knows",
+          description: "",
+          iconKey: null,
+          properties: {},
+        },
+      },
+    );
+    expect(edgeResponse.status()).toBe(201);
+
+    await page.goto(`/stories/${story.id}/boards/${board.id}`);
+    await expect(page.getByLabel("Graph canvas")).toBeVisible();
+
+    const alice = page.locator(`.react-flow__node[data-id="${aliceId}"]`);
+    await alice.click();
+    await expect(page.getByRole("heading", { name: "Node Inspector" })).toBeVisible();
+    await page.getByLabel("Name").fill("Alicia");
+    await page.getByLabel("Description").fill("Main protagonist");
+    await page.getByLabel("Properties JSON").fill('{"role":"lead","age":31}');
+
+    const nodeUpdatePromise = page.waitForResponse((response) =>
+      response.request().method() === "PATCH" &&
+      new URL(response.url()).pathname === `/api/v1/nodes/${aliceId}`,
+    );
+    await page.getByRole("button", { name: "Save Node" }).click();
+    const nodeUpdate = await nodeUpdatePromise;
+    expect(nodeUpdate.status()).toBe(200);
+    expect(await nodeUpdate.json()).toMatchObject({
+      id: aliceId,
+      name: "Alicia",
+      description: "Main protagonist",
+      properties: { role: "lead", age: 31 },
+      version: 2,
+    });
+    await expect(page.locator(`.react-flow__node[data-id="${aliceId}"]`)).toContainText("Alicia");
+
+    const relationship = page.locator(".react-flow__edge").filter({ hasText: "knows" });
+    await relationship.click();
+    await expect(
+      page.getByRole("heading", { name: "Relationship Inspector" }),
+    ).toBeVisible();
+    await page.getByLabel("Name").fill("best friend");
+    await page.getByLabel("Description").fill("Childhood friends");
+    await page.getByLabel("Properties JSON").fill('{"since":2012}');
+
+    const edgeUpdatePromise = page.waitForResponse((response) =>
+      response.request().method() === "PATCH" &&
+      new URL(response.url()).pathname === `/api/v1/edges/${edgeId}`,
+    );
+    await page.getByRole("button", { name: "Save Relationship" }).click();
+    const edgeUpdate = await edgeUpdatePromise;
+    expect(edgeUpdate.status()).toBe(200);
+    expect(await edgeUpdate.json()).toMatchObject({
+      id: edgeId,
+      name: "best friend",
+      description: "Childhood friends",
+      properties: { since: 2012 },
+      version: 2,
+    });
+
+    await page.reload();
+    await expect(page.locator(`.react-flow__node[data-id="${aliceId}"]`)).toContainText("Alicia");
+    await expect(
+      page.locator(".react-flow__edge").filter({ hasText: "best friend" }),
+    ).toBeVisible();
+
+    const snapshotResponse = await context.request.get(
+      `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,
+    );
+    expect(snapshotResponse.status()).toBe(200);
+    const persisted = await snapshotResponse.json();
+    expect(persisted.nodes).toContainEqual(
+      expect.objectContaining({
+        id: aliceId,
+        name: "Alicia",
+        description: "Main protagonist",
+        properties: { role: "lead", age: 31 },
+        version: 2,
+      }),
+    );
+    expect(persisted.edges).toContainEqual(
+      expect.objectContaining({
+        id: edgeId,
+        name: "best friend",
+        description: "Childhood friends",
+        properties: { since: 2012 },
+        version: 2,
+      }),
+    );
+  } finally {
+    await cleanupE2EIdentity(identity);
+  }
+});
