@@ -28,15 +28,15 @@ export async function createEdgeOnBoard(
     throw new ApplicationError("NOT_FOUND", 404, "Board not found");
   }
 
+  const story = await dependencies.stories.findById(board.storyId);
+  if (!story || story.workspaceId !== input.workspaceId) {
+    throw new ApplicationError("NOT_FOUND", 404, "Board not found");
+  }
+
   const source = await dependencies.graph.findNode(input.sourceNodeId);
   const target = await dependencies.graph.findNode(input.targetNodeId);
   if (!source || !target || source.storyId !== board.storyId || target.storyId !== board.storyId) {
     throw new ApplicationError("NOT_FOUND", 404, "Edge endpoints not found");
-  }
-
-  const story = await dependencies.stories.findById(board.storyId);
-  if (!story || story.workspaceId !== input.workspaceId) {
-    throw new ApplicationError("NOT_FOUND", 404, "Board not found");
   }
 
   await dependencies.access.requireCapability({
