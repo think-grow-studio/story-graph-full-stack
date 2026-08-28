@@ -9,6 +9,26 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
+      BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: story_graph
+          POSTGRES_USER: story_graph
+          POSTGRES_PASSWORD: story_graph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U story_graph -d story_graph"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,8 +48,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Apply database migrations
+        run: pnpm db:migrate
+
       - name: Check architecture and unit tests
         run: pnpm check
+
+      - name: PostgreSQL integration tests
+        run: pnpm test:integration
 
       - name: Production build
         run: pnpm build

@@ -62,6 +62,48 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    files: ["src/backend/modules/**/application/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(?:@/frontend(?:/|$)|\\..*/frontend(?:/|$))",
+              message: "Backend must not depend on frontend implementation.",
+            },
+            {
+              regex: "(?:^|/)infrastructure(?:/|$)",
+              message: "Backend application code must depend on ports, not infrastructure.",
+            },
+            {
+              group: ["better-auth", "better-auth/**", "drizzle-orm", "drizzle-orm/**", "pg"],
+              message: "Backend application code must not depend on auth/database infrastructure libraries.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportExpression[source.value=/^(?:@\\u002Ffrontend(?:\\u002F|$)|\\..*\\u002Ffrontend(?:\\u002F|$))/]",
+          message: "Backend must not depend on frontend implementation.",
+        },
+        {
+          selector:
+            "ImportExpression[source.value=/(?:^|\\u002F)infrastructure(?:\\u002F|$)/]",
+          message: "Backend application code must depend on ports, not infrastructure.",
+        },
+        {
+          selector:
+            "ImportExpression[source.value=/^(?:better-auth|drizzle-orm|pg)(?:\\u002F|$)/]",
+          message: "Backend application code must not depend on auth/database infrastructure libraries.",
+        },
+      ],
+    },
+  },
+  {
     files: ["src/contracts/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [

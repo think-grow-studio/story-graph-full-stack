@@ -26,6 +26,24 @@ const violations = [
       'export const backend = require("@/backend/modules/system/application/get-health/get-health.use-case");\n',
     label: "frontend require of backend",
   },
+  {
+    path: "src/backend/modules/identity/application/__architecture_infrastructure_violation__.ts",
+    source:
+      'import { auth } from "@/backend/infrastructure/auth/auth";\nexport const violation = auth;\n',
+    label: "backend application import of infrastructure",
+  },
+  {
+    path: "src/backend/modules/identity/application/__architecture_relative_infrastructure_violation__.ts",
+    source:
+      'import { BetterAuthSessionService } from "../infrastructure/better-auth-session.service";\nexport const violation = BetterAuthSessionService;\n',
+    label: "backend application relative import of module infrastructure",
+  },
+  {
+    path: "src/backend/modules/identity/application/__architecture_dynamic_infrastructure_violation__.ts",
+    source:
+      'export const loadInfrastructure = () => import("@/backend/infrastructure/auth/auth");\n',
+    label: "backend application dynamic import of infrastructure",
+  },
 ];
 
 function runEslint(path) {
