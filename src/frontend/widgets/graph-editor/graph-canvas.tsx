@@ -24,12 +24,25 @@ export type GraphCanvasNode = {
 
 export type GraphCanvasEdge = {
   id: string;
+  name: string;
   sourceNodeId: string;
   targetNodeId: string;
 };
 
 export type GraphCanvasHandle = {
   getCenterPosition: () => { x: number; y: number };
+};
+
+export type GraphCanvasProps = {
+  nodes: GraphCanvasNode[];
+  edges?: GraphCanvasEdge[];
+  onNodePositionChange: (
+    nodeId: string,
+    position: { x: number; y: number },
+  ) => void;
+  onNodeDragStop: (nodeId: string) => void;
+  onConnectNodes: (sourceNodeId: string, targetNodeId: string) => void;
+  ref?: Ref<GraphCanvasHandle>;
 };
 
 type FlowNode = Node<{ label: string }>;
@@ -40,16 +53,7 @@ export function GraphCanvas({
   onNodePositionChange,
   onNodeDragStop,
   ref,
-}: {
-  nodes: GraphCanvasNode[];
-  edges?: GraphCanvasEdge[];
-  onNodePositionChange: (
-    nodeId: string,
-    position: { x: number; y: number },
-  ) => void;
-  onNodeDragStop: (nodeId: string) => void;
-  ref?: Ref<GraphCanvasHandle>;
-}) {
+}: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null);
   const flowNodes = useMemo<FlowNode[]>(
