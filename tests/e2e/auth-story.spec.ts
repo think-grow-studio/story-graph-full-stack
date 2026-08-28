@@ -215,11 +215,25 @@ test("Graph Editor creates and repositions a Node through the UI", async ({
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
 
     await page.getByRole("button", { name: "+ Node" }).click();
-    const node = page.locator(".react-flow__node").filter({ hasText: "New Node" });
+    await page.getByLabel("Node name").fill("E2E Node");
+    await page.getByRole("button", { name: "Create Node" }).click();
+
+    const node = page.locator(".react-flow__node").filter({ hasText: "E2E Node" });
     await expect(node).toBeVisible();
 
     const nodeId = await node.getAttribute("data-id");
     expect(nodeId).toBeTruthy();
+
+    const initialSnapshotResponse = await context.request.get(
+      `/api/v1/boards/${boardId}/snapshot?workspaceId=${workspaceId}`,
+    );
+    expect(initialSnapshotResponse.status()).toBe(200);
+    const initialSnapshot = await initialSnapshotResponse.json();
+    const initialPlacement = initialSnapshot.boardNodes.find(
+      (boardNode: { nodeId: string }) => boardNode.nodeId === nodeId,
+    );
+    expect(initialPlacement).toBeTruthy();
+
     const box = await node.boundingBox();
     expect(box).not.toBeNull();
 
@@ -244,12 +258,14 @@ test("Graph Editor creates and repositions a Node through the UI", async ({
     expect(placementResponse.status()).toBe(200);
     const persistedPlacement = await placementResponse.json();
     expect(persistedPlacement.nodeId).toBe(nodeId);
-    expect(persistedPlacement.x).not.toBe(40);
-    expect(persistedPlacement.y).not.toBe(40);
+    expect({ x: persistedPlacement.x, y: persistedPlacement.y }).not.toEqual({
+      x: initialPlacement.x,
+      y: initialPlacement.y,
+    });
 
     await page.reload();
     await expect(
-      page.locator(".react-flow__node").filter({ hasText: "New Node" }),
+      page.locator(".react-flow__node").filter({ hasText: "E2E Node" }),
     ).toBeVisible();
 
     const snapshotResponse = await context.request.get(
