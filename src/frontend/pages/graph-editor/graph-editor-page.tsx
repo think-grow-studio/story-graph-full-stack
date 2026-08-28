@@ -76,8 +76,8 @@ function GraphEditorContent({
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
   const createNode = useCreateNodeOnBoardMutation();
   const createEdge = useCreateEdgeOnBoardMutation();
-  const updateNode = useUpdateNodeMutation();
-  const updateEdge = useUpdateEdgeMutation();
+  const updateNode = useUpdateNodeMutation(workspaceId, boardId);
+  const updateEdge = useUpdateEdgeMutation(workspaceId, boardId);
   const updatePlacement = useUpdateBoardNodeMutation();
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
