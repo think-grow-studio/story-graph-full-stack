@@ -1,11 +1,15 @@
 import type { WorkspaceCapability } from "./workspace-access.service";
 
-const fullStoryCapabilities = new Set<WorkspaceCapability>([
+const fullCapabilities = new Set<WorkspaceCapability>([
   "story:read",
   "story:create",
   "story:update",
   "story:delete",
+  "graph:read",
+  "graph:update",
 ]);
+
+const memberReadCapabilities = new Set<WorkspaceCapability>(["story:read", "graph:read"]);
 
 export function workspaceRoleHasCapability(
   roleValue: string,
@@ -17,8 +21,8 @@ export function workspaceRoleHasCapability(
     .filter(Boolean);
 
   if (roles.some((role) => role === "owner" || role === "admin")) {
-    return fullStoryCapabilities.has(capability);
+    return fullCapabilities.has(capability);
   }
 
-  return roles.includes("member") && capability === "story:read";
+  return roles.includes("member") && memberReadCapabilities.has(capability);
 }
