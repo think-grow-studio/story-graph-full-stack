@@ -111,6 +111,10 @@ export const boardResponseSchema = z.object({
   updatedAt: dateTimeSchema,
 });
 
+export const listBoardsResponseSchema = z.object({
+  boards: z.array(boardResponseSchema),
+});
+
 export const graphNodeResponseSchema = z.object({
   id: graphIdSchema,
   storyId: graphIdSchema,
@@ -177,3 +181,13 @@ export const boardSnapshotResponseSchema = z.object({
   boardNodes: z.array(boardNodeResponseSchema),
   boardEdges: z.array(boardEdgeResponseSchema),
 });
+
+export type BoardResponse = z.infer<typeof boardResponseSchema>;
+export type GraphNodeResponse = z.infer<typeof graphNodeResponseSchema>;
+export type GraphEdgeResponse = z.infer<typeof graphEdgeResponseSchema>;
+export type BoardNodeResponse = z.infer<typeof boardNodeResponseSchema>;
+export type BoardEdgeResponse = z.infer<typeof boardEdgeResponseSchema>;
+export type BoardSnapshotResponse = z.infer<typeof boardSnapshotResponseSchema>;
+export type CreateBoardRequest = z.infer<typeof createBoardRequestSchema>;
+export type CreateNodeRequest = z.infer<typeof createNodeRequestSchema>;
+export type UpdateBoardNodeRequest = z.infer<typeof updateBoardNodeRequestSchema>;
