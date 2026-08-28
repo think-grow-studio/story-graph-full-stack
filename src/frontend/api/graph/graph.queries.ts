@@ -4,6 +4,7 @@ import type { BoardResponse } from "@/contracts/graph/graph.contract";
 
 import {
   createBoard,
+  createEdgeOnBoard,
   createNodeOnBoard,
   getBoardSnapshot,
   listBoards,
@@ -68,6 +69,10 @@ export function useBoardSnapshotQuery(
 
 export function useCreateNodeOnBoardMutation() {
   return useMutation({ mutationFn: createNodeOnBoard });
+}
+
+export function useCreateEdgeOnBoardMutation() {
+  return useMutation({ mutationFn: createEdgeOnBoard });
 }
 
 export function useUpdateBoardNodeMutation() {
