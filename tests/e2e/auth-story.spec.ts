@@ -2,8 +2,13 @@ import { expect, test } from "@playwright/test";
 
 import {
   cleanupE2EIdentity,
+  closeE2EAuthDatabase,
   createE2EIdentity,
 } from "./helpers/e2e-auth";
+
+test.afterAll(async () => {
+  await closeE2EAuthDatabase();
+});
 
 test("Google is the only authentication entry", async ({ page }) => {
   await page.goto("/login");
