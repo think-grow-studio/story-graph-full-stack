@@ -2,7 +2,9 @@ export type WorkspaceCapability =
   | "story:read"
   | "story:create"
   | "story:update"
-  | "story:delete";
+  | "story:delete"
+  | "graph:read"
+  | "graph:update";
 
 export interface WorkspaceSummary {
   id: string;
