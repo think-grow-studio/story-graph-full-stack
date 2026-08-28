@@ -21,13 +21,13 @@ export async function removeNodeFromBoard(
     throw new ApplicationError("NOT_FOUND", 404, "Board node not found");
   }
 
-  const node = await dependencies.graph.findNode(input.nodeId);
-  if (!node || node.storyId !== board.storyId) {
+  const story = await dependencies.stories.findById(board.storyId);
+  if (!story || story.workspaceId !== input.workspaceId) {
     throw new ApplicationError("NOT_FOUND", 404, "Board node not found");
   }
 
-  const story = await dependencies.stories.findById(board.storyId);
-  if (!story || story.workspaceId !== input.workspaceId) {
+  const node = await dependencies.graph.findNode(input.nodeId);
+  if (!node || node.storyId !== board.storyId) {
     throw new ApplicationError("NOT_FOUND", 404, "Board node not found");
   }
 
