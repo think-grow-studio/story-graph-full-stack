@@ -1,6 +1,7 @@
 "use client";
 
 import axios from "axios";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -93,7 +94,12 @@ export function DashboardPage() {
           <ul className="grid gap-2">
             {stories.data.map((story) => (
               <li className="rounded-md border border-neutral-200 p-4" key={story.id}>
-                <strong>{story.name}</strong>
+                <Link
+                  className="font-semibold underline-offset-4 hover:underline"
+                  href={`/stories/${story.id}`}
+                >
+                  {story.name}
+                </Link>
               </li>
             ))}
           </ul>
