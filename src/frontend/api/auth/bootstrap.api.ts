@@ -2,6 +2,6 @@ import { bootstrapResponseSchema, type BootstrapResponse } from "@/contracts/aut
 import { apiClient } from "../client/api-client";
 
 export async function getBootstrap(): Promise<BootstrapResponse> {
-  const response = await apiClient.get("/api/v1/bootstrap");
+  const response = await apiClient.get("/bootstrap");
   return bootstrapResponseSchema.parse(response.data);
 }
