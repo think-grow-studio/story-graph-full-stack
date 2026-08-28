@@ -1,0 +1,34 @@
+name: Drizzle Preview
+
+on:
+  pull_request:
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate migration preview
+        run: |
+          pnpm db:generate
+          echo '---BEGIN MIGRATION FILES---'
+          find drizzle -maxdepth 1 -type f -name '0002_*.sql' -print
+          echo '---BEGIN SQL---'
+          cat drizzle/0002_*.sql
+          echo '---END SQL---'
+          echo '---BEGIN JOURNAL---'
+          cat drizzle/meta/_journal.json
+          echo '---END JOURNAL---'
+          echo '---BEGIN SNAPSHOT_B64---'
+          base64 -w0 drizzle/meta/0002_snapshot.json
+          echo
+          echo '---END SNAPSHOT_B64---'
