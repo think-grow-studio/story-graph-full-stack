@@ -6,13 +6,14 @@ import { ensurePersonalWorkspace } from "@/backend/modules/workspace/application
 import { BetterAuthWorkspaceProvisioner } from "@/backend/modules/workspace/infrastructure/better-auth-workspace-provisioner";
 import { DrizzleWorkspaceAccessService } from "@/backend/modules/workspace/infrastructure/drizzle-workspace-access.service";
 import { bootstrapResponseSchema } from "@/contracts/auth/bootstrap.contract";
+import { identityDependencies } from "../_shared/identity-dependencies";
 
 const workspaceAccess = new DrizzleWorkspaceAccessService();
 const workspaceProvisioner = new BetterAuthWorkspaceProvisioner();
 
 export async function GET(request: Request) {
   try {
-    const actor = await requireCurrentActor(request.headers);
+    const actor = await requireCurrentActor(request.headers, identityDependencies);
     const workspace = await ensurePersonalWorkspace(
       { userId: actor.id, userName: actor.name },
       { access: workspaceAccess, provisioner: workspaceProvisioner },
