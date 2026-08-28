@@ -10,10 +10,11 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "check:agents": "node scripts/validate-agent-files.mjs",
+    "check:boundaries": "node scripts/verify-import-boundaries.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "check": "pnpm check:agents && pnpm lint && pnpm typecheck && pnpm test",
+    "check": "pnpm check:agents && pnpm check:boundaries && pnpm lint && pnpm typecheck && pnpm test",
     "ci": "pnpm check && pnpm build && pnpm e2e"
   },
   "dependencies": {
