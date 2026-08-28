@@ -3,6 +3,8 @@ name: Bootstrap Foundation Verification
 on:
   push:
     branches: [feat/foundation]
+  pull_request:
+    branches: [main]
 
 jobs:
   verify:
