@@ -30,4 +30,22 @@ describe("buildOpenApiDocument", () => {
     expect(paths["/api/v1/stories/{storyId}"]?.patch).toBeDefined();
     expect(paths["/api/v1/stories/{storyId}"]?.delete).toBeDefined();
   });
+
+  it("documents Graph Core routes and optimistic conflict responses", async () => {
+    const document = await buildOpenApiDocument();
+    const paths = document.paths ?? {};
+
+    expect(paths["/api/v1/stories/{storyId}/boards"]?.post).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/snapshot"]?.get).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/nodes"]?.post).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/nodes/{nodeId}"]?.patch).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/nodes/{nodeId}"]?.delete).toBeDefined();
+    expect(paths["/api/v1/nodes/{nodeId}"]?.patch).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/edges"]?.post).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/edges/{edgeId}"]?.delete).toBeDefined();
+    expect(paths["/api/v1/edges/{edgeId}"]?.patch).toBeDefined();
+
+    expect(paths["/api/v1/nodes/{nodeId}"]?.patch?.responses?.["409"]).toBeDefined();
+    expect(paths["/api/v1/edges/{edgeId}"]?.patch?.responses?.["409"]).toBeDefined();
+  });
 });
