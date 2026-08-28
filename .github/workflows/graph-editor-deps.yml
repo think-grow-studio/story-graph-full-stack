@@ -1,0 +1,48 @@
+name: Sync Graph Editor Dependencies
+
+on:
+  push:
+    branches: [feat/graph-editor-v1]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/graph-editor-v1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install current dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Add graph editor dependencies
+        run: pnpm add --save-exact @xyflow/react@12.11.5 zustand@5.0.15
+
+      - name: Commit generated manifest and lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "Graph editor dependencies already synchronized."
+            exit 0
+          fi
+          git commit -m "chore: add graph editor dependencies"
+          git push origin HEAD:feat/graph-editor-v1
