@@ -36,6 +36,7 @@ export async function buildOpenApiDocument() {
       graphEdgeResponseSchema,
       graphIdSchema,
       graphNodeResponseSchema,
+      listBoardsResponseSchema,
       updateBoardNodeRequestSchema,
       updateEdgeRequestSchema,
       updateNodeRequestSchema,
@@ -59,6 +60,7 @@ export async function buildOpenApiDocument() {
 
   const createBoardRequest = registry.register("CreateBoardRequest", createBoardRequestSchema);
   const boardResponse = registry.register("BoardResponse", boardResponseSchema);
+  const listBoardsResponse = registry.register("ListBoardsResponse", listBoardsResponseSchema);
   const createNodeRequest = registry.register("CreateNodeRequest", createNodeRequestSchema);
   const updateNodeRequest = registry.register("UpdateNodeRequest", updateNodeRequestSchema);
   const updateBoardNodeRequest = registry.register(
@@ -189,6 +191,22 @@ export async function buildOpenApiDocument() {
     request: { params: storyIdParams, query: storyWorkspaceQuerySchema },
     responses: {
       204: { description: "Story deleted" },
+      400: errorResponse,
+      401: errorResponse,
+      403: errorResponse,
+      404: errorResponse,
+    },
+  });
+
+  registry.registerPath({
+    method: "get",
+    path: "/api/v1/stories/{storyId}/boards",
+    tags: ["Graph"],
+    summary: "List Boards for a Story",
+    security: secured,
+    request: { params: graphStoryIdParams, query: workspaceQuerySchema },
+    responses: {
+      200: { description: "Board list", content: json(listBoardsResponse) },
       400: errorResponse,
       401: errorResponse,
       403: errorResponse,
