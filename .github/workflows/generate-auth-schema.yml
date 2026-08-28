@@ -34,6 +34,9 @@ jobs:
       - name: Install dependencies and refresh lockfile
         run: pnpm install --no-frozen-lockfile
 
+      - name: Prepare CLI-readable auth config
+        run: sed -i '/import "server-only";/d' src/backend/infrastructure/auth/auth.ts
+
       - name: Generate Better Auth Drizzle schema
         run: pnpm auth:generate
 
@@ -45,6 +48,7 @@ jobs:
 
       - name: Commit generated persistence files
         run: |
+          git checkout -- src/backend/infrastructure/auth/auth.ts
           if [ -n "$(git status --porcelain pnpm-lock.yaml src/backend/infrastructure/database/schema drizzle)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
