@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -109,6 +109,7 @@ async function advance(ms: number) {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
     await Promise.resolve();
+    await Promise.resolve();
   });
 }
 
@@ -141,7 +142,7 @@ describe("Graph Editor history", () => {
     });
     await advance(500);
 
-    await waitFor(() => expect(mocks.updateNode).toHaveBeenCalledTimes(1));
+    expect(mocks.updateNode).toHaveBeenCalledTimes(1);
     const undo = screen.getByRole("button", { name: "Undo" });
     expect(undo).toBeEnabled();
 
@@ -151,12 +152,14 @@ describe("Graph Editor history", () => {
       await Promise.resolve();
     });
     expect(screen.getByLabelText("Name")).toHaveValue("Alice");
-    await advance(501);
     expect(mocks.updateNode).toHaveBeenCalledTimes(2);
     expect(mocks.updateNode.mock.calls[1]?.[0]).toMatchObject({
       nodeId,
       name: "Alice",
     });
+
+    await advance(501);
+    expect(mocks.updateNode).toHaveBeenCalledTimes(2);
 
     const redo = screen.getByRole("button", { name: "Redo" });
     expect(redo).toBeEnabled();
