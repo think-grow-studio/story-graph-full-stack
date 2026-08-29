@@ -88,7 +88,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Graph Editor failed Board removal", () => {
-  it("restores the Node and incident Relationship presentation and shows an error", async () => {
+  it("keeps the Node and incident Relationship detached and exposes Error/Retry", async () => {
     const user = userEvent.setup();
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -106,8 +106,10 @@ describe("Graph Editor failed Board removal", () => {
     expect(
       await screen.findByText("Unable to remove Node from Board."),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Select Alice" })).toBeInTheDocument();
-    expect(screen.getByTestId("canvas-edge")).toHaveTextContent("knows");
-    expect(screen.getByRole("heading", { name: "Node Inspector" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Select Alice" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("canvas-edge")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Node Inspector" })).not.toBeInTheDocument();
+    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 });
