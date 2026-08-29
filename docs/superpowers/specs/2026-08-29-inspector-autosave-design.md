@@ -27,7 +27,8 @@ This slice will:
 4. Enqueue `update-node` / `update-edge` commands only when the current draft is saveable.
 5. Reuse the existing Save Queue for ordering, error state, Retry, optimistic concurrency, and stale-response protection.
 6. Keep typing responsive while persistence is pending or failing.
-7. Preserve existing Board-vs-canonical ownership rules and frontend/backend boundaries.
+7. Make the global save indicator account for unsaved/invalid Inspector drafts so it never reports `Saved` while user input exists only in draft state.
+8. Preserve existing Board-vs-canonical ownership rules and frontend/backend boundaries.
 
 ## 3. Non-goals
 
@@ -177,6 +178,8 @@ description
 parsed properties object
 ```
 
+`properties` comparison is structural JSON equality, not raw textarea-string equality. Whitespace changes or object-key ordering alone must not trigger a canonical update when the parsed JSON value is semantically unchanged.
+
 This avoids save loops caused by:
 
 - selecting an entity,
@@ -185,6 +188,8 @@ This avoids save loops caused by:
 - restoring a draft that already matches canonical working state.
 
 The raw draft text itself does not need to be reformatted after save. For example, compact valid JSON may remain compact in the textarea even if canonical `properties` is an object.
+
+A draft is considered **dirty** when its normalized saveable value differs from canonical Graph state, or when it contains invalid/unsaveable input that differs from the last canonical-derived draft. Dirty state is editor-session metadata only; it is not persisted to the backend.
 
 ## 10. Command and Save Queue integration
 
@@ -257,7 +262,7 @@ For optimistic locking `409`:
 
 While a lane is failed, further user typing remains allowed and updates the draft. This slice does not redesign the Save Queue's failed-operation ordering semantics; Retry still retries the failed queued operation before later same-lane operations.
 
-## 13. Inspector UI behavior
+## 13. Save-status composition and Inspector UI
 
 Remove the explicit canonical Save button from the Inspector.
 
@@ -269,7 +274,7 @@ Inspector keeps:
 - validation/conflict message area,
 - Remove from Board action.
 
-The global Board header remains the durable save indicator:
+The Board header keeps the existing labels:
 
 ```text
 Saved
@@ -278,14 +283,28 @@ Saving…
 Error · Retry
 ```
 
-Inspector may show a local validation message such as:
+But the **displayed editor save state** is now composed from both Inspector Draft state and Save Queue state so `Saved` never appears while an Inspector draft contains unsaved user input.
+
+Display priority:
+
+```text
+Save Queue has failure                         → Error · Retry
+Save Queue has running operation               → Saving…
+any Inspector draft is dirty/invalid/unsaveable → Unsaved
+Save Queue has pending operation               → Unsaved
+otherwise                                      → Saved
+```
+
+The Save Queue itself remains unchanged as the durable-operation scheduler; draft dirtiness affects only editor-level display state and autosave eligibility.
+
+Inspector shows local validation messages such as:
 
 ```text
 Properties must be valid JSON.
 Properties must be a JSON object.
 ```
 
-A local `Editing...` label is optional and not required for acceptance; the global Save Queue indicator is the authoritative persistence state.
+A local `Editing...` label is optional and not required for acceptance.
 
 `Remove from Board` remains a separate explicit action because it is destructive presentation membership removal, not a field edit.
 
@@ -306,10 +325,11 @@ src/frontend/features/graph-editor/
 
 Exact file names may vary during implementation, but responsibilities must stay separated:
 
-- Draft Store: raw per-entity draft lifecycle.
+- Draft Store: raw per-entity draft lifecycle and dirty metadata.
 - Inspector component: render/edit draft and validation feedback.
-- Autosave adapter/hook: debounce, validation, change detection, command construction.
+- Autosave adapter/hook: debounce, validation, structural change detection, command construction.
 - Save Queue: durable scheduling/failure/retry only.
+- Page/editor composition: combine queue state + draft dirtiness into user-visible save status.
 
 The generic Graph store and Save Queue core must not import React component concerns.
 
@@ -326,10 +346,12 @@ Cover at least:
 5. whitespace-only name is not saveable,
 6. valid JSON object is saveable,
 7. JSON arrays/null are rejected,
-8. no materially changed canonical values means no dispatch,
-9. edits inside 500 ms collapse to the latest autosave candidate,
-10. invalid draft causes no command/API call,
-11. returning from invalid to valid input schedules autosave.
+8. structural JSON equality suppresses whitespace/key-order-only saves,
+9. no materially changed canonical values means no dispatch,
+10. edits inside 500 ms collapse to the latest autosave candidate,
+11. invalid draft causes no command/API call,
+12. returning from invalid to valid input schedules autosave,
+13. dirty/invalid draft makes editor-level display state `Unsaved` even when Save Queue itself is idle.
 
 ### Graph Editor component tests
 
@@ -342,8 +364,9 @@ Cover at least:
 5. invalid Alice draft survives selecting Bob and returning to Alice,
 6. persistence response/version increment does not reset visible draft text,
 7. 409 preserves the current draft and existing conflict message,
-8. existing `Saved / Unsaved / Saving… / Error · Retry` behavior remains correct,
-9. Remove from Board remains explicit and preserves canonical Story data.
+8. header does not show `Saved` while an invalid/dirty draft exists,
+9. existing `Saved / Unsaved / Saving… / Error · Retry` queue behavior remains correct,
+10. Remove from Board remains explicit and preserves canonical Story data.
 
 ### Full verification
 
@@ -389,6 +412,7 @@ This slice is complete when:
 4. Per-entity drafts survive selection changes for the lifetime of the mounted Board editor.
 5. Version updates and persistence responses do not reset visible drafts.
 6. Save Queue remains the only durable editor write scheduler.
-7. 409/network failures preserve draft + working state and surface existing Error/Retry behavior.
-8. Existing Board removal and graph ownership invariants remain unchanged.
-9. Full repository verification is green before integration.
+7. The editor-level save indicator never reports `Saved` while a dirty/invalid Inspector draft exists.
+8. 409/network failures preserve draft + working state and surface existing Error/Retry behavior.
+9. Existing Board removal and graph ownership invariants remain unchanged.
+10. Full repository verification is green before integration.
