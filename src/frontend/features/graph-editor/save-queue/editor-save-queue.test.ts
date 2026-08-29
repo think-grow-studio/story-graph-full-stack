@@ -215,6 +215,7 @@ describe("EditorSaveQueue", () => {
     const queue = createEditorSaveQueue({ execute, createOperationId: sequenceIds() });
 
     queue.enqueue(moveNode(aliceId, 100));
+    await flushMicrotasks();
     queue.enqueue(moveNode(aliceId, 180));
     queue.enqueue(moveNode(bobId, 200));
     await flushMicrotasks();
