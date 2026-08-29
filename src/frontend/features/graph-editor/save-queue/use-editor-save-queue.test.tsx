@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { EditorPersistence } from "../persistence/editor-persistence";
@@ -122,6 +123,37 @@ describe("useEditorSaveQueue", () => {
 
     expect(result.current.snapshot.saveState).toBe("saved");
     expect(editorStore.getState().boardNodes[0]).toMatchObject({ x: 250, y: 300 });
+  });
+
+  it("keeps the queue live through React StrictMode effect replay", async () => {
+    const editorStore = store();
+    const moveNode = vi.fn(async (command) => ({
+      ...editorStore.getState().boardNodes[0],
+      x: command.position.x,
+      y: command.position.y,
+    }));
+    const durable = persistence(moveNode);
+    const { result } = renderHook(
+      () => useEditorSaveQueue(editorStore, durable, boardId),
+      { wrapper: StrictMode },
+    );
+
+    act(() => {
+      result.current.dispatch({
+        type: "move-node",
+        boardId,
+        workspaceId,
+        nodeId,
+        position: { x: 275, y: 325 },
+      });
+    });
+    await act(async () => {
+      await flushMicrotasks();
+      await flushMicrotasks();
+    });
+
+    expect(moveNode).toHaveBeenCalledTimes(1);
+    expect(result.current.snapshot.saveState).toBe("saved");
   });
 
   it("reports lane state and exposes manual retry", async () => {
