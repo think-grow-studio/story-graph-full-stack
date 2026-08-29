@@ -19,6 +19,7 @@ export type EditorSaveQueueSnapshot = {
 };
 
 export type EditorSaveQueue = {
+  activate(): void;
   enqueue(command: EditorCommand): string;
   retryFailed(): void;
   getSnapshot(): EditorSaveQueueSnapshot;
@@ -204,6 +205,12 @@ export function createEditorSaveQueue({
   }
 
   return {
+    activate() {
+      if (!disposed) return;
+      disposed = false;
+      snapshot = buildSnapshot(lanes);
+      scheduleAllLanes();
+    },
     enqueue,
     retryFailed,
     getSnapshot() {
