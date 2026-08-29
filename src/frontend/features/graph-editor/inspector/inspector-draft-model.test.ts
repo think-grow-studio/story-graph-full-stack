@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { GraphNodeResponse } from "@/contracts/graph/graph.contract";
 
 import {
+  combineEditorSaveState,
   createInspectorDraftFromEntity,
   evaluateInspectorDraft,
   toInspectorEntityKey,
@@ -146,4 +147,21 @@ describe("inspector draft model", () => {
       dirty: true,
     });
   });
+});
+
+describe("combineEditorSaveState", () => {
+  it.each([
+    ["saved", false, "saved"],
+    ["saved", true, "unsaved"],
+    ["unsaved", true, "unsaved"],
+    ["saving", true, "saving"],
+    ["error", true, "error"],
+  ] as const)(
+    "combines queue %s with dirty=%s as %s",
+    (queueState, hasDirtyInspectorDraft, expected) => {
+      expect(
+        combineEditorSaveState(queueState, hasDirtyInspectorDraft),
+      ).toBe(expected);
+    },
+  );
 });
