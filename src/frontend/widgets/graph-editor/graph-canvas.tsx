@@ -41,6 +41,7 @@ export type GraphCanvasProps = {
     nodeId: string,
     position: { x: number; y: number },
   ) => void;
+  onNodeDragStart?: (nodeId: string) => void;
   onNodeDragStop: (nodeId: string) => void;
   onConnectNodes: (sourceNodeId: string, targetNodeId: string) => void;
   onSelectNode?: (nodeId: string) => void;
@@ -54,6 +55,7 @@ export function GraphCanvas({
   nodes,
   edges = [],
   onNodePositionChange,
+  onNodeDragStart,
   onNodeDragStop,
   onConnectNodes,
   onSelectNode,
@@ -102,6 +104,10 @@ export function GraphCanvas({
     },
   }));
 
+  const handleNodeDragStart: OnNodeDrag<FlowNode> = (_, node) => {
+    onNodeDragStart?.(node.id);
+  };
+
   const handleNodeDrag: OnNodeDrag<FlowNode> = (_, node) => {
     onNodePositionChange(node.id, node.position);
   };
@@ -133,6 +139,7 @@ export function GraphCanvas({
         }}
         onNodeClick={(_, node) => onSelectNode?.(node.id)}
         onNodeDrag={handleNodeDrag}
+        onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
       >
         <Background />
