@@ -2,22 +2,18 @@
 
 import { isAxiosError } from "axios";
 import Link from "next/link";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
 import { useBoardSnapshotQuery } from "@/frontend/api/graph/graph.queries";
-import { executeEditorCommand } from "@/frontend/features/graph-editor/commands/editor-command-executor";
+import type { EditorCommand } from "@/frontend/features/graph-editor/commands/editor-command";
 import {
   GraphInspector,
   type GraphInspectorSaveInput,
   type GraphInspectorSelection,
 } from "@/frontend/features/graph-editor/inspector/graph-inspector";
 import { useEditorPersistence } from "@/frontend/features/graph-editor/persistence/use-editor-persistence";
+import { useEditorSaveQueue } from "@/frontend/features/graph-editor/save-queue/use-editor-save-queue";
 import {
   GraphEditorStoreProvider,
   useGraphEditorStore,
@@ -53,10 +49,6 @@ function GraphEditorContent({
   storyId: string;
   boardId: string;
 }) {
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [positionError, setPositionError] = useState<string | null>(null);
-  const [relationshipError, setRelationshipError] = useState<string | null>(null);
-  const [inspectorError, setInspectorError] = useState<string | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<SelectedGraphEntity | null>(null);
   const [isNodeFormOpen, setNodeFormOpen] = useState(false);
   const [nodeName, setNodeName] = useState("");
@@ -70,9 +62,10 @@ function GraphEditorContent({
   const bootstrap = useBootstrapQuery();
   const workspaceId = bootstrap.data?.workspace.id;
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
-  const { persistence, pending } = useEditorPersistence(workspaceId, boardId);
+  const { persistence } = useEditorPersistence(workspaceId, boardId);
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
+  const saveQueue = useEditorSaveQueue(store, persistence, boardId);
 
   useEffect(() => {
     if (!snapshot.data || snapshot.data.board.id !== boardId) return;
@@ -82,7 +75,7 @@ function GraphEditorContent({
     hydratedBoardIdRef.current = boardId;
   }, [boardId, snapshot.data, store]);
 
-  async function handleCreateNode(event: FormEvent<HTMLFormElement>) {
+  function handleCreateNode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!workspaceId || !snapshot.data) return;
 
@@ -90,56 +83,50 @@ function GraphEditorContent({
     if (!name) return;
 
     const position = canvasRef.current?.getCenterPosition() ?? { x: 0, y: 0 };
-    setCreateError(null);
+    const operationId = saveQueue.dispatch({
+      type: "create-node",
+      boardId,
+      workspaceId,
+      storyId: snapshot.data.story.id,
+      nodeId: crypto.randomUUID(),
+      name,
+      position,
+      createdAt: new Date().toISOString(),
+    });
 
-    try {
-      await executeEditorCommand(store, persistence, {
-        type: "create-node",
-        boardId,
-        workspaceId,
-        storyId: snapshot.data.story.id,
-        nodeId: crypto.randomUUID(),
-        name,
-        position,
-        createdAt: new Date().toISOString(),
-      });
+    if (operationId) {
       setNodeName("");
       setNodeFormOpen(false);
-    } catch {
-      setCreateError("Unable to create Node.");
     }
   }
 
   function handleConnectNodes(sourceNodeId: string, targetNodeId: string) {
     setPendingConnection({ sourceNodeId, targetNodeId });
     setRelationshipName("");
-    setRelationshipError(null);
   }
 
-  async function handleCreateRelationship(event: FormEvent<HTMLFormElement>) {
+  function handleCreateRelationship(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!workspaceId || !snapshot.data || !pendingConnection) return;
 
     const name = relationshipName.trim();
     if (!name) return;
 
-    setRelationshipError(null);
-    try {
-      await executeEditorCommand(store, persistence, {
-        type: "create-edge",
-        boardId,
-        workspaceId,
-        storyId: snapshot.data.story.id,
-        edgeId: crypto.randomUUID(),
-        sourceNodeId: pendingConnection.sourceNodeId,
-        targetNodeId: pendingConnection.targetNodeId,
-        name,
-        createdAt: new Date().toISOString(),
-      });
+    const operationId = saveQueue.dispatch({
+      type: "create-edge",
+      boardId,
+      workspaceId,
+      storyId: snapshot.data.story.id,
+      edgeId: crypto.randomUUID(),
+      sourceNodeId: pendingConnection.sourceNodeId,
+      targetNodeId: pendingConnection.targetNodeId,
+      name,
+      createdAt: new Date().toISOString(),
+    });
+
+    if (operationId) {
       setRelationshipName("");
       setPendingConnection(null);
-    } catch {
-      setRelationshipError("Unable to create Relationship.");
     }
   }
 
@@ -147,34 +134,27 @@ function GraphEditorContent({
     nodeId: string,
     position: { x: number; y: number },
   ) {
-    setPositionError(null);
     store.getState().setNodePosition(nodeId, position);
   }
 
-  async function handleNodeDragStop(nodeId: string) {
+  function handleNodeDragStop(nodeId: string) {
     if (!workspaceId) return;
     const boardNode = store
       .getState()
       .boardNodes.find((candidate) => candidate.nodeId === nodeId);
     if (!boardNode) return;
 
-    setPositionError(null);
-    try {
-      await executeEditorCommand(store, persistence, {
-        type: "move-node",
-        boardId,
-        nodeId,
-        workspaceId,
-        position: { x: boardNode.x, y: boardNode.y },
-      });
-    } catch {
-      setPositionError("Unable to save Node position.");
-    }
+    saveQueue.dispatch({
+      type: "move-node",
+      boardId,
+      nodeId,
+      workspaceId,
+      position: { x: boardNode.x, y: boardNode.y },
+    });
   }
 
-  async function handleSaveInspector(input: GraphInspectorSaveInput) {
+  function handleSaveInspector(input: GraphInspectorSaveInput) {
     if (!workspaceId || !selectedEntity) return;
-    setInspectorError(null);
 
     if (selectedEntity.kind === "node") {
       const node = store
@@ -182,22 +162,14 @@ function GraphEditorContent({
         .nodes.find((candidate) => candidate.id === selectedEntity.id);
       if (!node) return;
 
-      try {
-        await executeEditorCommand(store, persistence, {
-          type: "update-node",
-          boardId,
-          nodeId: node.id,
-          workspaceId,
-          version: node.version,
-          ...input,
-        });
-      } catch (error) {
-        setInspectorError(
-          isAxiosError(error) && error.response?.status === 409
-            ? "This Node changed elsewhere. Reload before saving again."
-            : "Unable to save Node.",
-        );
-      }
+      saveQueue.dispatch({
+        type: "update-node",
+        boardId,
+        nodeId: node.id,
+        workspaceId,
+        version: node.version,
+        ...input,
+      });
       return;
     }
 
@@ -206,27 +178,18 @@ function GraphEditorContent({
       .edges.find((candidate) => candidate.id === selectedEntity.id);
     if (!edge) return;
 
-    try {
-      await executeEditorCommand(store, persistence, {
-        type: "update-edge",
-        boardId,
-        edgeId: edge.id,
-        workspaceId,
-        version: edge.version,
-        ...input,
-      });
-    } catch (error) {
-      setInspectorError(
-        isAxiosError(error) && error.response?.status === 409
-          ? "This Relationship changed elsewhere. Reload before saving again."
-          : "Unable to save Relationship.",
-      );
-    }
+    saveQueue.dispatch({
+      type: "update-edge",
+      boardId,
+      edgeId: edge.id,
+      workspaceId,
+      version: edge.version,
+      ...input,
+    });
   }
 
-  async function handleRemoveFromBoard() {
+  function handleRemoveFromBoard() {
     if (!workspaceId || !selectedEntity) return;
-    setInspectorError(null);
 
     if (selectedEntity.kind === "node") {
       const isRepresented = store
@@ -234,17 +197,13 @@ function GraphEditorContent({
         .boardNodes.some((candidate) => candidate.nodeId === selectedEntity.id);
       if (!isRepresented) return;
 
-      try {
-        await executeEditorCommand(store, persistence, {
-          type: "remove-board-node",
-          boardId,
-          nodeId: selectedEntity.id,
-          workspaceId,
-        });
-        setSelectedEntity(null);
-      } catch {
-        setInspectorError("Unable to remove Node from Board.");
-      }
+      const operationId = saveQueue.dispatch({
+        type: "remove-board-node",
+        boardId,
+        nodeId: selectedEntity.id,
+        workspaceId,
+      });
+      if (operationId) setSelectedEntity(null);
       return;
     }
 
@@ -253,17 +212,13 @@ function GraphEditorContent({
       .boardEdges.some((candidate) => candidate.edgeId === selectedEntity.id);
     if (!isRepresented) return;
 
-    try {
-      await executeEditorCommand(store, persistence, {
-        type: "remove-board-edge",
-        boardId,
-        edgeId: selectedEntity.id,
-        workspaceId,
-      });
-      setSelectedEntity(null);
-    } catch {
-      setInspectorError("Unable to remove Relationship from Board.");
-    }
+    const operationId = saveQueue.dispatch({
+      type: "remove-board-edge",
+      boardId,
+      edgeId: selectedEntity.id,
+      workspaceId,
+    });
+    if (operationId) setSelectedEntity(null);
   }
 
   if (bootstrap.isPending || snapshot.isPending) {
@@ -309,6 +264,34 @@ function GraphEditorContent({
     if (edge) inspectorSelection = { kind: "edge", entity: edge };
   }
 
+  const selectedLaneKey = selectedEntity
+    ? `${selectedEntity.kind}:${selectedEntity.id}`
+    : null;
+  const selectedLaneState = selectedLaneKey
+    ? saveQueue.getLaneState(selectedLaneKey)
+    : "idle";
+  const selectedLaneBusy =
+    selectedLaneState === "pending" || selectedLaneState === "saving";
+  const selectedInspectorFailure = selectedLaneKey
+    ? [...saveQueue.snapshot.failedOperations]
+        .reverse()
+        .find(
+          (failure) =>
+            failure.laneKey === selectedLaneKey &&
+            (failure.command.type === "update-node" ||
+              failure.command.type === "update-edge"),
+        )
+    : undefined;
+  const inspectorError = selectedInspectorFailure
+    ? getEditorFailureMessage(
+        selectedInspectorFailure.command,
+        selectedInspectorFailure.error,
+      )
+    : null;
+  const actionFailures = saveQueue.snapshot.failedOperations.filter(
+    (failure) => failure !== selectedInspectorFailure,
+  );
+
   return (
     <main className="grid min-h-screen grid-rows-[auto_auto_1fr] gap-4 p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -322,17 +305,36 @@ function GraphEditorContent({
           <h1 className="text-2xl font-semibold">{snapshot.data.board.name}</h1>
           <p className="text-sm text-neutral-500">{snapshot.data.story.name}</p>
         </div>
-        <button
-          className="rounded-md bg-neutral-900 px-4 py-2 font-medium text-white disabled:opacity-50"
-          disabled={pending.createNode}
-          onClick={() => {
-            setCreateError(null);
-            setNodeFormOpen(true);
-          }}
-          type="button"
-        >
-          + Node
-        </button>
+        <div className="flex items-center gap-3">
+          <div aria-live="polite" className="text-sm text-neutral-500">
+            {saveQueue.snapshot.saveState === "saved" ? <span>Saved</span> : null}
+            {saveQueue.snapshot.saveState === "saving" ? (
+              <span>Saving…</span>
+            ) : null}
+            {saveQueue.snapshot.saveState === "unsaved" ? (
+              <span>Unsaved</span>
+            ) : null}
+            {saveQueue.snapshot.saveState === "error" ? (
+              <span className="inline-flex items-center gap-2">
+                <span>Error</span>
+                <button
+                  className="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium"
+                  onClick={saveQueue.retryFailed}
+                  type="button"
+                >
+                  Retry
+                </button>
+              </span>
+            ) : null}
+          </div>
+          <button
+            className="rounded-md bg-neutral-900 px-4 py-2 font-medium text-white"
+            onClick={() => setNodeFormOpen(true)}
+            type="button"
+          >
+            + Node
+          </button>
+        </div>
       </header>
 
       <div className="grid gap-2">
@@ -354,18 +356,16 @@ function GraphEditorContent({
             />
             <button
               className="rounded-md bg-neutral-900 px-3 py-2 font-medium text-white disabled:opacity-50"
-              disabled={pending.createNode || !nodeName.trim()}
+              disabled={!nodeName.trim()}
               type="submit"
             >
-              {pending.createNode ? "Creating..." : "Create Node"}
+              Create Node
             </button>
             <button
               className="rounded-md border border-neutral-300 px-3 py-2"
-              disabled={pending.createNode}
               onClick={() => {
                 setNodeName("");
                 setNodeFormOpen(false);
-                setCreateError(null);
               }}
               type="button"
             >
@@ -391,20 +391,21 @@ function GraphEditorContent({
             />
             <button
               className="rounded-md bg-neutral-900 px-3 py-2 font-medium text-white disabled:opacity-50"
-              disabled={pending.createEdge || !relationshipName.trim()}
+              disabled={!relationshipName.trim()}
               type="submit"
             >
-              {pending.createEdge ? "Creating..." : "Create Relationship"}
+              Create Relationship
             </button>
           </form>
         ) : null}
-        {createError ? <p className="text-sm text-red-600">{createError}</p> : null}
-        {relationshipError ? (
-          <p className="text-sm text-red-600">{relationshipError}</p>
-        ) : null}
-        {positionError ? (
-          <p className="text-sm text-red-600">{positionError}</p>
-        ) : null}
+        {actionFailures.map((failure) => (
+          <p
+            className="text-sm text-red-600"
+            key={`${failure.operationId}:${failure.attempt}`}
+          >
+            {getEditorFailureMessage(failure.command, failure.error)}
+          </p>
+        ))}
       </div>
 
       <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -414,21 +415,15 @@ function GraphEditorContent({
           onConnectNodes={handleConnectNodes}
           onNodeDragStop={handleNodeDragStop}
           onNodePositionChange={handleNodePositionChange}
-          onSelectEdge={(edgeId) => {
-            setInspectorError(null);
-            setSelectedEntity({ kind: "edge", id: edgeId });
-          }}
-          onSelectNode={(nodeId) => {
-            setInspectorError(null);
-            setSelectedEntity({ kind: "node", id: nodeId });
-          }}
+          onSelectEdge={(edgeId) => setSelectedEntity({ kind: "edge", id: edgeId })}
+          onSelectNode={(nodeId) => setSelectedEntity({ kind: "node", id: nodeId })}
           ref={canvasRef}
         />
         {inspectorSelection ? (
           <GraphInspector
             error={inspectorError}
-            isRemoving={pending.removeBoardNode || pending.removeBoardEdge}
-            isSaving={pending.updateNode || pending.updateEdge}
+            isRemoving={false}
+            isSaving={selectedLaneBusy}
             key={`${inspectorSelection.kind}:${inspectorSelection.entity.id}:${inspectorSelection.entity.version}`}
             onRemoveFromBoard={handleRemoveFromBoard}
             onSave={handleSaveInspector}
@@ -438,4 +433,27 @@ function GraphEditorContent({
       </div>
     </main>
   );
+}
+
+function getEditorFailureMessage(command: EditorCommand, error: unknown): string {
+  switch (command.type) {
+    case "create-node":
+      return "Unable to create Node.";
+    case "move-node":
+      return "Unable to save Node position.";
+    case "create-edge":
+      return "Unable to create Relationship.";
+    case "update-node":
+      return isAxiosError(error) && error.response?.status === 409
+        ? "This Node changed elsewhere. Reload before saving again."
+        : "Unable to save Node.";
+    case "update-edge":
+      return isAxiosError(error) && error.response?.status === 409
+        ? "This Relationship changed elsewhere. Reload before saving again."
+        : "Unable to save Relationship.";
+    case "remove-board-node":
+      return "Unable to remove Node from Board.";
+    case "remove-board-edge":
+      return "Unable to remove Relationship from Board.";
+  }
 }
