@@ -4,6 +4,7 @@ import type {
   GraphEdgeResponse,
   GraphNodeResponse,
 } from "@/contracts/graph/graph.contract";
+import type { EditorCommand } from "../commands/editor-command";
 import { createGraphEditorStore } from "../store/graph-editor-store";
 import { createInspectorAutosaveController } from "./inspector-autosave-controller";
 import { createInspectorDraftStore } from "./inspector-draft-store";
@@ -121,7 +122,7 @@ function setup() {
     .getState()
     .ensureDraft(toInspectorEntityKey("edge", edgeId), relationship());
 
-  const dispatch = vi.fn(() => "operation-1");
+  const dispatch = vi.fn((_: EditorCommand) => "operation-1");
   const controller = createInspectorAutosaveController({
     draftStore,
     graphStore,
