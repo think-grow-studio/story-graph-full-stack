@@ -2,16 +2,21 @@
 
 import { isAxiosError } from "axios";
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
 import { useBoardSnapshotQuery } from "@/frontend/api/graph/graph.queries";
 import type { EditorCommand } from "@/frontend/features/graph-editor/commands/editor-command";
+import { GraphInspector, type GraphInspectorSelection } from "@/frontend/features/graph-editor/inspector/graph-inspector";
 import {
-  GraphInspector,
-  type GraphInspectorSaveInput,
-  type GraphInspectorSelection,
-} from "@/frontend/features/graph-editor/inspector/graph-inspector";
+  evaluateInspectorDraft,
+  toInspectorEntityKey,
+} from "@/frontend/features/graph-editor/inspector/inspector-draft-model";
+import { createInspectorDraftStore } from "@/frontend/features/graph-editor/inspector/inspector-draft-store";
+import {
+  useInspectorAutosave,
+  useInspectorDraftState,
+} from "@/frontend/features/graph-editor/inspector/use-inspector-autosave";
 import { useEditorPersistence } from "@/frontend/features/graph-editor/persistence/use-editor-persistence";
 import { useEditorSaveQueue } from "@/frontend/features/graph-editor/save-queue/use-editor-save-queue";
 import {
@@ -49,7 +54,8 @@ function GraphEditorContent({
   storyId: string;
   boardId: string;
 }) {
-  const [selectedEntity, setSelectedEntity] = useState<SelectedGraphEntity | null>(null);
+  const [selectedEntity, setSelectedEntity] =
+    useState<SelectedGraphEntity | null>(null);
   const [isNodeFormOpen, setNodeFormOpen] = useState(false);
   const [nodeName, setNodeName] = useState("");
   const [pendingConnection, setPendingConnection] = useState<{
@@ -66,6 +72,16 @@ function GraphEditorContent({
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
   const saveQueue = useEditorSaveQueue(store, persistence, boardId);
+  const draftStore = useMemo(() => createInspectorDraftStore(), [boardId]);
+  const draftState = useInspectorDraftState(draftStore);
+
+  useInspectorAutosave({
+    draftStore,
+    graphStore: store,
+    boardId,
+    workspaceId,
+    dispatch: saveQueue.dispatch,
+  });
 
   useEffect(() => {
     if (!snapshot.data || snapshot.data.board.id !== boardId) return;
@@ -74,6 +90,45 @@ function GraphEditorContent({
     store.getState().hydrate(snapshot.data);
     hydratedBoardIdRef.current = boardId;
   }, [boardId, snapshot.data, store]);
+
+  let inspectorSelection: GraphInspectorSelection | null = null;
+  if (selectedEntity?.kind === "node") {
+    const node = state.nodes.find(
+      (candidate) => candidate.id === selectedEntity.id,
+    );
+    if (node) inspectorSelection = { kind: "node", entity: node };
+  } else if (selectedEntity?.kind === "edge") {
+    const edge = state.edges.find(
+      (candidate) => candidate.id === selectedEntity.id,
+    );
+    if (edge) inspectorSelection = { kind: "edge", entity: edge };
+  }
+
+  const selectedDraftKey = inspectorSelection
+    ? toInspectorEntityKey(
+        inspectorSelection.kind,
+        inspectorSelection.entity.id,
+      )
+    : null;
+
+  useEffect(() => {
+    if (!selectedDraftKey || !inspectorSelection) return;
+    draftStore
+      .getState()
+      .ensureDraft(selectedDraftKey, inspectorSelection.entity);
+  }, [draftStore, inspectorSelection, selectedDraftKey]);
+
+  const selectedDraft = selectedDraftKey
+    ? draftState.drafts[selectedDraftKey]
+    : undefined;
+  const selectedDraftEvaluation =
+    selectedDraft && inspectorSelection
+      ? evaluateInspectorDraft(selectedDraft, inspectorSelection.entity)
+      : null;
+  const inspectorValidationError =
+    selectedDraftEvaluation?.status === "invalid"
+      ? selectedDraftEvaluation.message
+      : null;
 
   function handleCreateNode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -153,41 +208,6 @@ function GraphEditorContent({
     });
   }
 
-  function handleSaveInspector(input: GraphInspectorSaveInput) {
-    if (!workspaceId || !selectedEntity) return;
-
-    if (selectedEntity.kind === "node") {
-      const node = store
-        .getState()
-        .nodes.find((candidate) => candidate.id === selectedEntity.id);
-      if (!node) return;
-
-      saveQueue.dispatch({
-        type: "update-node",
-        boardId,
-        nodeId: node.id,
-        workspaceId,
-        version: node.version,
-        ...input,
-      });
-      return;
-    }
-
-    const edge = store
-      .getState()
-      .edges.find((candidate) => candidate.id === selectedEntity.id);
-    if (!edge) return;
-
-    saveQueue.dispatch({
-      type: "update-edge",
-      boardId,
-      edgeId: edge.id,
-      workspaceId,
-      version: edge.version,
-      ...input,
-    });
-  }
-
   function handleRemoveFromBoard() {
     if (!workspaceId || !selectedEntity) return;
 
@@ -255,18 +275,7 @@ function GraphEditorContent({
       targetNodeId: edge.targetNodeId,
     }));
 
-  let inspectorSelection: GraphInspectorSelection | null = null;
-  if (selectedEntity?.kind === "node") {
-    const node = state.nodes.find((candidate) => candidate.id === selectedEntity.id);
-    if (node) inspectorSelection = { kind: "node", entity: node };
-  } else if (selectedEntity?.kind === "edge") {
-    const edge = state.edges.find((candidate) => candidate.id === selectedEntity.id);
-    if (edge) inspectorSelection = { kind: "edge", entity: edge };
-  }
-
-  const selectedLaneKey = selectedEntity
-    ? `${selectedEntity.kind}:${selectedEntity.id}`
-    : null;
+  const selectedLaneKey = selectedDraftKey;
   const selectedLaneState = selectedLaneKey
     ? saveQueue.getLaneState(selectedLaneKey)
     : "idle";
@@ -415,19 +424,27 @@ function GraphEditorContent({
           onConnectNodes={handleConnectNodes}
           onNodeDragStop={handleNodeDragStop}
           onNodePositionChange={handleNodePositionChange}
-          onSelectEdge={(edgeId) => setSelectedEntity({ kind: "edge", id: edgeId })}
-          onSelectNode={(nodeId) => setSelectedEntity({ kind: "node", id: nodeId })}
+          onSelectEdge={(edgeId) =>
+            setSelectedEntity({ kind: "edge", id: edgeId })
+          }
+          onSelectNode={(nodeId) =>
+            setSelectedEntity({ kind: "node", id: nodeId })
+          }
           ref={canvasRef}
         />
-        {inspectorSelection ? (
+        {inspectorSelection && selectedDraft && selectedDraftKey ? (
           <GraphInspector
+            draft={selectedDraft}
             error={inspectorError}
+            isLaneBusy={selectedLaneBusy}
             isRemoving={false}
-            isSaving={selectedLaneBusy}
-            key={`${inspectorSelection.kind}:${inspectorSelection.entity.id}:${inspectorSelection.entity.version}`}
+            key={selectedDraftKey}
+            onDraftChange={(patch) =>
+              draftStore.getState().updateDraft(selectedDraftKey, patch)
+            }
             onRemoveFromBoard={handleRemoveFromBoard}
-            onSave={handleSaveInspector}
             selection={inspectorSelection}
+            validationError={inspectorValidationError}
           />
         ) : null}
       </div>
