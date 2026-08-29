@@ -1,0 +1,29 @@
+import type {
+  BoardNodeResponse,
+  GraphEdgeResponse,
+  GraphNodeResponse,
+} from "@/contracts/graph/graph.contract";
+
+import type {
+  CreateEdgeCommand,
+  CreateNodeCommand,
+  MoveNodeCommand,
+  RemoveBoardEdgeCommand,
+  RemoveBoardNodeCommand,
+  UpdateEdgeCommand,
+  UpdateNodeCommand,
+} from "../commands/editor-command";
+import type {
+  GraphEditorEdgePair,
+  GraphEditorNodePair,
+} from "../model/editor-types";
+
+export type EditorPersistence = {
+  createNode: (command: CreateNodeCommand) => Promise<GraphEditorNodePair>;
+  moveNode: (command: MoveNodeCommand) => Promise<BoardNodeResponse>;
+  createEdge: (command: CreateEdgeCommand) => Promise<GraphEditorEdgePair>;
+  updateNode: (command: UpdateNodeCommand) => Promise<GraphNodeResponse>;
+  updateEdge: (command: UpdateEdgeCommand) => Promise<GraphEdgeResponse>;
+  removeBoardNode: (command: RemoveBoardNodeCommand) => Promise<void>;
+  removeBoardEdge: (command: RemoveBoardEdgeCommand) => Promise<void>;
+};
