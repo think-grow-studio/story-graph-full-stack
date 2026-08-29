@@ -8,6 +8,10 @@ import {
   type InspectorEntityKey,
 } from "./inspector-draft-model";
 
+type InspectorDraftReplacement =
+  | Pick<InspectorDraft, "name" | "description" | "propertiesText">
+  | InspectorCanonicalEntity;
+
 export type InspectorDraftState = {
   drafts: Readonly<Partial<Record<InspectorEntityKey, InspectorDraft>>>;
   ensureDraft: (
@@ -17,7 +21,7 @@ export type InspectorDraftState = {
   updateDraft: (key: InspectorEntityKey, patch: InspectorDraftPatch) => void;
   replaceDraft: (
     key: InspectorEntityKey,
-    input: Pick<InspectorDraft, "name" | "description" | "propertiesText">,
+    input: InspectorDraftReplacement,
   ) => void;
 };
 
@@ -61,10 +65,12 @@ export function createInspectorDraftStore(): InspectorDraftStore {
     replaceDraft: (key, input) => {
       const current = get().drafts[key];
       if (!current) return;
+
+      const next = toDraftReplacement(input);
       if (
-        input.name === current.name &&
-        input.description === current.description &&
-        input.propertiesText === current.propertiesText
+        next.name === current.name &&
+        next.description === current.description &&
+        next.propertiesText === current.propertiesText
       ) {
         return;
       }
@@ -73,11 +79,24 @@ export function createInspectorDraftStore(): InspectorDraftStore {
         drafts: {
           ...state.drafts,
           [key]: {
-            ...input,
+            ...next,
             revision: current.revision + 1,
           },
         },
       }));
     },
   }));
+}
+
+function toDraftReplacement(
+  input: InspectorDraftReplacement,
+): Pick<InspectorDraft, "name" | "description" | "propertiesText"> {
+  if ("propertiesText" in input) return input;
+
+  const draft = createInspectorDraftFromEntity(input);
+  return {
+    name: draft.name,
+    description: draft.description,
+    propertiesText: draft.propertiesText,
+  };
 }
