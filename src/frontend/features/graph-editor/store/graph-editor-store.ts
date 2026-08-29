@@ -25,10 +25,9 @@ export function createGraphEditorStore(): GraphEditorStore {
     reconcileNode: (input) => set((state) => upsertNodePair(state, input)),
     replaceNode: (node) =>
       set((state) => ({
-        nodes: [
-          ...state.nodes.filter((current) => current.id !== node.id),
-          node,
-        ],
+        nodes: state.nodes.map((current) =>
+          current.id === node.id ? node : current,
+        ),
       })),
     removeNode: (nodeId) =>
       set((state) => ({
@@ -58,10 +57,9 @@ export function createGraphEditorStore(): GraphEditorStore {
     reconcileEdge: (input) => set((state) => upsertEdgePair(state, input)),
     replaceEdge: (edge) =>
       set((state) => ({
-        edges: [
-          ...state.edges.filter((current) => current.id !== edge.id),
-          edge,
-        ],
+        edges: state.edges.map((current) =>
+          current.id === edge.id ? edge : current,
+        ),
       })),
     removeEdge: (edgeId) =>
       set((state) => ({
