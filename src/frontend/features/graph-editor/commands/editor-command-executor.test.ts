@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { EditorPersistence } from "../persistence/editor-persistence";
 import { createGraphEditorStore } from "../store/graph-editor-store";
 import { executeEditorCommand } from "./editor-command-executor";
-import type { EditorPersistence } from "../persistence/editor-persistence";
 
 const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
@@ -116,8 +116,8 @@ function persistence(): EditorPersistence {
   };
 }
 
-describe("executeEditorCommand", () => {
-  it("optimistically creates and reconciles a Node", async () => {
+describe("executeEditorCommand compatibility helper", () => {
+  it("applies and reconciles a Node creation", async () => {
     const store = hydratedStore();
     const durable = persistence();
     const command = {
@@ -138,9 +138,9 @@ describe("executeEditorCommand", () => {
         description: "",
         iconKey: null,
         properties: {},
-        version: 1,
+        version: 2,
         createdAt: now,
-        updatedAt: now,
+        updatedAt: "2026-08-29T00:01:00.000Z",
       },
       boardNode: {
         boardId,
@@ -152,19 +152,21 @@ describe("executeEditorCommand", () => {
         zIndex: 0,
         style: {},
         createdAt: now,
-        updatedAt: now,
+        updatedAt: "2026-08-29T00:01:00.000Z",
       },
     };
     vi.mocked(durable.createNode).mockResolvedValue(persisted);
 
     await executeEditorCommand(store, durable, command);
 
-    expect(durable.createNode).toHaveBeenCalledWith(command);
-    expect(store.getState().nodes).toContainEqual(persisted.node);
-    expect(store.getState().boardNodes).toContainEqual(persisted.boardNode);
+    expect(store.getState().nodes.find((node) => node.id === command.nodeId)?.version).toBe(2);
+    expect(store.getState().boardNodes.find((node) => node.nodeId === command.nodeId)).toMatchObject({
+      x: 250,
+      y: 180,
+    });
   });
 
-  it("rolls back an optimistic Node when persistence fails", async () => {
+  it("keeps an optimistic Node when creation persistence fails", async () => {
     const store = hydratedStore();
     const durable = persistence();
     const command = {
@@ -180,30 +182,33 @@ describe("executeEditorCommand", () => {
     vi.mocked(durable.createNode).mockRejectedValue(new Error("offline"));
 
     await expect(executeEditorCommand(store, durable, command)).rejects.toThrow("offline");
-    expect(store.getState().nodes.some((node) => node.id === command.nodeId)).toBe(false);
-    expect(store.getState().boardNodes.some((node) => node.nodeId === command.nodeId)).toBe(false);
+
+    expect(store.getState().nodes.some((node) => node.id === command.nodeId)).toBe(true);
+    expect(store.getState().boardNodes.some((node) => node.nodeId === command.nodeId)).toBe(true);
   });
 
-  it("persists the latest Node position and keeps working state on failure", async () => {
+  it("keeps the latest Node position when move persistence fails", async () => {
     const store = hydratedStore();
     const durable = persistence();
-    const command = {
-      type: "move-node" as const,
-      boardId,
-      workspaceId,
-      nodeId: aliceId,
-      position: { x: 999, y: 888 },
-    };
     vi.mocked(durable.moveNode).mockRejectedValue(new Error("offline"));
 
-    await expect(executeEditorCommand(store, durable, command)).rejects.toThrow("offline");
+    await expect(
+      executeEditorCommand(store, durable, {
+        type: "move-node",
+        boardId,
+        workspaceId,
+        nodeId: aliceId,
+        position: { x: 999, y: 888 },
+      }),
+    ).rejects.toThrow("offline");
+
     expect(store.getState().boardNodes.find((node) => node.nodeId === aliceId)).toMatchObject({
       x: 999,
       y: 888,
     });
   });
 
-  it("optimistically creates and rolls back a Relationship", async () => {
+  it("keeps an optimistic Relationship when creation persistence fails", async () => {
     const store = hydratedStore();
     const durable = persistence();
     const command = {
@@ -220,25 +225,24 @@ describe("executeEditorCommand", () => {
     vi.mocked(durable.createEdge).mockRejectedValue(new Error("offline"));
 
     await expect(executeEditorCommand(store, durable, command)).rejects.toThrow("offline");
-    expect(store.getState().edges.some((edge) => edge.id === command.edgeId)).toBe(false);
-    expect(store.getState().boardEdges.some((edge) => edge.edgeId === command.edgeId)).toBe(false);
+
+    expect(store.getState().edges.some((edge) => edge.id === command.edgeId)).toBe(true);
+    expect(store.getState().boardEdges.some((edge) => edge.edgeId === command.edgeId)).toBe(true);
   });
 
-  it("replaces canonical Node and Edge only after persistence succeeds", async () => {
+  it("applies canonical edits locally and advances versions on success", async () => {
     const store = hydratedStore();
     const durable = persistence();
-    const updatedNode = {
+    vi.mocked(durable.updateNode).mockResolvedValue({
       ...store.getState().nodes[0],
       name: "Alicia",
       version: 2,
-    };
-    const updatedEdge = {
+    });
+    vi.mocked(durable.updateEdge).mockResolvedValue({
       ...store.getState().edges[0],
       name: "best friend",
       version: 2,
-    };
-    vi.mocked(durable.updateNode).mockResolvedValue(updatedNode);
-    vi.mocked(durable.updateEdge).mockResolvedValue(updatedEdge);
+    });
 
     await executeEditorCommand(store, durable, {
       type: "update-node",
@@ -261,11 +265,17 @@ describe("executeEditorCommand", () => {
       properties: {},
     });
 
-    expect(store.getState().nodes.find((node) => node.id === aliceId)?.name).toBe("Alicia");
-    expect(store.getState().edges.find((edge) => edge.id === edgeId)?.name).toBe("best friend");
+    expect(store.getState().nodes.find((node) => node.id === aliceId)).toMatchObject({
+      name: "Alicia",
+      version: 2,
+    });
+    expect(store.getState().edges.find((edge) => edge.id === edgeId)).toMatchObject({
+      name: "best friend",
+      version: 2,
+    });
   });
 
-  it("rolls back Board Node presentation only when removal persistence fails", async () => {
+  it("keeps Board Node presentation detached when removal persistence fails", async () => {
     const store = hydratedStore();
     const durable = persistence();
     vi.mocked(durable.removeBoardNode).mockRejectedValue(new Error("offline"));
@@ -281,11 +291,11 @@ describe("executeEditorCommand", () => {
 
     expect(store.getState().nodes.map((node) => node.id)).toContain(aliceId);
     expect(store.getState().edges.map((edge) => edge.id)).toContain(edgeId);
-    expect(store.getState().boardNodes.map((node) => node.nodeId)).toContain(aliceId);
-    expect(store.getState().boardEdges.map((edge) => edge.edgeId)).toContain(edgeId);
+    expect(store.getState().boardNodes.map((node) => node.nodeId)).not.toContain(aliceId);
+    expect(store.getState().boardEdges.map((edge) => edge.edgeId)).not.toContain(edgeId);
   });
 
-  it("rolls back Board Edge presentation only when removal persistence fails", async () => {
+  it("keeps Board Edge presentation detached when removal persistence fails", async () => {
     const store = hydratedStore();
     const durable = persistence();
     vi.mocked(durable.removeBoardEdge).mockRejectedValue(new Error("offline"));
@@ -300,6 +310,6 @@ describe("executeEditorCommand", () => {
     ).rejects.toThrow("offline");
 
     expect(store.getState().edges.map((edge) => edge.id)).toContain(edgeId);
-    expect(store.getState().boardEdges.map((edge) => edge.edgeId)).toContain(edgeId);
+    expect(store.getState().boardEdges.map((edge) => edge.edgeId)).not.toContain(edgeId);
   });
 });
