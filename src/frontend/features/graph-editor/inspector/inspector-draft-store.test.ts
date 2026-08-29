@@ -50,7 +50,7 @@ describe("inspector draft store", () => {
     store.getState().ensureDraft("node:alice", alice);
 
     store.getState().updateDraft("node:alice", { name: "Alice" });
-    expect(store.getState().drafts["node:alice"].revision).toBe(0);
+    expect(store.getState().drafts["node:alice"]?.revision).toBe(0);
 
     store.getState().updateDraft("node:alice", { name: "Alicia" });
     expect(store.getState().drafts["node:alice"]).toMatchObject({
