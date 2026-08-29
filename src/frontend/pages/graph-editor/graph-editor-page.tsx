@@ -2,11 +2,20 @@
 
 import { isAxiosError } from "axios";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
 import { useBoardSnapshotQuery } from "@/frontend/api/graph/graph.queries";
 import type { EditorCommand } from "@/frontend/features/graph-editor/commands/editor-command";
+import type { UndoableEditorCommand } from "@/frontend/features/graph-editor/history/editor-history-entry";
+import { useEditorHistory } from "@/frontend/features/graph-editor/history/use-editor-history";
 import { GraphInspector, type GraphInspectorSelection } from "@/frontend/features/graph-editor/inspector/graph-inspector";
 import {
   combineEditorSaveState,
@@ -80,14 +89,6 @@ function GraphEditorContent({
   const draftStore = draftScope.store;
   const draftState = useInspectorDraftState(draftStore);
 
-  useInspectorAutosave({
-    draftStore,
-    graphStore: store,
-    boardId,
-    workspaceId,
-    dispatch: saveQueue.dispatch,
-  });
-
   useEffect(() => {
     if (!snapshot.data || snapshot.data.board.id !== boardId) return;
     if (hydratedBoardIdRef.current === boardId) return;
@@ -154,6 +155,62 @@ function GraphEditorContent({
     saveQueue.snapshot.saveState,
     hasDirtyInspectorDraft,
   );
+  const historyBlocked =
+    hasDirtyInspectorDraft || saveQueue.snapshot.saveState === "error";
+
+  const handleReplayCommand = useCallback(
+    (command: UndoableEditorCommand) => {
+      if (command.type === "update-node") {
+        const node = store
+          .getState()
+          .nodes.find((candidate) => candidate.id === command.nodeId);
+        if (node) {
+          draftStore
+            .getState()
+            .replaceDraft(toInspectorEntityKey("node", command.nodeId), node);
+        }
+        return;
+      }
+
+      if (command.type === "update-edge") {
+        const edge = store
+          .getState()
+          .edges.find((candidate) => candidate.id === command.edgeId);
+        if (edge) {
+          draftStore
+            .getState()
+            .replaceDraft(toInspectorEntityKey("edge", command.edgeId), edge);
+        }
+      }
+    },
+    [draftStore, store],
+  );
+
+  const history = useEditorHistory({
+    store,
+    boardId,
+    dispatchToSaveQueue: saveQueue.dispatch,
+    blocked: historyBlocked,
+    onReplayCommand: handleReplayCommand,
+  });
+
+  useInspectorAutosave({
+    draftStore,
+    graphStore: store,
+    boardId,
+    workspaceId,
+    dispatch: history.dispatch,
+  });
+
+  function selectEntity(next: SelectedGraphEntity) {
+    if (
+      selectedEntity?.kind !== next.kind ||
+      selectedEntity?.id !== next.id
+    ) {
+      history.boundary();
+    }
+    setSelectedEntity(next);
+  }
 
   function handleCreateNode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -163,7 +220,7 @@ function GraphEditorContent({
     if (!name) return;
 
     const position = canvasRef.current?.getCenterPosition() ?? { x: 0, y: 0 };
-    const operationId = saveQueue.dispatch({
+    const operationId = history.dispatch({
       type: "create-node",
       boardId,
       workspaceId,
@@ -192,7 +249,7 @@ function GraphEditorContent({
     const name = relationshipName.trim();
     if (!name) return;
 
-    const operationId = saveQueue.dispatch({
+    const operationId = history.dispatch({
       type: "create-edge",
       boardId,
       workspaceId,
@@ -224,7 +281,7 @@ function GraphEditorContent({
       .boardNodes.find((candidate) => candidate.nodeId === nodeId);
     if (!boardNode) return;
 
-    saveQueue.dispatch({
+    history.dispatch({
       type: "move-node",
       boardId,
       nodeId,
@@ -242,7 +299,7 @@ function GraphEditorContent({
         .boardNodes.some((candidate) => candidate.nodeId === selectedEntity.id);
       if (!isRepresented) return;
 
-      const operationId = saveQueue.dispatch({
+      const operationId = history.dispatch({
         type: "remove-board-node",
         boardId,
         nodeId: selectedEntity.id,
@@ -257,7 +314,7 @@ function GraphEditorContent({
       .boardEdges.some((candidate) => candidate.edgeId === selectedEntity.id);
     if (!isRepresented) return;
 
-    const operationId = saveQueue.dispatch({
+    const operationId = history.dispatch({
       type: "remove-board-edge",
       boardId,
       edgeId: selectedEntity.id,
@@ -357,6 +414,24 @@ function GraphEditorContent({
               </span>
             ) : null}
           </div>
+          <div className="inline-flex items-center gap-1">
+            <button
+              className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium disabled:opacity-50"
+              disabled={historyBlocked || !history.snapshot.canUndo}
+              onClick={history.undo}
+              type="button"
+            >
+              Undo
+            </button>
+            <button
+              className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium disabled:opacity-50"
+              disabled={historyBlocked || !history.snapshot.canRedo}
+              onClick={history.redo}
+              type="button"
+            >
+              Redo
+            </button>
+          </div>
           <button
             className="rounded-md bg-neutral-900 px-4 py-2 font-medium text-white"
             onClick={() => setNodeFormOpen(true)}
@@ -445,12 +520,8 @@ function GraphEditorContent({
           onConnectNodes={handleConnectNodes}
           onNodeDragStop={handleNodeDragStop}
           onNodePositionChange={handleNodePositionChange}
-          onSelectEdge={(edgeId) =>
-            setSelectedEntity({ kind: "edge", id: edgeId })
-          }
-          onSelectNode={(nodeId) =>
-            setSelectedEntity({ kind: "node", id: nodeId })
-          }
+          onSelectEdge={(edgeId) => selectEntity({ kind: "edge", id: edgeId })}
+          onSelectNode={(nodeId) => selectEntity({ kind: "node", id: nodeId })}
           ref={canvasRef}
         />
         {inspectorSelection && selectedDraft && selectedDraftKey ? (
