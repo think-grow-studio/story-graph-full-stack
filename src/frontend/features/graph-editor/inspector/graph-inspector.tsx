@@ -20,13 +20,17 @@ export type GraphInspectorSaveInput = {
 export function GraphInspector({
   selection,
   isSaving,
+  isRemoving,
   error,
   onSave,
+  onRemoveFromBoard,
 }: {
   selection: GraphInspectorSelection;
   isSaving: boolean;
+  isRemoving: boolean;
   error: string | null;
   onSave: (input: GraphInspectorSaveInput) => Promise<void> | void;
+  onRemoveFromBoard: () => Promise<void> | void;
 }) {
   const [name, setName] = useState(selection.entity.name);
   const [description, setDescription] = useState(selection.entity.description);
@@ -111,7 +115,7 @@ export function GraphInspector({
 
         <button
           className="rounded-md bg-neutral-900 px-3 py-2 font-medium text-white disabled:opacity-50"
-          disabled={isSaving || !name.trim()}
+          disabled={isSaving || isRemoving || !name.trim()}
           type="submit"
         >
           {isSaving
@@ -121,6 +125,20 @@ export function GraphInspector({
               : "Save Relationship"}
         </button>
       </form>
+
+      <div className="mt-5 border-t border-neutral-200 pt-4">
+        <p className="mb-2 text-xs text-neutral-500">
+          Removes this item only from the current Board. Canonical Story graph data is kept.
+        </p>
+        <button
+          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium disabled:opacity-50"
+          disabled={isSaving || isRemoving}
+          onClick={onRemoveFromBoard}
+          type="button"
+        >
+          {isRemoving ? "Removing..." : "Remove from Board"}
+        </button>
+      </div>
     </aside>
   );
 }
