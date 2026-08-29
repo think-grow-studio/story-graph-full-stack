@@ -9,7 +9,7 @@ import type {
 export type GraphEditorStore = StoreApi<GraphEditorState>;
 
 export function createGraphEditorStore(): GraphEditorStore {
-  return createStore<GraphEditorState>()((set) => ({
+  return createStore<GraphEditorState>()((set, get) => ({
     nodes: [],
     edges: [],
     boardNodes: [],
@@ -36,6 +36,52 @@ export function createGraphEditorStore(): GraphEditorStore {
           (boardNode) => boardNode.nodeId !== nodeId,
         ),
       })),
+    detachNodeFromBoard: (nodeId) => {
+      const current = get();
+      const boardNode =
+        current.boardNodes.find((candidate) => candidate.nodeId === nodeId) ?? null;
+      const incidentEdgeIds = new Set(
+        current.edges
+          .filter(
+            (edge) => edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId,
+          )
+          .map((edge) => edge.id),
+      );
+      const boardEdges = current.boardEdges.filter((candidate) =>
+        incidentEdgeIds.has(candidate.edgeId),
+      );
+
+      set((state) => ({
+        boardNodes: state.boardNodes.filter(
+          (candidate) => candidate.nodeId !== nodeId,
+        ),
+        boardEdges: state.boardEdges.filter(
+          (candidate) => !incidentEdgeIds.has(candidate.edgeId),
+        ),
+      }));
+
+      return { boardNode, boardEdges };
+    },
+    restoreNodeToBoard: (input) => {
+      if (!input.boardNode) return;
+      set((state) => ({
+        boardNodes: [
+          ...state.boardNodes.filter(
+            (candidate) => candidate.nodeId !== input.boardNode!.nodeId,
+          ),
+          input.boardNode!,
+        ],
+        boardEdges: [
+          ...state.boardEdges.filter(
+            (candidate) =>
+              !input.boardEdges.some(
+                (restored) => restored.edgeId === candidate.edgeId,
+              ),
+          ),
+          ...input.boardEdges,
+        ],
+      }));
+    },
     setNodePosition: (nodeId, position) =>
       set((state) => ({
         boardNodes: state.boardNodes.map((boardNode) =>
@@ -65,6 +111,25 @@ export function createGraphEditorStore(): GraphEditorStore {
       set((state) => ({
         edges: state.edges.filter((edge) => edge.id !== edgeId),
         boardEdges: state.boardEdges.filter((boardEdge) => boardEdge.edgeId !== edgeId),
+      })),
+    detachEdgeFromBoard: (edgeId) => {
+      const boardEdge =
+        get().boardEdges.find((candidate) => candidate.edgeId === edgeId) ?? null;
+      set((state) => ({
+        boardEdges: state.boardEdges.filter(
+          (candidate) => candidate.edgeId !== edgeId,
+        ),
+      }));
+      return boardEdge;
+    },
+    restoreEdgeToBoard: (boardEdge) =>
+      set((state) => ({
+        boardEdges: [
+          ...state.boardEdges.filter(
+            (candidate) => candidate.edgeId !== boardEdge.edgeId,
+          ),
+          boardEdge,
+        ],
       })),
   }));
 }
