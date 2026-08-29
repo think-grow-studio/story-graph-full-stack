@@ -2,6 +2,7 @@ import type {
   GraphEdgeResponse,
   GraphNodeResponse,
 } from "@/contracts/graph/graph.contract";
+import type { SaveState } from "../save-queue/save-state";
 
 export type InspectorEntityKey = `node:${string}` | `edge:${string}`;
 
@@ -105,6 +106,16 @@ export function evaluateInspectorDraft(
       !isJsonValueEqual(input.properties, entity.properties),
     input,
   };
+}
+
+export function combineEditorSaveState(
+  queueState: SaveState,
+  hasDirtyInspectorDraft: boolean,
+): SaveState {
+  if (queueState === "error") return "error";
+  if (queueState === "saving") return "saving";
+  if (queueState === "unsaved") return "unsaved";
+  return hasDirtyInspectorDraft ? "unsaved" : "saved";
 }
 
 function isRawDraftDifferentFromCanonical(
