@@ -80,16 +80,5 @@ export function useEditorPersistence(
       }),
   };
 
-  return {
-    persistence,
-    pending: {
-      createNode: createNode.isPending,
-      createEdge: createEdge.isPending,
-      updateNode: updateNode.isPending,
-      updateEdge: updateEdge.isPending,
-      moveNode: moveNode.isPending,
-      removeBoardNode: removeNode.isPending,
-      removeBoardEdge: removeEdge.isPending,
-    },
-  };
+  return { persistence };
 }
