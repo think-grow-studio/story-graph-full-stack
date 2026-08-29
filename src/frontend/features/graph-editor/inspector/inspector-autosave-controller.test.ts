@@ -122,7 +122,10 @@ function setup() {
     .getState()
     .ensureDraft(toInspectorEntityKey("edge", edgeId), relationship());
 
-  const dispatch = vi.fn((_: EditorCommand) => "operation-1");
+  const dispatch = vi.fn((command: EditorCommand) => {
+    void command;
+    return "operation-1";
+  });
   const controller = createInspectorAutosaveController({
     draftStore,
     graphStore,
