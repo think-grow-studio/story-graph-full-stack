@@ -10,21 +10,14 @@ import {
 } from "react";
 
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
-import {
-  useBoardSnapshotQuery,
-  useCreateEdgeOnBoardMutation,
-  useCreateNodeOnBoardMutation,
-  useRemoveEdgeFromBoardMutation,
-  useRemoveNodeFromBoardMutation,
-  useUpdateBoardNodeMutation,
-  useUpdateEdgeMutation,
-  useUpdateNodeMutation,
-} from "@/frontend/api/graph/graph.queries";
+import { useBoardSnapshotQuery } from "@/frontend/api/graph/graph.queries";
+import { executeEditorCommand } from "@/frontend/features/graph-editor/commands/editor-command-executor";
 import {
   GraphInspector,
   type GraphInspectorSaveInput,
   type GraphInspectorSelection,
 } from "@/frontend/features/graph-editor/inspector/graph-inspector";
+import { useEditorPersistence } from "@/frontend/features/graph-editor/persistence/use-editor-persistence";
 import {
   GraphEditorStoreProvider,
   useGraphEditorStore,
@@ -77,13 +70,7 @@ function GraphEditorContent({
   const bootstrap = useBootstrapQuery();
   const workspaceId = bootstrap.data?.workspace.id;
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
-  const createNode = useCreateNodeOnBoardMutation();
-  const createEdge = useCreateEdgeOnBoardMutation();
-  const updateNode = useUpdateNodeMutation(workspaceId, boardId);
-  const updateEdge = useUpdateEdgeMutation(workspaceId, boardId);
-  const updatePlacement = useUpdateBoardNodeMutation();
-  const removeNodeFromBoard = useRemoveNodeFromBoardMutation(workspaceId, boardId);
-  const removeEdgeFromBoard = useRemoveEdgeFromBoardMutation(workspaceId, boardId);
+  const { persistence, pending } = useEditorPersistence(workspaceId, boardId);
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
 
@@ -102,51 +89,23 @@ function GraphEditorContent({
     const name = nodeName.trim();
     if (!name) return;
 
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
     const position = canvasRef.current?.getCenterPosition() ?? { x: 0, y: 0 };
-    const optimistic = {
-      node: {
-        id,
-        storyId: snapshot.data.story.id,
-        name,
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-      boardNode: {
-        boardId,
-        nodeId: id,
-        x: position.x,
-        y: position.y,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    };
-
     setCreateError(null);
-    store.getState().addOptimisticNode(optimistic);
 
     try {
-      const persisted = await createNode.mutateAsync({
+      await executeEditorCommand(store, persistence, {
+        type: "create-node",
         boardId,
         workspaceId,
-        id,
+        storyId: snapshot.data.story.id,
+        nodeId: crypto.randomUUID(),
         name,
         position,
+        createdAt: new Date().toISOString(),
       });
-      store.getState().reconcileNode(persisted);
       setNodeName("");
       setNodeFormOpen(false);
     } catch {
-      store.getState().removeNode(id);
       setCreateError("Unable to create Node.");
     }
   }
@@ -164,48 +123,22 @@ function GraphEditorContent({
     const name = relationshipName.trim();
     if (!name) return;
 
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
-    const optimistic = {
-      edge: {
-        id,
-        storyId: snapshot.data.story.id,
-        sourceNodeId: pendingConnection.sourceNodeId,
-        targetNodeId: pendingConnection.targetNodeId,
-        name,
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-      boardEdge: {
-        boardId,
-        edgeId: id,
-        style: {},
-        labelPresentation: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    };
-
     setRelationshipError(null);
-    store.getState().addOptimisticEdge(optimistic);
     try {
-      const persisted = await createEdge.mutateAsync({
+      await executeEditorCommand(store, persistence, {
+        type: "create-edge",
         boardId,
         workspaceId,
-        id,
+        storyId: snapshot.data.story.id,
+        edgeId: crypto.randomUUID(),
         sourceNodeId: pendingConnection.sourceNodeId,
         targetNodeId: pendingConnection.targetNodeId,
         name,
+        createdAt: new Date().toISOString(),
       });
-      store.getState().reconcileEdge(persisted);
       setRelationshipName("");
       setPendingConnection(null);
     } catch {
-      store.getState().removeEdge(id);
       setRelationshipError("Unable to create Relationship.");
     }
   }
@@ -227,14 +160,13 @@ function GraphEditorContent({
 
     setPositionError(null);
     try {
-      const persisted = await updatePlacement.mutateAsync({
+      await executeEditorCommand(store, persistence, {
+        type: "move-node",
         boardId,
         nodeId,
         workspaceId,
-        x: boardNode.x,
-        y: boardNode.y,
+        position: { x: boardNode.x, y: boardNode.y },
       });
-      store.getState().replaceBoardNode(persisted);
     } catch {
       setPositionError("Unable to save Node position.");
     }
@@ -251,13 +183,14 @@ function GraphEditorContent({
       if (!node) return;
 
       try {
-        const persisted = await updateNode.mutateAsync({
+        await executeEditorCommand(store, persistence, {
+          type: "update-node",
+          boardId,
           nodeId: node.id,
           workspaceId,
           version: node.version,
           ...input,
         });
-        store.getState().replaceNode(persisted);
       } catch (error) {
         setInspectorError(
           isAxiosError(error) && error.response?.status === 409
@@ -274,13 +207,14 @@ function GraphEditorContent({
     if (!edge) return;
 
     try {
-      const persisted = await updateEdge.mutateAsync({
+      await executeEditorCommand(store, persistence, {
+        type: "update-edge",
+        boardId,
         edgeId: edge.id,
         workspaceId,
         version: edge.version,
         ...input,
       });
-      store.getState().replaceEdge(persisted);
     } catch (error) {
       setInspectorError(
         isAxiosError(error) && error.response?.status === 409
@@ -295,35 +229,39 @@ function GraphEditorContent({
     setInspectorError(null);
 
     if (selectedEntity.kind === "node") {
-      const detached = store.getState().detachNodeFromBoard(selectedEntity.id);
-      if (!detached.boardNode) return;
+      const isRepresented = store
+        .getState()
+        .boardNodes.some((candidate) => candidate.nodeId === selectedEntity.id);
+      if (!isRepresented) return;
 
       try {
-        await removeNodeFromBoard.mutateAsync({
+        await executeEditorCommand(store, persistence, {
+          type: "remove-board-node",
           boardId,
           nodeId: selectedEntity.id,
           workspaceId,
         });
         setSelectedEntity(null);
       } catch {
-        store.getState().restoreNodeToBoard(detached);
         setInspectorError("Unable to remove Node from Board.");
       }
       return;
     }
 
-    const detached = store.getState().detachEdgeFromBoard(selectedEntity.id);
-    if (!detached) return;
+    const isRepresented = store
+      .getState()
+      .boardEdges.some((candidate) => candidate.edgeId === selectedEntity.id);
+    if (!isRepresented) return;
 
     try {
-      await removeEdgeFromBoard.mutateAsync({
+      await executeEditorCommand(store, persistence, {
+        type: "remove-board-edge",
         boardId,
         edgeId: selectedEntity.id,
         workspaceId,
       });
       setSelectedEntity(null);
     } catch {
-      store.getState().restoreEdgeToBoard(detached);
       setInspectorError("Unable to remove Relationship from Board.");
     }
   }
@@ -386,7 +324,7 @@ function GraphEditorContent({
         </div>
         <button
           className="rounded-md bg-neutral-900 px-4 py-2 font-medium text-white disabled:opacity-50"
-          disabled={createNode.isPending}
+          disabled={pending.createNode}
           onClick={() => {
             setCreateError(null);
             setNodeFormOpen(true);
@@ -416,14 +354,14 @@ function GraphEditorContent({
             />
             <button
               className="rounded-md bg-neutral-900 px-3 py-2 font-medium text-white disabled:opacity-50"
-              disabled={createNode.isPending || !nodeName.trim()}
+              disabled={pending.createNode || !nodeName.trim()}
               type="submit"
             >
-              {createNode.isPending ? "Creating..." : "Create Node"}
+              {pending.createNode ? "Creating..." : "Create Node"}
             </button>
             <button
               className="rounded-md border border-neutral-300 px-3 py-2"
-              disabled={createNode.isPending}
+              disabled={pending.createNode}
               onClick={() => {
                 setNodeName("");
                 setNodeFormOpen(false);
@@ -453,10 +391,10 @@ function GraphEditorContent({
             />
             <button
               className="rounded-md bg-neutral-900 px-3 py-2 font-medium text-white disabled:opacity-50"
-              disabled={createEdge.isPending || !relationshipName.trim()}
+              disabled={pending.createEdge || !relationshipName.trim()}
               type="submit"
             >
-              {createEdge.isPending ? "Creating..." : "Create Relationship"}
+              {pending.createEdge ? "Creating..." : "Create Relationship"}
             </button>
           </form>
         ) : null}
@@ -489,10 +427,8 @@ function GraphEditorContent({
         {inspectorSelection ? (
           <GraphInspector
             error={inspectorError}
-            isRemoving={
-              removeNodeFromBoard.isPending || removeEdgeFromBoard.isPending
-            }
-            isSaving={updateNode.isPending || updateEdge.isPending}
+            isRemoving={pending.removeBoardNode || pending.removeBoardEdge}
+            isSaving={pending.updateNode || pending.updateEdge}
             key={`${inspectorSelection.kind}:${inspectorSelection.entity.id}:${inspectorSelection.entity.version}`}
             onRemoveFromBoard={handleRemoveFromBoard}
             onSave={handleSaveInspector}
