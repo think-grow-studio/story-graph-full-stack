@@ -4,17 +4,16 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useSyncExternalStore,
 } from "react";
 
 import type { EditorCommand } from "../commands/editor-command";
-import {
-  applyEditorCommand,
-  persistAndReconcileEditorCommand,
-} from "../commands/editor-command-runtime";
+import { applyEditorCommand } from "../commands/editor-command-runtime";
 import type { EditorPersistence } from "../persistence/editor-persistence";
 import type { GraphEditorStore } from "../store/graph-editor-store";
+import {
+  createEditorPersistenceRuntime,
+} from "./editor-persistence-runtime";
 import {
   createEditorSaveQueue,
   getEditorCommandLaneKey,
@@ -35,30 +34,22 @@ export function useEditorSaveQueue(
   persistence: EditorPersistence,
   boardId: string,
 ): UseEditorSaveQueueResult {
-  const persistenceRef = useRef(persistence);
-
-  useEffect(() => {
-    persistenceRef.current = persistence;
-  }, [persistence]);
-
-  const execute = useCallback(
-    (command: EditorCommand) =>
-      persistAndReconcileEditorCommand(
-        store,
-        persistenceRef.current,
-        command,
-      ),
+  const persistenceRuntime = useMemo(
+    () => createEditorPersistenceRuntime(store),
     [store],
   );
 
-  const createOperationId = useCallback(
-    () => `${boardId}:${crypto.randomUUID()}`,
-    [boardId],
-  );
+  useEffect(() => {
+    persistenceRuntime.setPersistence(persistence);
+  }, [persistence, persistenceRuntime]);
 
   const queue = useMemo(
-    () => createEditorSaveQueue({ execute, createOperationId }),
-    [createOperationId, execute],
+    () =>
+      createEditorSaveQueue({
+        execute: persistenceRuntime.execute,
+        createOperationId: () => `${boardId}:${crypto.randomUUID()}`,
+      }),
+    [boardId, persistenceRuntime],
   );
 
   useEffect(() => () => queue.dispose(), [queue]);
