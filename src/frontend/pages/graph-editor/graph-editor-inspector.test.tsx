@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -130,11 +137,40 @@ function snapshot() {
       },
     ],
     boardNodes: [
-      { boardId, nodeId: aliceId, x: 100, y: 100, width: null, height: null, zIndex: 0, style: {}, createdAt: now, updatedAt: now },
-      { boardId, nodeId: bobId, x: 400, y: 100, width: null, height: null, zIndex: 0, style: {}, createdAt: now, updatedAt: now },
+      {
+        boardId,
+        nodeId: aliceId,
+        x: 100,
+        y: 100,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        boardId,
+        nodeId: bobId,
+        x: 400,
+        y: 100,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
+        createdAt: now,
+        updatedAt: now,
+      },
     ],
     boardEdges: [
-      { boardId, edgeId, style: {}, labelPresentation: {}, createdAt: now, updatedAt: now },
+      {
+        boardId,
+        edgeId,
+        style: {},
+        labelPresentation: {},
+        createdAt: now,
+        updatedAt: now,
+      },
     ],
   };
 }
@@ -149,6 +185,12 @@ function renderPage() {
     </QueryClientProvider>,
   );
   return { ...view, queryClient };
+}
+
+async function advanceAutosave(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
 }
 
 beforeEach(() => {
@@ -174,10 +216,13 @@ beforeEach(() => {
   });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("Graph Editor inspector", () => {
-  it("edits a selected Node using its current version without overwriting local Board state", async () => {
+  it("autosaves a selected Node after 500 ms without an explicit Save button", async () => {
     const user = userEvent.setup();
     const { queryClient } = renderPage();
 
@@ -185,19 +230,29 @@ describe("Graph Editor inspector", () => {
     expect(screen.getByRole("heading", { name: "Node Inspector" })).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("Alice");
     expect(screen.getByLabelText("Description")).toHaveValue("Protagonist");
-    expect(screen.getByLabelText("Properties JSON")).toHaveValue('{\n  "role": "lead"\n}');
+    expect(screen.getByLabelText("Properties JSON")).toHaveValue(
+      '{\n  "role": "lead"\n}',
+    );
+    expect(screen.queryByRole("button", { name: "Save Node" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Move Alice" }));
     expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent("999,888");
 
-    await user.clear(screen.getByLabelText("Name"));
-    await user.type(screen.getByLabelText("Name"), "Alicia");
-    await user.clear(screen.getByLabelText("Description"));
-    await user.type(screen.getByLabelText("Description"), "Main protagonist");
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Alicia" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Main protagonist" },
+    });
     fireEvent.change(screen.getByLabelText("Properties JSON"), {
       target: { value: '{"role":"lead","age":31}' },
     });
-    await user.click(screen.getByRole("button", { name: "Save Node" }));
+
+    await advanceAutosave(499);
+    expect(mocks.updateNode).not.toHaveBeenCalled();
+    await advanceAutosave(1);
+    vi.useRealTimers();
 
     await waitFor(() => expect(mocks.updateNode).toHaveBeenCalledTimes(1));
     expect(mocks.updateNode.mock.calls[0][0]).toEqual({
@@ -208,35 +263,47 @@ describe("Graph Editor inspector", () => {
       description: "Main protagonist",
       properties: { role: "lead", age: 31 },
     });
-    expect(await screen.findByDisplayValue("Alicia")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("Alicia");
     expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent("999,888");
 
-    const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof snapshot>>([
-      "graph",
-      "snapshot",
-      "workspace-1",
-      boardId,
-    ]);
-    expect(cachedSnapshot?.nodes).toContainEqual(
-      expect.objectContaining({ id: aliceId, name: "Alicia", version: 4 }),
-    );
+    await waitFor(() => {
+      const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof snapshot>>([
+        "graph",
+        "snapshot",
+        "workspace-1",
+        boardId,
+      ]);
+      expect(cachedSnapshot?.nodes).toContainEqual(
+        expect.objectContaining({ id: aliceId, name: "Alicia", version: 4 }),
+      );
+    });
   });
 
-  it("edits a selected Edge using its current optimistic-concurrency version", async () => {
+  it("autosaves a selected Relationship after 500 ms", async () => {
     const user = userEvent.setup();
     const { queryClient } = renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select knows" }));
-    expect(screen.getByRole("heading", { name: "Relationship Inspector" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Relationship Inspector" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save Relationship" }),
+    ).not.toBeInTheDocument();
 
-    await user.clear(screen.getByLabelText("Name"));
-    await user.type(screen.getByLabelText("Name"), "best friend");
-    await user.clear(screen.getByLabelText("Description"));
-    await user.type(screen.getByLabelText("Description"), "Childhood friends");
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "best friend" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Childhood friends" },
+    });
     fireEvent.change(screen.getByLabelText("Properties JSON"), {
       target: { value: '{"since":2012}' },
     });
-    await user.click(screen.getByRole("button", { name: "Save Relationship" }));
+
+    await advanceAutosave(500);
+    vi.useRealTimers();
 
     await waitFor(() => expect(mocks.updateEdge).toHaveBeenCalledTimes(1));
     expect(mocks.updateEdge.mock.calls[0][0]).toEqual({
@@ -248,32 +315,81 @@ describe("Graph Editor inspector", () => {
       properties: { since: 2012 },
     });
 
-    const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof snapshot>>([
-      "graph",
-      "snapshot",
-      "workspace-1",
-      boardId,
-    ]);
-    expect(cachedSnapshot?.edges).toContainEqual(
-      expect.objectContaining({ id: edgeId, name: "best friend", version: 5 }),
-    );
+    await waitFor(() => {
+      const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof snapshot>>([
+        "graph",
+        "snapshot",
+        "workspace-1",
+        boardId,
+      ]);
+      expect(cachedSnapshot?.edges).toContainEqual(
+        expect.objectContaining({ id: edgeId, name: "best friend", version: 5 }),
+      );
+    });
   });
 
-  it("blocks invalid Properties JSON before calling the canonical API", async () => {
+  it("preserves an invalid Alice draft across Alice -> Bob -> Alice selection", async () => {
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+    vi.useFakeTimers();
     fireEvent.change(screen.getByLabelText("Properties JSON"), {
-      target: { value: "[1,2,3]" },
+      target: { value: '{"job":' },
     });
-    await user.click(screen.getByRole("button", { name: "Save Node" }));
 
-    expect(await screen.findByText("Properties must be a JSON object.")).toBeInTheDocument();
+    expect(screen.getByText("Properties must be valid JSON.")).toBeInTheDocument();
+    await advanceAutosave(500);
+    expect(mocks.updateNode).not.toHaveBeenCalled();
+    vi.useRealTimers();
+
+    await user.click(screen.getByRole("button", { name: "Select Bob" }));
+    expect(screen.getByLabelText("Name")).toHaveValue("Bob");
+    await user.click(screen.getByRole("button", { name: "Select Alice" }));
+
+    expect(screen.getByLabelText("Properties JSON")).toHaveValue('{"job":');
+    expect(screen.getByText("Properties must be valid JSON.")).toBeInTheDocument();
     expect(mocks.updateNode).not.toHaveBeenCalled();
   });
 
-  it("keeps local Node input when a stale version returns 409", async () => {
+  it("does not let a persistence version response replace a newer raw draft", async () => {
+    let resolveFirst!: (value: ReturnType<typeof snapshot>["nodes"][number]) => void;
+    mocks.updateNode.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+    );
+
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Alicia" },
+    });
+    await advanceAutosave(500);
+    expect(mocks.updateNode).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Alicia newest raw draft" },
+    });
+
+    await act(async () => {
+      resolveFirst({
+        ...snapshot().nodes[0],
+        name: "Alicia",
+        version: 4,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByLabelText("Name")).toHaveValue("Alicia newest raw draft");
+  });
+
+  it("preserves the editable raw draft after a 409 conflict", async () => {
     mocks.updateNode.mockRejectedValueOnce({
       isAxiosError: true,
       response: { status: 409 },
@@ -282,14 +398,24 @@ describe("Graph Editor inspector", () => {
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
-    await user.clear(screen.getByLabelText("Name"));
-    await user.type(screen.getByLabelText("Name"), "Alicia local draft");
-    await user.click(screen.getByRole("button", { name: "Save Node" }));
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Alicia local draft" },
+    });
+    await advanceAutosave(500);
+    vi.useRealTimers();
 
     expect(
       await screen.findByText("This Node changed elsewhere. Reload before saving again."),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("Alicia local draft");
     expect(mocks.updateNode.mock.calls[0][0]).toMatchObject({ version: 3 });
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Alicia revised after conflict" },
+    });
+    expect(screen.getByLabelText("Name")).toHaveValue(
+      "Alicia revised after conflict",
+    );
   });
 });

@@ -490,13 +490,13 @@ test("Graph Editor edits canonical Node and Relationship data through the Inspec
     await expect(page.getByRole("heading", { name: "Node Inspector" })).toBeVisible();
     await page.getByLabel("Name").fill("Alicia");
     await page.getByLabel("Description").fill("Main protagonist");
-    await page.getByLabel("Properties JSON").fill('{"role":"lead","age":31}');
-
     const nodeUpdatePromise = page.waitForResponse((response) =>
       response.request().method() === "PATCH" &&
       new URL(response.url()).pathname === `/api/v1/nodes/${aliceId}`,
     );
-    await page.getByRole("button", { name: "Save Node" }).click();
+    await page.getByLabel("Properties JSON").fill('{"role":"lead","age":31}');
+    await expect(page.getByText("Unsaved")).toBeVisible();
+
     const nodeUpdate = await nodeUpdatePromise;
     expect(nodeUpdate.status()).toBe(200);
     expect(await nodeUpdate.json()).toMatchObject({
@@ -506,6 +506,7 @@ test("Graph Editor edits canonical Node and Relationship data through the Inspec
       properties: { role: "lead", age: 31 },
       version: 2,
     });
+    await expect(page.getByText("Saved")).toBeVisible();
     await expect(page.locator(`.react-flow__node[data-id="${aliceId}"]`)).toContainText("Alicia");
 
     const relationship = page.locator(".react-flow__edge").filter({ hasText: "knows" });
@@ -515,13 +516,13 @@ test("Graph Editor edits canonical Node and Relationship data through the Inspec
     ).toBeVisible();
     await page.getByLabel("Name").fill("best friend");
     await page.getByLabel("Description").fill("Childhood friends");
-    await page.getByLabel("Properties JSON").fill('{"since":2012}');
-
     const edgeUpdatePromise = page.waitForResponse((response) =>
       response.request().method() === "PATCH" &&
       new URL(response.url()).pathname === `/api/v1/edges/${edgeId}`,
     );
-    await page.getByRole("button", { name: "Save Relationship" }).click();
+    await page.getByLabel("Properties JSON").fill('{"since":2012}');
+    await expect(page.getByText("Unsaved")).toBeVisible();
+
     const edgeUpdate = await edgeUpdatePromise;
     expect(edgeUpdate.status()).toBe(200);
     expect(await edgeUpdate.json()).toMatchObject({
@@ -531,6 +532,7 @@ test("Graph Editor edits canonical Node and Relationship data through the Inspec
       properties: { since: 2012 },
       version: 2,
     });
+    await expect(page.getByText("Saved")).toBeVisible();
 
     await page.reload();
     await expect(page.locator(`.react-flow__node[data-id="${aliceId}"]`)).toContainText("Alicia");
