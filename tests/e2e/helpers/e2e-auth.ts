@@ -14,6 +14,12 @@ import {
 
 type BrowserCookies = Parameters<BrowserContext["addCookies"]>[0];
 
+type E2EAuthRuntime = {
+  pool: Pool;
+  db: ReturnType<typeof drizzle<typeof schema>>;
+  auth: ReturnType<typeof betterAuth>;
+};
+
 function requireEnv(name: string) {
   const value = process.env[name];
   if (!value) {
@@ -22,23 +28,33 @@ function requireEnv(name: string) {
   return value;
 }
 
-const pool = new Pool({ connectionString: requireEnv("DATABASE_URL") });
-const db = drizzle(pool, { schema });
+let runtime: E2EAuthRuntime | null = null;
 
-const e2eAuth = betterAuth({
-  appName: "Story Graph",
-  baseURL: requireEnv("BETTER_AUTH_URL"),
-  secret: requireEnv("BETTER_AUTH_SECRET"),
-  database: drizzleAdapter(db, { provider: "pg", schema }),
-  emailAndPassword: { enabled: false },
-  socialProviders: {
-    google: {
-      clientId: requireEnv("GOOGLE_CLIENT_ID"),
-      clientSecret: requireEnv("GOOGLE_CLIENT_SECRET"),
+function createE2EAuthRuntime(): E2EAuthRuntime {
+  const pool = new Pool({ connectionString: requireEnv("DATABASE_URL") });
+  const db = drizzle(pool, { schema });
+  const auth = betterAuth({
+    appName: "Story Graph",
+    baseURL: requireEnv("BETTER_AUTH_URL"),
+    secret: requireEnv("BETTER_AUTH_SECRET"),
+    database: drizzleAdapter(db, { provider: "pg", schema }),
+    emailAndPassword: { enabled: false },
+    socialProviders: {
+      google: {
+        clientId: requireEnv("GOOGLE_CLIENT_ID"),
+        clientSecret: requireEnv("GOOGLE_CLIENT_SECRET"),
+      },
     },
-  },
-  plugins: [testUtils()],
-});
+    plugins: [testUtils()],
+  });
+
+  return { pool, db, auth };
+}
+
+function getE2EAuthRuntime(): E2EAuthRuntime {
+  runtime ??= createE2EAuthRuntime();
+  return runtime;
+}
 
 export interface E2EIdentity {
   userId: string;
@@ -46,7 +62,8 @@ export interface E2EIdentity {
 }
 
 export async function createE2EIdentity(name: string): Promise<E2EIdentity> {
-  const helpers = (await e2eAuth.$context).test;
+  const { auth } = getE2EAuthRuntime();
+  const helpers = (await auth.$context).test;
   const user = helpers.createUser({
     name,
     email: `e2e-${crypto.randomUUID()}@example.com`,
@@ -63,6 +80,7 @@ export async function createE2EIdentity(name: string): Promise<E2EIdentity> {
 }
 
 export async function cleanupE2EIdentity(identity: E2EIdentity) {
+  const { auth, db } = getE2EAuthRuntime();
   const memberships = await db
     .select({ organizationId: member.organizationId })
     .from(member)
@@ -74,10 +92,13 @@ export async function cleanupE2EIdentity(identity: E2EIdentity) {
       .where(eq(organization.id, membership.organizationId));
   }
 
-  const helpers = (await e2eAuth.$context).test;
+  const helpers = (await auth.$context).test;
   await helpers.deleteUser(identity.userId);
 }
 
 export async function closeE2EAuthDatabase() {
-  await pool.end();
+  const current = runtime;
+  runtime = null;
+  if (!current) return;
+  await current.pool.end();
 }
