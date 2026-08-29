@@ -15,6 +15,10 @@ export type GraphEditorEdgePair = {
   edge: GraphEdgeResponse;
   boardEdge: BoardEdgeResponse;
 };
+export type DetachedGraphEditorNodePresentation = {
+  boardNode: BoardNodeResponse | null;
+  boardEdges: BoardEdgeResponse[];
+};
 
 export type GraphEditorState = {
   nodes: GraphNodeResponse[];
@@ -26,6 +30,8 @@ export type GraphEditorState = {
   reconcileNode: (input: GraphEditorNodePair) => void;
   replaceNode: (node: GraphNodeResponse) => void;
   removeNode: (nodeId: string) => void;
+  detachNodeFromBoard: (nodeId: string) => DetachedGraphEditorNodePresentation;
+  restoreNodeToBoard: (input: DetachedGraphEditorNodePresentation) => void;
   setNodePosition: (
     nodeId: string,
     position: { x: number; y: number },
@@ -35,4 +41,6 @@ export type GraphEditorState = {
   reconcileEdge: (input: GraphEditorEdgePair) => void;
   replaceEdge: (edge: GraphEdgeResponse) => void;
   removeEdge: (edgeId: string) => void;
+  detachEdgeFromBoard: (edgeId: string) => BoardEdgeResponse | null;
+  restoreEdgeToBoard: (boardEdge: BoardEdgeResponse) => void;
 };

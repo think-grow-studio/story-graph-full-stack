@@ -176,3 +176,31 @@ export async function updateBoardNode(
   );
   return boardNodeResponseSchema.parse(response.data);
 }
+
+export type RemoveNodeFromBoardInput = {
+  boardId: string;
+  nodeId: string;
+  workspaceId: string;
+};
+
+export async function removeNodeFromBoard(
+  input: RemoveNodeFromBoardInput,
+): Promise<void> {
+  await apiClient.delete(`/boards/${input.boardId}/nodes/${input.nodeId}`, {
+    params: { workspaceId: input.workspaceId },
+  });
+}
+
+export type RemoveEdgeFromBoardInput = {
+  boardId: string;
+  edgeId: string;
+  workspaceId: string;
+};
+
+export async function removeEdgeFromBoard(
+  input: RemoveEdgeFromBoardInput,
+): Promise<void> {
+  await apiClient.delete(`/boards/${input.boardId}/edges/${input.edgeId}`, {
+    params: { workspaceId: input.workspaceId },
+  });
+}

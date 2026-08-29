@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { db } from "@/backend/infrastructure/database/client";
 import {
@@ -247,6 +247,25 @@ export class DrizzleGraphRepository implements GraphRepository {
 
       if (deleted.length === 0) {
         return false;
+      }
+
+      const incidentEdges = await tx
+        .select({ id: graphEdge.id })
+        .from(graphEdge)
+        .where(or(eq(graphEdge.sourceNodeId, nodeId), eq(graphEdge.targetNodeId, nodeId)));
+
+      if (incidentEdges.length > 0) {
+        await tx
+          .delete(boardEdge)
+          .where(
+            and(
+              eq(boardEdge.boardId, boardId),
+              inArray(
+                boardEdge.edgeId,
+                incidentEdges.map((edge) => edge.id),
+              ),
+            ),
+          );
       }
 
       await tx

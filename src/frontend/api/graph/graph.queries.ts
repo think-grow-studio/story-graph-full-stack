@@ -13,9 +13,13 @@ import {
   createNodeOnBoard,
   getBoardSnapshot,
   listBoards,
+  removeEdgeFromBoard,
+  removeNodeFromBoard,
   updateBoardNode,
   updateEdge,
   updateNode,
+  type RemoveEdgeFromBoardInput,
+  type RemoveNodeFromBoardInput,
   type UpdateEdgeInput,
   type UpdateNodeInput,
 } from "./graph.api";
@@ -122,6 +126,40 @@ export function useUpdateBoardNodeMutation() {
   return useMutation({ mutationFn: updateBoardNode });
 }
 
+export function useRemoveNodeFromBoardMutation(
+  workspaceId: string | undefined,
+  boardId: string,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RemoveNodeFromBoardInput) => removeNodeFromBoard(input),
+    onSuccess: (_result, input) => {
+      if (!workspaceId) return;
+      queryClient.setQueryData<BoardSnapshotResponse>(
+        graphQueryKeys.snapshot(workspaceId, boardId),
+        (current) => detachSnapshotNode(current, input.nodeId),
+      );
+    },
+  });
+}
+
+export function useRemoveEdgeFromBoardMutation(
+  workspaceId: string | undefined,
+  boardId: string,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RemoveEdgeFromBoardInput) => removeEdgeFromBoard(input),
+    onSuccess: (_result, input) => {
+      if (!workspaceId) return;
+      queryClient.setQueryData<BoardSnapshotResponse>(
+        graphQueryKeys.snapshot(workspaceId, boardId),
+        (current) => detachSnapshotEdge(current, input.edgeId),
+      );
+    },
+  });
+}
+
 function replaceSnapshotNode(
   current: BoardSnapshotResponse | undefined,
   node: GraphNodeResponse,
@@ -145,5 +183,42 @@ function replaceSnapshotEdge(
     edges: current.edges.map((candidate) =>
       candidate.id === edge.id ? edge : candidate,
     ),
+  };
+}
+
+function detachSnapshotNode(
+  current: BoardSnapshotResponse | undefined,
+  nodeId: string,
+): BoardSnapshotResponse | undefined {
+  if (!current) return current;
+  const incidentEdgeIds = new Set(
+    current.edges
+      .filter(
+        (edge) => edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId,
+      )
+      .map((edge) => edge.id),
+  );
+  return {
+    ...current,
+    nodes: current.nodes.filter((node) => node.id !== nodeId),
+    boardNodes: current.boardNodes.filter(
+      (boardNode) => boardNode.nodeId !== nodeId,
+    ),
+    edges: current.edges.filter((edge) => !incidentEdgeIds.has(edge.id)),
+    boardEdges: current.boardEdges.filter(
+      (boardEdge) => !incidentEdgeIds.has(boardEdge.edgeId),
+    ),
+  };
+}
+
+function detachSnapshotEdge(
+  current: BoardSnapshotResponse | undefined,
+  edgeId: string,
+): BoardSnapshotResponse | undefined {
+  if (!current) return current;
+  return {
+    ...current,
+    edges: current.edges.filter((edge) => edge.id !== edgeId),
+    boardEdges: current.boardEdges.filter((boardEdge) => boardEdge.edgeId !== edgeId),
   };
 }

@@ -216,7 +216,18 @@ test("Graph Editor creates and repositions a Node through the UI", async ({
 
     await page.getByRole("button", { name: "+ Node" }).click();
     await page.getByLabel("Node name").fill("E2E Node");
+
+    const createResponsePromise = page.waitForResponse((response) => {
+      const path = new URL(response.url()).pathname;
+      return (
+        response.request().method() === "POST" &&
+        path === `/api/v1/boards/${boardId}/nodes`
+      );
+    });
     await page.getByRole("button", { name: "Create Node" }).click();
+
+    const createResponse = await createResponsePromise;
+    expect(createResponse.status()).toBe(201);
 
     const node = page.locator(".react-flow__node").filter({ hasText: "E2E Node" });
     await expect(node).toBeVisible();
@@ -550,6 +561,158 @@ test("Graph Editor edits canonical Node and Relationship data through the Inspec
         version: 2,
       }),
     );
+  } finally {
+    await cleanupE2EIdentity(identity);
+  }
+});
+
+test("Graph Editor removes a Node from the Board without deleting canonical graph data", async ({
+  context,
+  page,
+}) => {
+  const identity = await createE2EIdentity("Graph Board Removal User");
+
+  try {
+    await context.addCookies(identity.cookies);
+
+    const bootstrapResponse = await context.request.get("/api/v1/bootstrap");
+    expect(bootstrapResponse.status()).toBe(200);
+    const bootstrap = await bootstrapResponse.json();
+    const workspaceId = bootstrap.workspace.id as string;
+
+    const storyResponse = await context.request.post("/api/v1/stories", {
+      data: { workspaceId, name: "Board Removal Story" },
+    });
+    expect(storyResponse.status()).toBe(201);
+    const story = await storyResponse.json();
+
+    const boardResponse = await context.request.post(
+      `/api/v1/stories/${story.id}/boards`,
+      { data: { workspaceId, name: "Removal Board" } },
+    );
+    expect(boardResponse.status()).toBe(201);
+    const board = await boardResponse.json();
+
+    const aliceId = crypto.randomUUID();
+    const bobId = crypto.randomUUID();
+    for (const node of [
+      { id: aliceId, name: "Alice", position: { x: 120, y: 180 } },
+      { id: bobId, name: "Bob", position: { x: 520, y: 180 } },
+    ]) {
+      const response = await context.request.post(
+        `/api/v1/boards/${board.id}/nodes`,
+        {
+          data: {
+            workspaceId,
+            id: node.id,
+            name: node.name,
+            position: node.position,
+          },
+        },
+      );
+      expect(response.status()).toBe(201);
+    }
+
+    const edgeId = crypto.randomUUID();
+    const edgeResponse = await context.request.post(
+      `/api/v1/boards/${board.id}/edges`,
+      {
+        data: {
+          workspaceId,
+          id: edgeId,
+          sourceNodeId: aliceId,
+          targetNodeId: bobId,
+          name: "knows",
+          description: "",
+          iconKey: null,
+          properties: {},
+        },
+      },
+    );
+    expect(edgeResponse.status()).toBe(201);
+
+    await page.goto(`/stories/${story.id}/boards/${board.id}`);
+    await expect(page.getByLabel("Graph canvas")).toBeVisible();
+    const alice = page.locator(`.react-flow__node[data-id="${aliceId}"]`);
+    const bob = page.locator(`.react-flow__node[data-id="${bobId}"]`);
+    const relationship = page.locator(".react-flow__edge").filter({ hasText: "knows" });
+    await expect(alice).toBeVisible();
+    await expect(bob).toBeVisible();
+    await expect(relationship).toBeVisible();
+
+    await alice.click();
+    await expect(page.getByRole("heading", { name: "Node Inspector" })).toBeVisible();
+
+    const removeResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === "DELETE" &&
+      new URL(response.url()).pathname ===
+        `/api/v1/boards/${board.id}/nodes/${aliceId}`,
+    );
+    await page.getByRole("button", { name: "Remove from Board" }).click();
+    const removeResponse = await removeResponsePromise;
+    expect(removeResponse.status()).toBe(204);
+
+    await expect(alice).toHaveCount(0);
+    await expect(relationship).toHaveCount(0);
+    await expect(bob).toBeVisible();
+
+    await page.reload();
+    await expect(page.locator(`.react-flow__node[data-id="${aliceId}"]`)).toHaveCount(0);
+    await expect(page.locator(`.react-flow__node[data-id="${bobId}"]`)).toBeVisible();
+    await expect(
+      page.locator(".react-flow__edge").filter({ hasText: "knows" }),
+    ).toHaveCount(0);
+
+    const snapshotResponse = await context.request.get(
+      `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,
+    );
+    expect(snapshotResponse.status()).toBe(200);
+    const snapshot = await snapshotResponse.json();
+    expect(snapshot.board.revision).toBe(4);
+    expect(snapshot.nodes.map((node: { id: string }) => node.id)).toEqual([bobId]);
+    expect(snapshot.boardNodes.map((node: { nodeId: string }) => node.nodeId)).toEqual([
+      bobId,
+    ]);
+    expect(snapshot.edges).toEqual([]);
+    expect(snapshot.boardEdges).toEqual([]);
+
+    const canonicalNodeUpdate = await context.request.patch(
+      `/api/v1/nodes/${aliceId}`,
+      {
+        data: {
+          workspaceId,
+          version: 1,
+          name: "Alice canonical",
+          description: "still in story graph",
+          properties: {},
+        },
+      },
+    );
+    expect(canonicalNodeUpdate.status()).toBe(200);
+    expect(await canonicalNodeUpdate.json()).toMatchObject({
+      id: aliceId,
+      name: "Alice canonical",
+      version: 2,
+    });
+
+    const canonicalEdgeUpdate = await context.request.patch(
+      `/api/v1/edges/${edgeId}`,
+      {
+        data: {
+          workspaceId,
+          version: 1,
+          name: "knows canonically",
+          description: "still in story graph",
+          properties: {},
+        },
+      },
+    );
+    expect(canonicalEdgeUpdate.status()).toBe(200);
+    expect(await canonicalEdgeUpdate.json()).toMatchObject({
+      id: edgeId,
+      name: "knows canonically",
+      version: 2,
+    });
   } finally {
     await cleanupE2EIdentity(identity);
   }
