@@ -132,7 +132,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("GraphEditorPage failed relationship creation", () => {
-  it("rolls back the optimistic Edge, keeps retry input, and shows an inline error", async () => {
+  it("keeps the optimistic Edge and exposes Error/Retry", async () => {
     const user = userEvent.setup();
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -152,7 +152,9 @@ describe("GraphEditorPage failed relationship creation", () => {
     expect(
       await screen.findByText("Unable to create Relationship."),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Relationship name")).toHaveValue("knows");
-    expect(screen.queryByTestId("canvas-edge")).not.toBeInTheDocument();
+    expect(screen.getByTestId("canvas-edge")).toHaveTextContent("knows");
+    expect(screen.queryByLabelText("Relationship name")).not.toBeInTheDocument();
+    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 });
