@@ -14,12 +14,6 @@ import {
 
 type BrowserCookies = Parameters<BrowserContext["addCookies"]>[0];
 
-type E2EAuthRuntime = {
-  pool: Pool;
-  db: ReturnType<typeof drizzle<typeof schema>>;
-  auth: ReturnType<typeof betterAuth>;
-};
-
 function requireEnv(name: string) {
   const value = process.env[name];
   if (!value) {
@@ -28,9 +22,7 @@ function requireEnv(name: string) {
   return value;
 }
 
-let runtime: E2EAuthRuntime | null = null;
-
-function createE2EAuthRuntime(): E2EAuthRuntime {
+function createE2EAuthRuntime() {
   const pool = new Pool({ connectionString: requireEnv("DATABASE_URL") });
   const db = drizzle(pool, { schema });
   const auth = betterAuth({
@@ -50,6 +42,10 @@ function createE2EAuthRuntime(): E2EAuthRuntime {
 
   return { pool, db, auth };
 }
+
+type E2EAuthRuntime = ReturnType<typeof createE2EAuthRuntime>;
+
+let runtime: E2EAuthRuntime | null = null;
 
 function getE2EAuthRuntime(): E2EAuthRuntime {
   runtime ??= createE2EAuthRuntime();
