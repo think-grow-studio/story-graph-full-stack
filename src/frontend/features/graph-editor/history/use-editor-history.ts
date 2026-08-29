@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 
 import type { EditorCommand } from "../commands/editor-command";
 import type { GraphEditorStore } from "../store/graph-editor-store";
@@ -21,6 +26,25 @@ export type UseEditorHistoryResult = {
   snapshot: EditorHistorySnapshot;
 };
 
+export type EditorHistoryShortcut = "undo" | "redo";
+
+export function getEditorHistoryShortcut(
+  event: Pick<
+    KeyboardEvent,
+    "key" | "metaKey" | "ctrlKey" | "shiftKey" | "target"
+  >,
+): EditorHistoryShortcut | null {
+  if (isEditableHistoryTarget(event.target)) return null;
+
+  const key = event.key.toLowerCase();
+  const hasCommandModifier = event.metaKey || event.ctrlKey;
+  if (key === "z" && hasCommandModifier) {
+    return event.shiftKey ? "redo" : "undo";
+  }
+  if (key === "y" && event.ctrlKey && !event.metaKey) return "redo";
+  return null;
+}
+
 export function useEditorHistory({
   store,
   boardId,
@@ -34,7 +58,11 @@ export function useEditorHistory({
   blocked: boolean;
   onReplayCommand?(command: UndoableEditorCommand): void;
 }): UseEditorHistoryResult {
-  const history = useMemo(() => createEditorHistory(), [boardId]);
+  const historyScope = useMemo(
+    () => ({ boardId, history: createEditorHistory() }),
+    [boardId],
+  );
+  const history = historyScope.history;
   const snapshot = useSyncExternalStore(
     history.subscribe,
     history.getSnapshot,
@@ -82,7 +110,32 @@ export function useEditorHistory({
     });
   }, [blocked, dispatchToSaveQueue, history, onReplayCommand]);
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const shortcut = getEditorHistoryShortcut(event);
+      if (!shortcut) return;
+
+      const handled = shortcut === "undo" ? undo() : redo();
+      if (handled) event.preventDefault();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [redo, undo]);
+
   const boundary = useCallback(() => history.boundary(), [history]);
 
   return { dispatch, undo, redo, boundary, snapshot };
+}
+
+function isEditableHistoryTarget(target: EventTarget | null): boolean {
+  if (typeof Element === "undefined" || !(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      "input, textarea, select, [contenteditable]:not([contenteditable='false'])",
+    ),
+  );
 }
