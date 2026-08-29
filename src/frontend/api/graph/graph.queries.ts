@@ -200,7 +200,6 @@ function detachSnapshotNode(
   );
   return {
     ...current,
-    board: { ...current.board, revision: current.board.revision + 1 },
     nodes: current.nodes.filter((node) => node.id !== nodeId),
     boardNodes: current.boardNodes.filter(
       (boardNode) => boardNode.nodeId !== nodeId,
@@ -219,7 +218,6 @@ function detachSnapshotEdge(
   if (!current) return current;
   return {
     ...current,
-    board: { ...current.board, revision: current.board.revision + 1 },
     edges: current.edges.filter((edge) => edge.id !== edgeId),
     boardEdges: current.boardEdges.filter((boardEdge) => boardEdge.edgeId !== edgeId),
   };
