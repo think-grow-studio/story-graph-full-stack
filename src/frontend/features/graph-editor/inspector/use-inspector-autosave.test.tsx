@@ -71,6 +71,13 @@ function stores() {
   return { graphStore, draftStore };
 }
 
+function createDispatch() {
+  return vi.fn((command: EditorCommand) => {
+    void command;
+    return "operation-1";
+  });
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
@@ -82,7 +89,7 @@ afterEach(() => {
 describe("useInspectorAutosave", () => {
   it("keeps autosave live exactly once through StrictMode effect replay", async () => {
     const { graphStore, draftStore } = stores();
-    const dispatch = vi.fn((_: EditorCommand) => "operation-1");
+    const dispatch = createDispatch();
 
     renderHook(
       () =>
@@ -117,7 +124,7 @@ describe("useInspectorAutosave", () => {
 
   it("does not start autosave before workspace identity exists", async () => {
     const { graphStore, draftStore } = stores();
-    const dispatch = vi.fn((_: EditorCommand) => "operation-1");
+    const dispatch = createDispatch();
 
     renderHook(() =>
       useInspectorAutosave({
