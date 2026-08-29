@@ -2,13 +2,8 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 import {
   cleanupE2EIdentity,
-  closeE2EAuthDatabase,
   createE2EIdentity,
 } from "./helpers/e2e-auth";
-
-test.afterAll(async () => {
-  await closeE2EAuthDatabase();
-});
 
 async function createStoryBoardAndNode(
   context: BrowserContext,
