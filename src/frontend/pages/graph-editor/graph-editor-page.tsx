@@ -9,6 +9,7 @@ import { useBoardSnapshotQuery } from "@/frontend/api/graph/graph.queries";
 import type { EditorCommand } from "@/frontend/features/graph-editor/commands/editor-command";
 import { GraphInspector, type GraphInspectorSelection } from "@/frontend/features/graph-editor/inspector/graph-inspector";
 import {
+  combineEditorSaveState,
   evaluateInspectorDraft,
   toInspectorEntityKey,
 } from "@/frontend/features/graph-editor/inspector/inspector-draft-model";
@@ -72,7 +73,11 @@ function GraphEditorContent({
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
   const saveQueue = useEditorSaveQueue(store, persistence, boardId);
-  const draftStore = useMemo(() => createInspectorDraftStore(), [boardId]);
+  const draftScope = useMemo(
+    () => ({ boardId, store: createInspectorDraftStore() }),
+    [boardId],
+  );
+  const draftStore = draftScope.store;
   const draftState = useInspectorDraftState(draftStore);
 
   useInspectorAutosave({
@@ -129,6 +134,26 @@ function GraphEditorContent({
     selectedDraftEvaluation?.status === "invalid"
       ? selectedDraftEvaluation.message
       : null;
+
+  const hasDirtyInspectorDraft = Object.entries(draftState.drafts).some(
+    ([key, draft]) => {
+      if (!draft) return false;
+
+      if (key.startsWith("node:")) {
+        const nodeId = key.slice("node:".length);
+        const node = state.nodes.find((candidate) => candidate.id === nodeId);
+        return !node || evaluateInspectorDraft(draft, node).dirty;
+      }
+
+      const edgeId = key.slice("edge:".length);
+      const edge = state.edges.find((candidate) => candidate.id === edgeId);
+      return !edge || evaluateInspectorDraft(draft, edge).dirty;
+    },
+  );
+  const editorSaveState = combineEditorSaveState(
+    saveQueue.snapshot.saveState,
+    hasDirtyInspectorDraft,
+  );
 
   function handleCreateNode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -316,14 +341,10 @@ function GraphEditorContent({
         </div>
         <div className="flex items-center gap-3">
           <div aria-live="polite" className="text-sm text-neutral-500">
-            {saveQueue.snapshot.saveState === "saved" ? <span>Saved</span> : null}
-            {saveQueue.snapshot.saveState === "saving" ? (
-              <span>Saving…</span>
-            ) : null}
-            {saveQueue.snapshot.saveState === "unsaved" ? (
-              <span>Unsaved</span>
-            ) : null}
-            {saveQueue.snapshot.saveState === "error" ? (
+            {editorSaveState === "saved" ? <span>Saved</span> : null}
+            {editorSaveState === "saving" ? <span>Saving…</span> : null}
+            {editorSaveState === "unsaved" ? <span>Unsaved</span> : null}
+            {editorSaveState === "error" ? (
               <span className="inline-flex items-center gap-2">
                 <span>Error</span>
                 <button
