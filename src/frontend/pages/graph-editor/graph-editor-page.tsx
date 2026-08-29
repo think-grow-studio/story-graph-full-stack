@@ -14,6 +14,8 @@ import {
   useBoardSnapshotQuery,
   useCreateEdgeOnBoardMutation,
   useCreateNodeOnBoardMutation,
+  useRemoveEdgeFromBoardMutation,
+  useRemoveNodeFromBoardMutation,
   useUpdateBoardNodeMutation,
   useUpdateEdgeMutation,
   useUpdateNodeMutation,
@@ -80,6 +82,8 @@ function GraphEditorContent({
   const updateNode = useUpdateNodeMutation(workspaceId, boardId);
   const updateEdge = useUpdateEdgeMutation(workspaceId, boardId);
   const updatePlacement = useUpdateBoardNodeMutation();
+  const removeNodeFromBoard = useRemoveNodeFromBoardMutation(workspaceId, boardId);
+  const removeEdgeFromBoard = useRemoveEdgeFromBoardMutation(workspaceId, boardId);
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
 
@@ -286,6 +290,44 @@ function GraphEditorContent({
     }
   }
 
+  async function handleRemoveFromBoard() {
+    if (!workspaceId || !selectedEntity) return;
+    setInspectorError(null);
+
+    if (selectedEntity.kind === "node") {
+      const detached = store.getState().detachNodeFromBoard(selectedEntity.id);
+      if (!detached.boardNode) return;
+
+      try {
+        await removeNodeFromBoard.mutateAsync({
+          boardId,
+          nodeId: selectedEntity.id,
+          workspaceId,
+        });
+        setSelectedEntity(null);
+      } catch {
+        store.getState().restoreNodeToBoard(detached);
+        setInspectorError("Unable to remove Node from Board.");
+      }
+      return;
+    }
+
+    const detached = store.getState().detachEdgeFromBoard(selectedEntity.id);
+    if (!detached) return;
+
+    try {
+      await removeEdgeFromBoard.mutateAsync({
+        boardId,
+        edgeId: selectedEntity.id,
+        workspaceId,
+      });
+      setSelectedEntity(null);
+    } catch {
+      store.getState().restoreEdgeToBoard(detached);
+      setInspectorError("Unable to remove Relationship from Board.");
+    }
+  }
+
   if (bootstrap.isPending || snapshot.isPending) {
     return <main className="p-8">Loading Board...</main>;
   }
@@ -308,12 +350,17 @@ function GraphEditorContent({
       },
     ];
   });
-  const canvasEdges = state.edges.map((edge) => ({
-    id: edge.id,
-    name: edge.name,
-    sourceNodeId: edge.sourceNodeId,
-    targetNodeId: edge.targetNodeId,
-  }));
+  const representedEdgeIds = new Set(
+    state.boardEdges.map((boardEdge) => boardEdge.edgeId),
+  );
+  const canvasEdges = state.edges
+    .filter((edge) => representedEdgeIds.has(edge.id))
+    .map((edge) => ({
+      id: edge.id,
+      name: edge.name,
+      sourceNodeId: edge.sourceNodeId,
+      targetNodeId: edge.targetNodeId,
+    }));
 
   let inspectorSelection: GraphInspectorSelection | null = null;
   if (selectedEntity?.kind === "node") {
@@ -442,8 +489,12 @@ function GraphEditorContent({
         {inspectorSelection ? (
           <GraphInspector
             error={inspectorError}
+            isRemoving={
+              removeNodeFromBoard.isPending || removeEdgeFromBoard.isPending
+            }
             isSaving={updateNode.isPending || updateEdge.isPending}
             key={`${inspectorSelection.kind}:${inspectorSelection.entity.id}:${inspectorSelection.entity.version}`}
+            onRemoveFromBoard={handleRemoveFromBoard}
             onSave={handleSaveInspector}
             selection={inspectorSelection}
           />
