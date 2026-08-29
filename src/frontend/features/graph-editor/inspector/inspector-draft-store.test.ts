@@ -65,11 +65,51 @@ describe("inspector draft store", () => {
     });
   });
 
-  it("treats updates for unknown keys as a no-op", () => {
+  it("replaces an existing raw draft for Undo/Redo replay and increments revision once", () => {
+    const store = createInspectorDraftStore();
+    const alice = node("alice", "Alice");
+    store.getState().ensureDraft("node:alice", alice);
+    store.getState().updateDraft("node:alice", {
+      name: "Alicia",
+      description: "Changed",
+      propertiesText: '{"role":"lead","age":31}',
+    });
+
+    const beforeRevision = store.getState().drafts["node:alice"]?.revision;
+    store.getState().replaceDraft("node:alice", {
+      name: "Alice",
+      description: "",
+      propertiesText: "{}",
+    });
+
+    expect(store.getState().drafts["node:alice"]).toEqual({
+      name: "Alice",
+      description: "",
+      propertiesText: "{}",
+      revision: (beforeRevision ?? 0) + 1,
+    });
+
+    const afterReplay = store.getState();
+    store.getState().replaceDraft("node:alice", {
+      name: "Alice",
+      description: "",
+      propertiesText: "{}",
+    });
+    expect(store.getState()).toBe(afterReplay);
+  });
+
+  it("treats updates and replay replacements for unknown keys as a no-op", () => {
     const store = createInspectorDraftStore();
 
     store.getState().updateDraft("node:missing", { name: "Ghost" });
+    const beforeReplay = store.getState();
+    store.getState().replaceDraft("node:missing", {
+      name: "Ghost",
+      description: "",
+      propertiesText: "{}",
+    });
 
+    expect(store.getState()).toBe(beforeReplay);
     expect(store.getState().drafts).toEqual({});
   });
 });
