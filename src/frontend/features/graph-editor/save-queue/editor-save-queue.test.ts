@@ -25,6 +25,15 @@ async function flushMicrotasks() {
   await Promise.resolve();
 }
 
+async function flushUntilCalls(
+  execute: { mock: { calls: unknown[][] } },
+  expectedCalls: number,
+) {
+  for (let index = 0; index < 10 && execute.mock.calls.length < expectedCalls; index += 1) {
+    await flushMicrotasks();
+  }
+}
+
 function sequenceIds() {
   let next = 1;
   return () => `operation-${next++}`;
@@ -187,8 +196,7 @@ describe("EditorSaveQueue", () => {
     queue.enqueue(moveNode(aliceId, 220));
 
     first.resolve();
-    await flushMicrotasks();
-    await flushMicrotasks();
+    await flushUntilCalls(execute, 4);
 
     expect(execute.mock.calls.map(([command]) => command.type)).toEqual([
       "move-node",
