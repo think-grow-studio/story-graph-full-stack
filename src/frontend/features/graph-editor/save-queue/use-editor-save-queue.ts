@@ -11,9 +11,7 @@ import type { EditorCommand } from "../commands/editor-command";
 import { applyEditorCommand } from "../commands/editor-command-runtime";
 import type { EditorPersistence } from "../persistence/editor-persistence";
 import type { GraphEditorStore } from "../store/graph-editor-store";
-import {
-  createEditorPersistenceRuntime,
-} from "./editor-persistence-runtime";
+import { createEditorPersistenceRuntime } from "./editor-persistence-runtime";
 import {
   createEditorSaveQueue,
   getEditorCommandLaneKey,
@@ -52,7 +50,10 @@ export function useEditorSaveQueue(
     [boardId, persistenceRuntime],
   );
 
-  useEffect(() => () => queue.dispose(), [queue]);
+  useEffect(() => {
+    queue.activate();
+    return () => queue.dispose();
+  }, [queue]);
 
   const snapshot = useSyncExternalStore(
     queue.subscribe,
