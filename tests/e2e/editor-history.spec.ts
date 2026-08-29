@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 import {
   cleanupE2EIdentity,
@@ -11,7 +11,7 @@ test.afterAll(async () => {
 });
 
 async function createStoryBoardAndNode(
-  context: Parameters<Parameters<typeof test>[1]>[0]["context"],
+  context: BrowserContext,
   identityName: string,
   nodeName = "Alice",
 ) {
@@ -53,10 +53,7 @@ async function createStoryBoardAndNode(
   return { identity, workspaceId, story, board, nodeId };
 }
 
-function waitForNodePatch(
-  page: Parameters<Parameters<typeof test>[1]>[0]["page"],
-  nodeId: string,
-) {
+function waitForNodePatch(page: Page, nodeId: string) {
   return page.waitForResponse((response) => {
     return (
       response.request().method() === "PATCH" &&
@@ -65,11 +62,7 @@ function waitForNodePatch(
   });
 }
 
-function waitForBoardNodePatch(
-  page: Parameters<Parameters<typeof test>[1]>[0]["page"],
-  boardId: string,
-  nodeId: string,
-) {
+function waitForBoardNodePatch(page: Page, boardId: string, nodeId: string) {
   return page.waitForResponse((response) => {
     return (
       response.request().method() === "PATCH" &&
