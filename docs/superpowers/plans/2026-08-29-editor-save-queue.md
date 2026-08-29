@@ -4,7 +4,7 @@
 
 **Goal:** Route all Graph Editor durable writes through an entity-lane Save Queue while keeping Zustand working state immediate, preserving failed local edits, coalescing pending Node moves, and showing `Saved / Saving / Unsaved / Error` state.
 
-**Architecture:** Split the current command executor into an immediate local-apply phase and a durable persist/reconcile phase. A framework-independent Save Queue serializes commands per Node/Edge lane, coalesces only not-yet-started `move-node` commands, stops failed lanes until explicit retry, and lets unrelated lanes continue. A React hook owns one queue per mounted Board editor and the page dispatches commands into it while TanStack mutations remain behind `EditorPersistence`.
+**Architecture:** Split command handling into immediate local apply and durable persist/reconcile. A framework-independent queue serializes commands per Node/Edge lane, coalesces only not-yet-started Node moves, pauses failed lanes until manual retry, and allows unrelated lanes to progress. One narrow cross-lane rule prevents `create-edge` from persisting before any still-active `create-node` for its source/target IDs; this covers the concrete FK race without building a general dependency scheduler.
 
 **Tech Stack:** TypeScript 5.9, React 19, Zustand 5, TanStack Query 5, Vitest 4, React Testing Library, Playwright 1.62.
 
@@ -12,56 +12,55 @@
 
 ## Global Constraints
 
-- PostgreSQL remains durable truth; TanStack Query owns fetched/cache/mutation lifecycle; Zustand owns editor working state; React Flow remains rendering/input only.
-- Frontend must not import backend, Drizzle, or DB modules; server access remains behind `frontend/api` and `/api/v1` contracts.
-- Board remains a View; canonical Node/Edge remain Story-owned.
+- PostgreSQL = durable truth; TanStack Query = fetched/cache/mutation lifecycle; Zustand = editor working state; React Flow = rendering/input only.
+- Frontend never imports backend/Drizzle/DB; durable access remains behind `EditorPersistence` and `/api/v1`.
+- Board = View; canonical Node/Edge remain Story-owned.
 - Local editor changes happen before persistence waits.
-- Same-entity commands are durably ordered; unrelated Node/Edge lanes may progress independently.
+- Same-entity commands are durably ordered; unrelated lanes may progress independently.
 - Only pending, not-yet-started `move-node` commands for the same Node may coalesce.
-- Persistence failure keeps the user's working state and stops only the failed lane.
-- Retry is explicit/manual in this slice; no infinite automatic retry, backoff loop, background job queue, realtime, CRDT, event sourcing, or DB-history rollback.
-- Inspector remains explicit-save; debounce/autosave and invalid intermediate JSON draft handling are deferred.
-- Same-Board Query cache changes must not trigger full Zustand hydration.
-- No backend endpoint, schema, migration, or canonical-delete change is expected.
+- `create-edge` waits for still-active `create-node` operations for its source/target Node IDs; no other general dependency scheduler is added.
+- Failure keeps working state and stops only the failed lane; retry is explicit/manual and finite.
+- Inspector remains explicit-save; debounce/autosave, invalid intermediate JSON drafts, undo/redo, realtime, CRDT, event sourcing, background queues, schema/migration changes are deferred.
+- Same-Board Query cache changes must not full-hydrate Zustand.
 
 ---
 
-### Task 1: Split Editor command local application from durable persistence/reconcile
+### Task 1: Split command local apply from durable persistence/reconcile
 
 **Files:**
 - Create: `src/frontend/features/graph-editor/commands/editor-command-runtime.ts`
 - Create: `src/frontend/features/graph-editor/commands/editor-command-runtime.test.ts`
 - Modify: `src/frontend/features/graph-editor/commands/editor-command-executor.ts`
-- Modify or retire tests as appropriate: `src/frontend/features/graph-editor/commands/editor-command-executor.test.ts`
+- Modify: `src/frontend/features/graph-editor/commands/editor-command-executor.test.ts`
 - Read: `src/frontend/features/graph-editor/store/graph-editor-store.ts`
 - Read: `src/frontend/features/graph-editor/persistence/editor-persistence.ts`
 
 **Interfaces:**
-- Produces `applyEditorCommand(store, command): boolean` where `false` means a no-op Board detach should not be queued.
-- Produces `persistAndReconcileEditorCommand(store, persistence, command): Promise<void>`.
-- Produces `prepareEditorCommandForPersistence(store, command): EditorCommand` internally so queued Node/Edge updates use the latest locally known optimistic-lock version after earlier same-lane writes succeed.
-- `editor-command-runtime.ts` must not import React, React Flow, Axios, backend, Drizzle, or database modules.
-
-- [ ] **Step 1: Write RED tests for immediate local application without persistence**
-
-Create `editor-command-runtime.test.ts` using `createGraphEditorStore()` and a mocked `EditorPersistence`.
 
 ```ts
-it("applies a create Node locally without calling persistence", () => {
-  const store = hydratedStore();
-  const command = createNodeCommand();
+export function applyEditorCommand(
+  store: GraphEditorStore,
+  command: EditorCommand,
+): boolean;
 
-  expect(applyEditorCommand(store, command)).toBe(true);
+export async function persistAndReconcileEditorCommand(
+  store: GraphEditorStore,
+  persistence: EditorPersistence,
+  command: EditorCommand,
+): Promise<void>;
+```
 
-  expect(store.getState().nodes.some((node) => node.id === command.nodeId)).toBe(true);
-  expect(store.getState().boardNodes.some((node) => node.nodeId === command.nodeId)).toBe(true);
-});
+`false` from `applyEditorCommand()` means the local target did not exist, so nothing should be queued.
 
+- [ ] **Step 1: Write RED local-apply/failure tests**
+
+```ts
 it("keeps a locally created Node when durable create fails", async () => {
   const store = hydratedStore();
   const durable = persistence();
   const command = createNodeCommand();
-  applyEditorCommand(store, command);
+
+  expect(applyEditorCommand(store, command)).toBe(true);
   vi.mocked(durable.createNode).mockRejectedValue(new Error("offline"));
 
   await expect(
@@ -72,72 +71,37 @@ it("keeps a locally created Node when durable create fails", async () => {
 });
 ```
 
-Also add RED cases proving `update-node`, `update-edge`, `remove-board-node`, and `remove-board-edge` change working state immediately and are not rolled back by a durable failure.
+Add equivalent assertions for `update-node`, `update-edge`, `remove-board-node`, and `remove-board-edge`: local state changes immediately and durable failure does not roll it back.
 
-- [ ] **Step 2: Run the focused runtime test and capture RED**
-
-Run:
+- [ ] **Step 2: Run RED**
 
 ```bash
 pnpm test -- src/frontend/features/graph-editor/commands/editor-command-runtime.test.ts
 ```
 
-Expected: FAIL because `editor-command-runtime.ts` does not exist.
+Expected: FAIL because the runtime module does not exist.
 
-- [ ] **Step 3: Implement the immediate local phase**
+- [ ] **Step 3: Implement immediate local application**
 
-Implement the command switch with existing Zustand methods. For update commands, preserve the current entity `version` until durable reconciliation returns a newer version.
+Use existing store methods. `create-*` adds optimistic pairs, `move-node` sets position, updates replace editable fields while keeping the current version, and Board removals detach presentation only.
 
 ```ts
-export function applyEditorCommand(
-  store: GraphEditorStore,
-  command: EditorCommand,
-): boolean {
-  switch (command.type) {
-    case "create-node":
-      store.getState().addOptimisticNode(toOptimisticNodePair(command));
-      return true;
-    case "move-node":
-      store.getState().setNodePosition(command.nodeId, command.position);
-      return true;
-    case "create-edge":
-      store.getState().addOptimisticEdge(toOptimisticEdgePair(command));
-      return true;
-    case "update-node": {
-      const current = store.getState().nodes.find((node) => node.id === command.nodeId);
-      if (!current) return false;
-      store.getState().replaceNode({
-        ...current,
-        name: command.name,
-        description: command.description,
-        properties: command.properties,
-      });
-      return true;
-    }
-    case "update-edge": {
-      const current = store.getState().edges.find((edge) => edge.id === command.edgeId);
-      if (!current) return false;
-      store.getState().replaceEdge({
-        ...current,
-        name: command.name,
-        description: command.description,
-        properties: command.properties,
-      });
-      return true;
-    }
-    case "remove-board-node":
-      return store.getState().detachNodeFromBoard(command.nodeId).boardNode !== null;
-    case "remove-board-edge":
-      return store.getState().detachEdgeFromBoard(command.edgeId) !== null;
-  }
+case "update-node": {
+  const current = store.getState().nodes.find((node) => node.id === command.nodeId);
+  if (!current) return false;
+  store.getState().replaceNode({
+    ...current,
+    name: command.name,
+    description: command.description,
+    properties: command.properties,
+  });
+  return true;
 }
 ```
 
-Move the existing optimistic pair builders into this runtime module or a focused helper under `commands/`; do not duplicate them.
+Move the existing optimistic Node/Edge pair builders into this runtime or a focused command helper; do not duplicate them.
 
-- [ ] **Step 4: Add RED tests for stale reconcile protection**
-
-Cover at least create→newer move and running move→newer move.
+- [ ] **Step 4: Write RED stale-reconcile/version tests**
 
 ```ts
 it("does not snap a newer working position back to an older persisted move", async () => {
@@ -154,44 +118,23 @@ it("does not snap a newer working position back to an older persisted move", asy
 });
 ```
 
-Also verify a delayed `create-node` response does not overwrite a newer local BoardNode position.
+Also test delayed `create-node` reconcile preserving a newer local position, and two queued Node/Edge updates using the version returned by the earlier same-lane save.
 
-- [ ] **Step 5: Implement durable persistence and guarded reconciliation**
+- [ ] **Step 5: Implement guarded persistence/reconcile**
 
-Before persisting `update-node`/`update-edge`, derive a command with the latest local canonical version so a queued second save follows the version returned by the first same-lane save.
+Immediately before `update-node`/`update-edge` persistence, derive a command using the latest local canonical `version`. Reconcile server-owned metadata/version while preserving working fields that have changed since the acknowledged command.
 
-```ts
-function prepareEditorCommandForPersistence(
-  store: GraphEditorStore,
-  command: EditorCommand,
-): EditorCommand {
-  if (command.type === "update-node") {
-    const current = store.getState().nodes.find((node) => node.id === command.nodeId);
-    return current ? { ...command, version: current.version } : command;
-  }
-  if (command.type === "update-edge") {
-    const current = store.getState().edges.find((edge) => edge.id === command.edgeId);
-    return current ? { ...command, version: current.version } : command;
-  }
-  return command;
-}
-```
+For `move-node`, if the current BoardNode position no longer equals `command.position`, merge the persisted response with the current `x/y` rather than replacing them. For delayed `create-node`, preserve the current local BoardNode position when it differs from the original create position. Removal success performs no local mutation because detach already happened.
 
-Reconcile returned canonical/server metadata while preserving newer working fields. For `move-node`, keep current `x/y` when they no longer equal the persisted command position. For `update-node`/`update-edge`, keep newer local editable fields when they differ from the command being acknowledged, but always advance the server-returned `version`/timestamps. Removal success requires no local mutation because detach already happened.
-
-- [ ] **Step 6: Run runtime tests to GREEN**
-
-Run:
+- [ ] **Step 6: GREEN runtime tests**
 
 ```bash
 pnpm test -- src/frontend/features/graph-editor/commands/editor-command-runtime.test.ts
 ```
 
-Expected: PASS for immediate local apply, no rollback on failure, latest-version preparation, and stale-response protection.
+Expected: PASS.
 
-- [ ] **Step 7: Keep `executeEditorCommand()` only as a compatibility helper or remove it after page migration**
-
-If retained temporarily, implement it in terms of the new phases so there is one source of command semantics:
+- [ ] **Step 7: Rebase the compatibility executor on the new runtime**
 
 ```ts
 export async function executeEditorCommand(
@@ -204,9 +147,9 @@ export async function executeEditorCommand(
 }
 ```
 
-Do not keep the old rollback logic.
+Update `editor-command-executor.test.ts` to the new no-rollback semantics until Task 4 removes page dependence on this helper.
 
-- [ ] **Step 8: Commit Task 1**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add src/frontend/features/graph-editor/commands
@@ -215,7 +158,7 @@ git commit -m "refactor: split editor command runtime phases"
 
 ---
 
-### Task 2: Build the framework-independent entity-lane Save Queue
+### Task 2: Build the framework-independent Save Queue
 
 **Files:**
 - Create: `src/frontend/features/graph-editor/save-queue/save-state.ts`
@@ -224,11 +167,18 @@ git commit -m "refactor: split editor command runtime phases"
 - Read: `src/frontend/features/graph-editor/commands/editor-command.ts`
 
 **Interfaces:**
-- Produces `SaveState = "saved" | "saving" | "unsaved" | "error"`.
-- Produces `createEditorSaveQueue({ execute })`.
-- Queue API:
 
 ```ts
+export type SaveState = "saved" | "saving" | "unsaved" | "error";
+
+export type FailedEditorOperation = {
+  operationId: string;
+  attempt: number;
+  laneKey: string;
+  command: EditorCommand;
+  error: unknown;
+};
+
 export type EditorSaveQueueSnapshot = {
   saveState: SaveState;
   pendingCount: number;
@@ -245,122 +195,107 @@ export type EditorSaveQueue = {
   subscribe(listener: () => void): () => void;
   dispose(): void;
 };
+
+export function getEditorCommandLaneKey(command: EditorCommand): string;
+
+export function createEditorSaveQueue(input: {
+  execute(command: EditorCommand): Promise<void>;
+  createOperationId?: () => string;
+}): EditorSaveQueue;
 ```
 
-- Operation IDs are client-only queue identities generated with an injectable `createOperationId` in tests or `crypto.randomUUID()` by default.
-- Lane key is exactly `node:${nodeId}` for Node commands and `edge:${edgeId}` for Edge commands.
+Node lane key = `node:${nodeId}`. Edge lane key = `edge:${edgeId}`. Snapshot objects are cached and replaced only on queue changes so `useSyncExternalStore` receives stable snapshots.
 
-- [ ] **Step 1: Write RED queue state/order tests**
+- [ ] **Step 1: Write RED save-state/FIFO/independence tests**
 
-Use deferred promises so exact running/pending states are deterministic.
+Use deferred promises. Assert `saved → unsaved → saving → saved`, same-lane FIFO, and Node A failure not blocking Edge B.
 
 ```ts
-it("transitions saved -> unsaved -> saving -> saved", async () => {
-  const gate = deferred<void>();
-  const queue = createEditorSaveQueue({
-    execute: vi.fn(() => gate.promise),
-    createOperationId: sequenceIds(),
-  });
-
-  queue.enqueue(moveNodeCommand(aliceId, 100));
-  expect(queue.getSnapshot().saveState).toMatch(/unsaved|saving/);
-
-  await flushMicrotasks();
-  expect(queue.getSnapshot().saveState).toBe("saving");
-
-  gate.resolve();
-  await flushMicrotasks();
-  expect(queue.getSnapshot().saveState).toBe("saved");
-});
+queue.enqueue(moveNodeCommand(aliceId, 100));
+expect(queue.getSnapshot().saveState).toBe("unsaved");
+await flushMicrotasks();
+expect(queue.getSnapshot().saveState).toBe("saving");
 ```
 
-Add RED tests for same-lane FIFO and unrelated-lane independence.
-
-- [ ] **Step 2: Run queue test and capture RED**
-
-Run:
+- [ ] **Step 2: Run RED**
 
 ```bash
 pnpm test -- src/frontend/features/graph-editor/save-queue/editor-save-queue.test.ts
 ```
 
-Expected: FAIL because the Save Queue modules do not exist.
+Expected: FAIL because queue modules do not exist.
 
-- [ ] **Step 3: Implement lane storage and aggregate save state**
+- [ ] **Step 3: Implement lanes and aggregate state**
 
-Use internal lane objects containing at most one running operation plus ordered pending operations and an optional failed head. Schedule processing with `queueMicrotask()` so `enqueue()` can expose an observable `unsaved` state before execution begins.
+Each lane has one running operation, ordered pending operations, and at most one failed head. Start processing with `queueMicrotask()` so enqueue exposes `unsaved` before `saving`.
 
-Aggregate priority must be exact:
+Aggregate priority is exact:
 
 ```ts
-function deriveSaveState(lanes: Iterable<Lane>): SaveState {
-  if ([...lanes].some((lane) => lane.failed)) return "error";
-  if ([...lanes].some((lane) => lane.running)) return "saving";
-  if ([...lanes].some((lane) => lane.pending.length > 0)) return "unsaved";
-  return "saved";
-}
+error > saving > unsaved > saved
 ```
 
-Notify subscribers whenever queue state changes.
+Notify subscribers on every queue transition.
 
 - [ ] **Step 4: Write RED Move coalescing tests**
 
 ```ts
-it("coalesces only not-yet-started moves for the same Node", async () => {
-  const first = deferred<void>();
-  const execute = vi.fn()
-    .mockImplementationOnce(() => first.promise)
-    .mockResolvedValue(undefined);
-  const queue = createEditorSaveQueue({ execute, createOperationId: sequenceIds() });
-
-  queue.enqueue(moveNodeCommand(aliceId, 100));
-  await flushMicrotasks();
-  queue.enqueue(moveNodeCommand(aliceId, 120));
-  queue.enqueue(moveNodeCommand(aliceId, 180));
-
-  first.resolve();
-  await flushMicrotasks();
-
-  expect(execute).toHaveBeenNthCalledWith(1, expect.objectContaining({ position: { x: 100, y: 100 } }));
-  expect(execute).toHaveBeenNthCalledWith(2, expect.objectContaining({ position: { x: 180, y: 180 } }));
-  expect(execute).toHaveBeenCalledTimes(2);
-});
+queue.enqueue(moveNodeCommand(aliceId, 100));
+await flushMicrotasks(); // 100 is running
+queue.enqueue(moveNodeCommand(aliceId, 120));
+queue.enqueue(moveNodeCommand(aliceId, 180));
 ```
 
-Add a test proving a pending `move-node` is not coalesced across `update-node`, create, or remove commands.
+After the first gate resolves, assert only `100` then `180` execute. Add a barrier case `move 120 → update-node → move 180` and assert neither Move is removed across the non-Move command.
 
-- [ ] **Step 5: Implement pending Move coalescing**
+- [ ] **Step 5: Implement pending-tail Move coalescing**
 
-When enqueueing a `move-node`, scan only the same lane's pending tail after the most recent non-move barrier. Replace the latest pending Move for that Node instead of appending another operation. Never mutate the running or failed operation.
+Only replace a pending `move-node` in the same lane after the most recent non-Move barrier. Never mutate a running or failed operation.
 
 - [ ] **Step 6: Write RED failure/retry tests**
 
-Cover:
+Assert:
 
 ```text
-lane A fails -> SaveState error -> lane A stops
-lane B continues -> succeeds
-retryFailed() -> failed A operation executes before later A commands
-successful retry -> queue eventually saved
+lane A fails -> error
+later A stays pending
+lane B still completes
+retryFailed() -> failed A reattempts first
+second failure increments FailedEditorOperation.attempt
+success -> later A continues -> saved
 ```
 
-Ensure the failed operation remains available in `failedOperations` with its command and error.
+- [ ] **Step 7: Implement manual retry**
 
-- [ ] **Step 7: Implement failed-lane/manual-retry behavior**
+A rejection stays as the lane's failed head. Do not auto-retry. `retryFailed()` re-arms every failed lane and schedules it. Increment `attempt` each time the same operation fails so the UI can distinguish repeated failures.
 
-On `execute()` rejection, keep that operation as the lane's failed head, record the error, do not automatically call `execute()` again, and leave later same-lane operations pending. `retryFailed()` clears failed markers and schedules those lanes again without changing operation order.
+- [ ] **Step 8: Write RED Node-create dependency tests for Edge creation**
 
-- [ ] **Step 8: Run queue tests to GREEN**
+This is the narrow cross-lane rule required by the actual Editor workflow:
 
-Run:
+```ts
+const nodeCreate = queue.enqueue(createNodeCommand(aliceId));
+await flushMicrotasks(); // Node create running
+queue.enqueue(createEdgeCommand(edgeId, aliceId, bobId));
+
+expect(execute).toHaveBeenCalledTimes(1); // only create-node
+```
+
+After Node create succeeds, assert `create-edge` starts. If Node create fails, assert Edge remains pending and does not execute; after Retry succeeds, Edge runs. Repeat with both source and target having active creates and require both to succeed first.
+
+- [ ] **Step 9: Implement the narrow dependency rule**
+
+Track active `create-node` operation IDs by `nodeId` until they succeed. When enqueueing `create-edge`, capture any active source/target create IDs as dependencies. An Edge operation is runnable only after its captured dependencies have succeeded. Failed Node creates remain active blockers until manual retry succeeds. Do not add arbitrary dependency graphs for other command types.
+
+- [ ] **Step 10: GREEN queue tests**
 
 ```bash
 pnpm test -- src/frontend/features/graph-editor/save-queue/editor-save-queue.test.ts
 ```
 
-Expected: PASS for save-state transitions, same-lane ordering, cross-lane independence, Move coalescing, failure isolation, and manual retry.
+Expected: PASS for state transitions, FIFO, cross-lane independence, Move coalescing, manual retry, and Node-create→Edge-create ordering.
 
-- [ ] **Step 9: Commit Task 2**
+- [ ] **Step 11: Commit**
 
 ```bash
 git add src/frontend/features/graph-editor/save-queue
@@ -369,7 +304,7 @@ git commit -m "feat: add editor entity save queue"
 
 ---
 
-### Task 3: Add the Board-scoped React Save Queue hook
+### Task 3: Add the Board-scoped React queue hook
 
 **Files:**
 - Create: `src/frontend/features/graph-editor/save-queue/use-editor-save-queue.ts`
@@ -378,15 +313,17 @@ git commit -m "feat: add editor entity save queue"
 - Read: `src/frontend/features/graph-editor/store/graph-editor-store-provider.tsx`
 
 **Interfaces:**
-- `useEditorPersistence()` continues to return the `EditorPersistence` boundary; page code must stop depending on per-mutation pending flags after migration.
-- Produces:
 
 ```ts
 export type UseEditorSaveQueueResult = {
   dispatch(command: EditorCommand): string | null;
   retryFailed(): void;
   snapshot: EditorSaveQueueSnapshot;
-  getLaneState(commandOrLane: EditorCommand | string): "idle" | "pending" | "saving" | "error";
+  getLaneState(commandOrLaneKey: EditorCommand | string):
+    | "idle"
+    | "pending"
+    | "saving"
+    | "error";
 };
 
 export function useEditorSaveQueue(
@@ -396,21 +333,11 @@ export function useEditorSaveQueue(
 ): UseEditorSaveQueueResult;
 ```
 
-- The hook owns one queue instance for the mounted Board and disposes/recreates it when `boardId` changes.
+- [ ] **Step 1: Write RED hook test**
 
-- [ ] **Step 1: Write a RED hook test**
+Render a hook harness with a real vanilla store and deferred mocked persistence. After `dispatch(move-node)`, assert the store position changes synchronously before persistence resolves, then snapshot reaches `saving`, then `saved`.
 
-Render a small harness with a real vanilla editor store and mocked persistence. Verify `dispatch()` applies local state synchronously before the mocked persistence promise resolves, then verify the hook snapshot reaches `saving` and finally `saved`.
-
-```tsx
-act(() => result.current.dispatch(moveNodeCommand(aliceId, 180)));
-expect(boardNode(store, aliceId).x).toBe(180);
-expect(result.current.snapshot.saveState).toMatch(/unsaved|saving/);
-```
-
-- [ ] **Step 2: Run the hook test and capture RED**
-
-Run:
+- [ ] **Step 2: Run RED**
 
 ```bash
 pnpm test -- src/frontend/features/graph-editor/save-queue/use-editor-save-queue.test.tsx
@@ -418,9 +345,7 @@ pnpm test -- src/frontend/features/graph-editor/save-queue/use-editor-save-queue
 
 Expected: FAIL because the hook does not exist.
 
-- [ ] **Step 3: Implement the hook with `useSyncExternalStore`**
-
-Keep the current `persistence` object in a ref so React renders do not recreate the queue. The queue executor must call the Task 1 durable phase.
+- [ ] **Step 3: Implement with `useSyncExternalStore`**
 
 ```ts
 const persistenceRef = useRef(persistence);
@@ -439,22 +364,21 @@ const snapshot = useSyncExternalStore(
   queue.getSnapshot,
   queue.getSnapshot,
 );
-
-const dispatch = useCallback((command: EditorCommand) => {
-  if (!applyEditorCommand(store, command)) return null;
-  return queue.enqueue(command);
-}, [queue, store]);
 ```
 
-Dispose the previous queue in an effect cleanup. Do not full-hydrate Zustand when queue snapshots change.
+`dispatch()` calls `applyEditorCommand()` first and enqueues only when it returns true. Dispose the queue when the Board-scoped instance is replaced/unmounted.
 
-- [ ] **Step 4: Simplify `useEditorPersistence()` return shape**
+- [ ] **Step 4: Remove per-mutation pending state from persistence adapter**
 
-After page migration no code should need `pending.createNode` etc. Return `{ persistence }` only, unless another current consumer is proven by search. Keep all TanStack cache synchronization inside the existing graph mutation hooks.
+Search current branch consumers of `useEditorPersistence`. After Task 4 is prepared to use lane state, change the adapter return to:
 
-- [ ] **Step 5: Run hook/runtime/queue tests to GREEN**
+```ts
+return { persistence };
+```
 
-Run:
+Do not move TanStack cache synchronization out of existing graph mutation hooks.
+
+- [ ] **Step 5: GREEN focused tests**
 
 ```bash
 pnpm test -- \
@@ -465,7 +389,7 @@ pnpm test -- \
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit Task 3**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/frontend/features/graph-editor/save-queue src/frontend/features/graph-editor/persistence
@@ -474,109 +398,51 @@ git commit -m "feat: connect editor save queue to persistence"
 
 ---
 
-### Task 4: Route Graph Editor writes through the queue and show visible save state
+### Task 4: Route the Editor page through the queue and render save state
 
 **Files:**
 - Modify: `src/frontend/pages/graph-editor/graph-editor-page.tsx`
 - Create: `src/frontend/pages/graph-editor/graph-editor-save-state.test.tsx`
-- Modify as required for changed async semantics:
-  - `src/frontend/pages/graph-editor/graph-editor-page.test.tsx`
-  - `src/frontend/pages/graph-editor/graph-editor-edge-failure.test.tsx`
-  - `src/frontend/pages/graph-editor/graph-editor-inspector.test.tsx`
-  - `src/frontend/pages/graph-editor/graph-editor-board-removal.test.tsx`
-  - `src/frontend/pages/graph-editor/graph-editor-board-removal-failure.test.tsx`
+- Modify: `src/frontend/pages/graph-editor/graph-editor-page.test.tsx`
+- Modify: `src/frontend/pages/graph-editor/graph-editor-edge-failure.test.tsx`
+- Modify: `src/frontend/pages/graph-editor/graph-editor-inspector.test.tsx`
+- Modify: `src/frontend/pages/graph-editor/graph-editor-board-removal.test.tsx`
+- Modify: `src/frontend/pages/graph-editor/graph-editor-board-removal-failure.test.tsx`
 
 **Interfaces:**
-- Page calls `dispatch(command)` instead of `await executeEditorCommand(...)`.
-- `snapshot.saveState` drives the header indicator.
-- `retryFailed()` drives the single generic Retry action.
-- Existing form validation and 409-specific wording remain page concerns.
+- Page uses `saveQueue.dispatch(command)` for all seven write types.
+- Header derives only from `saveQueue.snapshot.saveState`.
+- Retry button calls `saveQueue.retryFailed()`.
+- Existing form validation and conflict-specific wording stay in the page.
 
-- [ ] **Step 1: Write RED save-indicator tests**
+- [ ] **Step 1: Write RED save-indicator/Retry tests**
 
-Mock the queue hook or use deferred persistence through the existing page test harness. Verify exact visible states:
+Verify exact states `Saved`, `Unsaved`, `Saving…`, `Error`, plus a `Retry` button in error state. Reject a deferred persistence call, click Retry, resolve the retry, and assert the indicator returns to `Saved`.
 
-```tsx
-expect(screen.getByText("Saved")).toBeInTheDocument();
-// after dispatch before/while durable execution
-expect(await screen.findByText(/Saving|Unsaved/)).toBeInTheDocument();
-// after rejection
-expect(await screen.findByText("Error")).toBeInTheDocument();
-expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
-```
-
-Click Retry, resolve persistence, and verify the indicator returns to `Saved`.
-
-- [ ] **Step 2: Run the save-state test and capture RED**
-
-Run:
+- [ ] **Step 2: Run RED**
 
 ```bash
 pnpm test -- src/frontend/pages/graph-editor/graph-editor-save-state.test.tsx
 ```
 
-Expected: FAIL because no generic save indicator/Retry exists and page writes still bypass the queue.
+Expected: FAIL because the page has no generic save indicator and still calls the executor directly.
 
-- [ ] **Step 3: Replace page write orchestration with `useEditorSaveQueue()`**
-
-Initialize after obtaining the editor store and persistence:
+- [ ] **Step 3: Replace direct executor calls**
 
 ```ts
 const { persistence } = useEditorPersistence(workspaceId, boardId);
 const saveQueue = useEditorSaveQueue(store, persistence, boardId);
 ```
 
-Every current write handler constructs the same seven command types but calls:
+Each handler constructs the same command but calls `saveQueue.dispatch(command)`. Creation forms clear/close when dispatch returns an operation ID. Drag frames stay direct Zustand updates; drag-stop dispatches the current BoardNode position. Inspector remains explicit-save. Board removal clears selection after local detach dispatch succeeds.
 
-```ts
-const operationId = saveQueue.dispatch(command);
-```
+- [ ] **Step 4: Map queue failures to existing action messages**
 
-Creation forms may clear/close immediately after a successful local dispatch (`operationId !== null`). Drag frames remain direct Zustand updates; drag-stop dispatches the current position. Inspector remains explicit-save but its command is applied locally then queued. Board removal clears selection after local detach succeeds.
+Track the last handled failure key as `${operationId}:${attempt}`. On a new failed operation map command type to the existing messages. Preserve current 409 messages with `isAxiosError(failure.error)` for `update-node` and `update-edge`.
 
-- [ ] **Step 4: Map asynchronous queue failures back to existing action-specific messages**
+Do not restore local state. Update failure tests so failed create remains visible, failed move keeps its latest position, and failed Board detach stays detached while the header shows Error/Retry.
 
-Track the latest failed operation ID already handled in a ref. On a new `snapshot.failedOperations` entry, map command type to the existing messages:
-
-```ts
-switch (failure.command.type) {
-  case "create-node":
-    setCreateError("Unable to create Node.");
-    break;
-  case "move-node":
-    setPositionError("Unable to save Node position.");
-    break;
-  case "create-edge":
-    setRelationshipError("Unable to create Relationship.");
-    break;
-  case "update-node":
-    setInspectorError(
-      isAxiosError(failure.error) && failure.error.response?.status === 409
-        ? "This Node changed elsewhere. Reload before saving again."
-        : "Unable to save Node.",
-    );
-    break;
-  case "update-edge":
-    setInspectorError(
-      isAxiosError(failure.error) && failure.error.response?.status === 409
-        ? "This Relationship changed elsewhere. Reload before saving again."
-        : "Unable to save Relationship.",
-    );
-    break;
-  case "remove-board-node":
-    setInspectorError("Unable to remove Node from Board.");
-    break;
-  case "remove-board-edge":
-    setInspectorError("Unable to remove Relationship from Board.");
-    break;
-}
-```
-
-Do not restore failed local changes. Update failure tests accordingly: a failed create stays visible, a failed move keeps latest position, and a failed Board detach stays detached until retry succeeds.
-
-- [ ] **Step 5: Render the aggregate save indicator in the Board header**
-
-Use accessible text and one Retry button:
+- [ ] **Step 5: Render header save indicator**
 
 ```tsx
 <div aria-live="polite" className="text-sm text-neutral-500">
@@ -592,15 +458,13 @@ Use accessible text and one Retry button:
 </div>
 ```
 
-Do not derive this indicator from TanStack `isPending` flags.
+Do not derive this state from TanStack `isPending`.
 
-- [ ] **Step 6: Preserve per-entity Inspector busy UX with queue lane state**
+- [ ] **Step 6: Preserve Inspector busy UX with lane state**
 
-For the selected Node/Edge, derive its lane and pass `isSaving` when that lane is `pending` or `saving`; use lane state rather than global mutation pending flags. Removal is local/immediate, so `isRemoving` only needs to cover the current selected lane if the Inspector remains mounted.
+For selected Node/Edge, use `getLaneState()` and pass `isSaving=true` for `pending` or `saving`. Do not globally disable Inspector because another entity is saving.
 
-- [ ] **Step 7: Run all focused Graph Editor frontend tests**
-
-Run:
+- [ ] **Step 7: GREEN focused page regressions**
 
 ```bash
 pnpm test -- \
@@ -612,19 +476,17 @@ pnpm test -- \
   src/frontend/pages/graph-editor/graph-editor-board-removal-failure.test.tsx
 ```
 
-Expected: PASS with queue-aware failure semantics and unchanged same-Board hydration guard.
+Expected: PASS, including unchanged one-time-per-Board hydration behavior.
 
 - [ ] **Step 8: Run architecture/type/unit gate**
-
-Run:
 
 ```bash
 pnpm check
 ```
 
-Expected: PASS. Confirm no command/queue module imports React Flow, Axios, backend, Drizzle, or database code.
+Expected: PASS.
 
-- [ ] **Step 9: Commit Task 4**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add src/frontend/pages/graph-editor src/frontend/features/graph-editor
@@ -633,120 +495,102 @@ git commit -m "feat: route graph editor writes through save queue"
 
 ---
 
-### Task 5: Record the concrete Save Queue architecture and verify critical persistence flow
+### Task 5: Document concrete queue semantics and synchronize E2E on Saved
 
 **Files:**
+- Modify: `docs/superpowers/specs/2026-08-29-editor-save-queue-design.md`
 - Modify: `docs/superpowers/specs/2026-08-28-story-graph-architecture-design.md`
-- Modify if required: `tests/e2e/auth-story.spec.ts`
+- Modify: `tests/e2e/auth-story.spec.ts`
 - Read: `tests/AGENTS.md`
 
-**Interfaces:**
-- Architecture doc records the implemented entity-lane queue semantics without changing core domain ownership.
-- E2E retains `edit → saved → reload → verify` and waits on the visible `Saved` state before reload when the queue is involved.
+- [ ] **Step 1: Record the narrow Node-create→Edge-create dependency in the Save Queue spec**
 
-- [ ] **Step 1: Update architecture documentation with only implemented rules**
+Add the implemented rule: a queued `create-edge` waits for still-active `create-node` operations for its source/target IDs; this is intentionally not a general cross-entity dependency scheduler.
 
-Add concise bullets under Graph editor persistence/editing:
+- [ ] **Step 2: Record implemented architecture rules**
+
+Add only these concrete bullets to the architecture persistence section:
 
 ```text
-- Save Queue serializes durable writes per `node:<id>` / `edge:<id>` lane.
-- Pending not-yet-started Node moves coalesce to the latest position.
-- Failed lanes preserve Zustand working state, expose Error, and resume only through explicit Retry.
-- Durable responses must not overwrite newer working values.
-- Save indicator states are Saved / Saving / Unsaved / Error.
+- durable writes serialize per node:<id> / edge:<id> lane
+- pending not-yet-started Node moves coalesce
+- create-edge waits for active source/target create-node operations
+- failed lanes preserve working state and resume only through explicit Retry
+- stale durable responses cannot overwrite newer working values
+- visible state is Saved / Saving / Unsaved / Error
 ```
 
-Do not add Inspector autosave, undo/redo, realtime, or cross-entity dependency scheduling as implemented features.
+- [ ] **Step 3: Update critical E2E to wait for Saved before reload**
 
-- [ ] **Step 2: Add/adjust E2E synchronization around visible Saved state**
-
-Where the critical Graph Editor E2E currently performs a durable edit then reloads, wait for the header save indicator before reload:
+At durable Graph Editor checkpoints:
 
 ```ts
 await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 await page.reload();
 ```
 
-Preserve explicit server-response synchronization where it is still needed for setup races; do not slow optimistic UI itself.
+Keep existing explicit POST/PATCH response waits that prevent setup races.
 
-- [ ] **Step 3: Run critical E2E locally if the environment supports it**
-
-Run the repository's existing E2E command from `package.json`, or rely on PR CI when the required PostgreSQL/browser services are CI-managed. Expected: Graph create/move/edit/remove flows persist and survive reload after `Saved` becomes visible.
-
-- [ ] **Step 4: Commit Task 5**
+- [ ] **Step 4: Run E2E**
 
 ```bash
-git add docs/superpowers/specs/2026-08-28-story-graph-architecture-design.md tests/e2e/auth-story.spec.ts
+pnpm e2e
+```
+
+Expected: critical Graph Editor workflows save and survive reload; no flaky marker is acceptable.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add docs/superpowers/specs tests/e2e/auth-story.spec.ts
 git commit -m "docs: record editor save queue architecture"
 ```
 
 ---
 
-### Task 6: Full verification, direct review, and Draft PR evidence
+### Task 6: Full verification, direct review, and Draft PR
 
 **Files:**
-- No production scope expansion expected.
-- Update PR body only with observed verification evidence.
+- No production scope expansion beyond failures found by verification.
 
-**Interfaces:**
-- Exact feature head must be verified before integration.
-- PR remains Draft; merge is a separate integration decision.
-
-- [ ] **Step 1: Run the full CI-equivalent gate**
-
-Run:
+- [ ] **Step 1: Full local/CI-equivalent gate**
 
 ```bash
 pnpm check
 pnpm test:integration
 pnpm build
+pnpm e2e
 ```
 
-Run the repository E2E command when available. Verify tracked files are clean after generated steps using the same clean-tree check as CI.
+Expected: PASS. Also confirm tracked-file clean-tree using the repository CI's existing `git diff --exit-code` check.
 
-Expected: all commands PASS.
+- [ ] **Step 2: Open Draft PR**
 
-- [ ] **Step 2: Open a Draft PR from `feat/editor-save-queue-v1` to `main`**
+Create Draft PR `feat/editor-save-queue-v1 → main`. Body lists command phase split, queue lanes, Move coalescing, Node-create→Edge-create dependency, manual Retry, stale reconcile protection, four-state indicator, and explicit deferrals.
 
-PR scope must explicitly list:
-- command local/durable phase split,
-- entity-lane Save Queue,
-- Move coalescing,
-- manual Retry and failure preservation,
-- stale reconcile protection,
-- visible four-state save indicator,
-- Inspector autosave/undo/realtime deferred.
+- [ ] **Step 3: Inspect exact-head PR CI**
 
-- [ ] **Step 3: Inspect the actual PR CI run for the exact head**
+Record exact results/counts for migrations, AGENTS/import boundaries, ESLint, TypeScript, unit, PostgreSQL integration, build, clean-tree, Playwright, and flaky markers. Do not use an older passing head.
 
-Record exact counts/results for:
-- migrations,
-- AGENTS/import boundaries,
-- ESLint,
-- TypeScript,
-- unit tests,
-- PostgreSQL integration,
-- production build,
-- clean-tree,
-- Playwright including flaky markers.
+- [ ] **Step 4: Direct diff review**
 
-Do not report success while any required job is pending or only a stale earlier head passed.
+Verify all of the following before completion:
 
-- [ ] **Step 4: Directly review the final diff against invariants**
+```text
+no frontend backend/DB imports
+queue core has no React/React Flow/Axios imports
+same-Board hydration guard remains
+failure never rolls working state back
+same-lane FIFO and unrelated-lane independence match tests
+running Move is never mutated by coalescing
+create-edge cannot outrun active source/target create-node
+stale persistence cannot snap working values backward
+Board detach never deletes canonical Node/Edge
+no Inspector autosave / undo / realtime / CRDT / event sourcing / schema scope creep
+```
 
-Verify:
-- no frontend backend/DB imports,
-- queue core is framework-independent,
-- same-Board hydration guard is unchanged,
-- failed local state is not rolled back,
-- same-lane ordering and cross-lane independence match tests,
-- Move coalescing never mutates a running operation,
-- stale persisted position cannot snap current working state backward,
-- Board removal still never deletes canonical Node/Edge,
-- no Inspector autosave, undo/redo, realtime, CRDT, event sourcing, schema, or migration scope creep.
+Fix Critical/Important findings and rerun verification.
 
-Fix Critical/Important findings and rerun verification before calling the slice complete.
+- [ ] **Step 5: Update Draft PR evidence**
 
-- [ ] **Step 5: Update Draft PR body with RED/GREEN and final evidence**
-
-Include the initial focused RED failure, task-level GREEN checkpoints, final exact head SHA, CI run ID, test counts, direct review outcome, and explicit note that merge is a separate integration decision.
+Include focused RED evidence, GREEN checkpoints, exact final head SHA, CI run ID/test counts, direct-review result, and state explicitly that merge is a separate integration decision.
