@@ -50,7 +50,7 @@ This slice does not implement:
 - Realtime collaboration, WebSocket persistence, Yjs/CRDT, event sourcing, or DB transaction-history undo.
 - A global distributed job queue.
 - New backend endpoints, schema changes, migrations, or canonical delete semantics.
-- General cross-entity dependency scheduling. This slice guarantees entity-local ordering; broader dependency modeling is deferred unless an existing observable workflow proves it is required.
+- General cross-entity dependency scheduling. This slice guarantees entity-local ordering and one concrete Node-create→Edge-create dependency rule; broader dependency modeling remains deferred.
 
 ## 4. State ownership
 
@@ -115,6 +115,19 @@ Create Node
 ```
 
 The Move cannot reach persistence before the Create for the same Node has completed durably.
+
+### Narrow Node-create → Edge-create dependency
+
+A concrete existing workflow adds one cross-lane dependency without introducing a general scheduler:
+
+```text
+Create Node A (still active)
+Create Relationship A → B
+```
+
+A queued `create-edge` captures any still-active `create-node` operation for its source and target Node IDs at enqueue time and waits until those captured creates have completed durably. If an endpoint create fails, the Edge remains blocked until that create is explicitly retried and succeeds.
+
+This rule exists to prevent the Relationship POST from outrunning the endpoint Node POST and violating backend foreign-key requirements. It is intentionally limited to `create-edge` depending on active source/target `create-node`; later Node operations, unrelated lanes, and arbitrary cross-entity dependency graphs are not modeled.
 
 ## 6. Command lifecycle
 
@@ -268,8 +281,9 @@ The queue core must cover at least:
 6. an already-running Move is never replaced.
 7. `Create Node → Move Node` persistence ordering for the same Node.
 8. unrelated Node/Edge lanes are not blocked by another lane's failure.
-9. stale persistence response cannot overwrite newer local working position.
-10. create/update/remove paths continue to preserve Board-vs-canonical ownership rules.
+9. `create-edge` waits for still-active source/target `create-node` operations.
+10. stale persistence response cannot overwrite newer local working position.
+11. create/update/remove paths continue to preserve Board-vs-canonical ownership rules.
 
 ### Frontend regression tests
 
@@ -305,6 +319,7 @@ Because this slice introduces the concrete Save Queue subsystem, update the appr
 
 - entity-lane serialization,
 - pending Move coalescing,
+- the narrow endpoint Node-create→Edge-create dependency,
 - visible four-state save indicator,
 - failed-lane/manual-retry behavior,
 - stale reconcile protection.
@@ -319,6 +334,7 @@ The slice is complete when:
 - local working changes remain immediate,
 - same-entity persistence is ordered,
 - pending same-Node moves coalesce,
+- `create-edge` cannot outrun an active source/target `create-node`,
 - network failure does not snap working state back,
 - Retry can resume failed persistence without an infinite retry loop,
 - stale durable responses cannot overwrite newer working state,
