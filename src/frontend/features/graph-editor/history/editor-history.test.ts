@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { EditorHistoryEntry } from "./editor-history-entry";
+import type {
+  EditorHistoryEntry,
+  UndoableEditorCommand,
+} from "./editor-history-entry";
 import { createEditorHistory } from "./editor-history";
 
 const boardId = "board-1";
@@ -177,15 +180,15 @@ describe("editor history", () => {
     expect(history.getSnapshot().undoCount).toBe(3);
 
     const replayed: string[] = [];
-    history.undo((command) => {
+    history.undo((command: UndoableEditorCommand) => {
       if (command.type === "update-node") replayed.push(command.nodeId);
       return true;
     });
-    history.undo((command) => {
+    history.undo((command: UndoableEditorCommand) => {
       if (command.type === "update-node") replayed.push(command.nodeId);
       return true;
     });
-    history.undo((command) => {
+    history.undo((command: UndoableEditorCommand) => {
       if (command.type === "update-node") replayed.push(command.nodeId);
       return true;
     });
