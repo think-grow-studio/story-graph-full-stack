@@ -36,19 +36,29 @@ export function useEditorSaveQueue(
   boardId: string,
 ): UseEditorSaveQueueResult {
   const persistenceRef = useRef(persistence);
-  persistenceRef.current = persistence;
+
+  useEffect(() => {
+    persistenceRef.current = persistence;
+  }, [persistence]);
+
+  const execute = useCallback(
+    (command: EditorCommand) =>
+      persistAndReconcileEditorCommand(
+        store,
+        persistenceRef.current,
+        command,
+      ),
+    [store],
+  );
+
+  const createOperationId = useCallback(
+    () => `${boardId}:${crypto.randomUUID()}`,
+    [boardId],
+  );
 
   const queue = useMemo(
-    () =>
-      createEditorSaveQueue({
-        execute: (command) =>
-          persistAndReconcileEditorCommand(
-            store,
-            persistenceRef.current,
-            command,
-          ),
-      }),
-    [boardId, store],
+    () => createEditorSaveQueue({ execute, createOperationId }),
+    [createOperationId, execute],
   );
 
   useEffect(() => () => queue.dispose(), [queue]);
