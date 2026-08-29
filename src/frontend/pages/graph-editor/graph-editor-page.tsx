@@ -75,6 +75,9 @@ function GraphEditorContent({
   const [relationshipName, setRelationshipName] = useState("");
   const canvasRef = useRef<GraphCanvasHandle>(null);
   const hydratedBoardIdRef = useRef<string | null>(null);
+  const dragStartPositionsRef = useRef(
+    new Map<string, { x: number; y: number }>(),
+  );
   const bootstrap = useBootstrapQuery();
   const workspaceId = bootstrap.data?.workspace.id;
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
@@ -267,6 +270,19 @@ function GraphEditorContent({
     }
   }
 
+  function handleNodeDragStart(nodeId: string) {
+    const boardNode = store
+      .getState()
+      .boardNodes.find((candidate) => candidate.nodeId === nodeId);
+    if (!boardNode) return;
+
+    dragStartPositionsRef.current.set(nodeId, {
+      x: boardNode.x,
+      y: boardNode.y,
+    });
+    history.boundary();
+  }
+
   function handleNodePositionChange(
     nodeId: string,
     position: { x: number; y: number },
@@ -275,19 +291,25 @@ function GraphEditorContent({
   }
 
   function handleNodeDragStop(nodeId: string) {
+    const moveStartPosition = dragStartPositionsRef.current.get(nodeId);
+    dragStartPositionsRef.current.delete(nodeId);
     if (!workspaceId) return;
+
     const boardNode = store
       .getState()
       .boardNodes.find((candidate) => candidate.nodeId === nodeId);
     if (!boardNode) return;
 
-    history.dispatch({
-      type: "move-node",
-      boardId,
-      nodeId,
-      workspaceId,
-      position: { x: boardNode.x, y: boardNode.y },
-    });
+    history.dispatch(
+      {
+        type: "move-node",
+        boardId,
+        nodeId,
+        workspaceId,
+        position: { x: boardNode.x, y: boardNode.y },
+      },
+      { moveStartPosition },
+    );
   }
 
   function handleRemoveFromBoard() {
@@ -518,6 +540,7 @@ function GraphEditorContent({
           edges={canvasEdges}
           nodes={canvasNodes}
           onConnectNodes={handleConnectNodes}
+          onNodeDragStart={handleNodeDragStart}
           onNodeDragStop={handleNodeDragStop}
           onNodePositionChange={handleNodePositionChange}
           onSelectEdge={(edgeId) => selectEntity({ kind: "edge", id: edgeId })}
