@@ -15,6 +15,10 @@ export type InspectorDraftState = {
     entity: InspectorCanonicalEntity,
   ) => void;
   updateDraft: (key: InspectorEntityKey, patch: InspectorDraftPatch) => void;
+  replaceDraft: (
+    key: InspectorEntityKey,
+    input: Pick<InspectorDraft, "name" | "description" | "propertiesText">,
+  ) => void;
 };
 
 export type InspectorDraftStore = StoreApi<InspectorDraftState>;
@@ -49,6 +53,27 @@ export function createInspectorDraftStore(): InspectorDraftStore {
           ...state.drafts,
           [key]: {
             ...next,
+            revision: current.revision + 1,
+          },
+        },
+      }));
+    },
+    replaceDraft: (key, input) => {
+      const current = get().drafts[key];
+      if (!current) return;
+      if (
+        input.name === current.name &&
+        input.description === current.description &&
+        input.propertiesText === current.propertiesText
+      ) {
+        return;
+      }
+
+      set((state) => ({
+        drafts: {
+          ...state.drafts,
+          [key]: {
+            ...input,
             revision: current.revision + 1,
           },
         },
