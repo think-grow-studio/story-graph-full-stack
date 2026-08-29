@@ -218,4 +218,56 @@ describe("graph editor store", () => {
     expect(store.getState().edges).toHaveLength(0);
     expect(store.getState().boardEdges).toHaveLength(0);
   });
+
+  it("replaces canonical entities in place without changing editor presentation order", () => {
+    const store = createGraphEditorStore();
+    store.getState().hydrate(snapshot);
+    store.getState().addOptimisticNode({
+      node: optimisticNode,
+      boardNode: optimisticBoardNode,
+    });
+
+    const secondEdge = {
+      ...optimisticEdge,
+      id: "66666666-6666-4666-8666-666666666666",
+      name: "second",
+    };
+    const secondBoardEdge = {
+      ...optimisticBoardEdge,
+      edgeId: secondEdge.id,
+    };
+    store.getState().addOptimisticEdge({
+      edge: optimisticEdge,
+      boardEdge: optimisticBoardEdge,
+    });
+    store.getState().addOptimisticEdge({
+      edge: secondEdge,
+      boardEdge: secondBoardEdge,
+    });
+
+    const boardNodesBefore = store.getState().boardNodes;
+    const boardEdgesBefore = store.getState().boardEdges;
+
+    store.getState().replaceNode({
+      ...snapshot.nodes[0],
+      name: "Alicia",
+      version: 2,
+    });
+    store.getState().replaceEdge({
+      ...optimisticEdge,
+      name: "best friend",
+      version: 2,
+    });
+
+    expect(store.getState().nodes.map((node) => node.id)).toEqual([
+      snapshot.nodes[0].id,
+      optimisticNode.id,
+    ]);
+    expect(store.getState().edges.map((edge) => edge.id)).toEqual([
+      optimisticEdge.id,
+      secondEdge.id,
+    ]);
+    expect(store.getState().boardNodes).toEqual(boardNodesBefore);
+    expect(store.getState().boardEdges).toEqual(boardEdgesBefore);
+  });
 });
