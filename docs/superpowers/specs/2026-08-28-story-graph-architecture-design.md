@@ -223,7 +223,12 @@ Use autosave rather than a primary Save button.
 - Text edits use a short debounce.
 - Create/delete/connect operations persist immediately after local optimistic application.
 - Generate entity IDs client-side so follow-up edits/edge creation do not wait for server-generated IDs.
-- Maintain a save queue and visible `Saving / Saved / Unsaved` state.
+- Durable writes serialize per `node:<id>` / `edge:<id>` Save Queue lane; unrelated lanes may progress independently.
+- Pending, not-yet-started Node move writes coalesce to the latest position without mutating a running move.
+- A queued `create-edge` waits for still-active `create-node` operations for its source/target Node IDs so Relationship persistence cannot outrun endpoint creation.
+- Failed lanes preserve the current Zustand working state and resume only through explicit Retry; there is no infinite automatic retry loop.
+- Stale durable responses may advance server metadata but must not overwrite newer working values.
+- The editor exposes aggregate `Saved / Saving / Unsaved / Error` state from the Save Queue rather than individual mutation flags.
 - Network failure must not immediately destroy the local working state.
 - Commands must not directly know Axios/HTTP so persistence can later move to collaboration/WebSocket infrastructure.
 
