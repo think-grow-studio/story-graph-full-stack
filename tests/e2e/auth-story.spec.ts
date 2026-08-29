@@ -216,7 +216,18 @@ test("Graph Editor creates and repositions a Node through the UI", async ({
 
     await page.getByRole("button", { name: "+ Node" }).click();
     await page.getByLabel("Node name").fill("E2E Node");
+
+    const createResponsePromise = page.waitForResponse((response) => {
+      const path = new URL(response.url()).pathname;
+      return (
+        response.request().method() === "POST" &&
+        path === `/api/v1/boards/${boardId}/nodes`
+      );
+    });
     await page.getByRole("button", { name: "Create Node" }).click();
+
+    const createResponse = await createResponsePromise;
+    expect(createResponse.status()).toBe(201);
 
     const node = page.locator(".react-flow__node").filter({ hasText: "E2E Node" });
     await expect(node).toBeVisible();
