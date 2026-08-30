@@ -1,4 +1,9 @@
 import type { EditorCommand } from "../commands/editor-command";
+import {
+  findNodeState,
+  normalizeNodeStateOverrides,
+  resolveEffectiveNode,
+} from "../model/effective-node";
 import type { GraphEditorStore } from "../store/graph-editor-store";
 import type { InspectorDraftStore } from "./inspector-draft-store";
 import {
@@ -46,10 +51,27 @@ export function createInspectorAutosaveController({
 
     if (key.startsWith("node:")) {
       const nodeId = key.slice("node:".length);
-      const node = graphStore
-        .getState()
-        .nodes.find((candidate) => candidate.id === nodeId);
+      const state = graphStore.getState();
+      const node = state.nodes.find((candidate) => candidate.id === nodeId);
       if (!node) return;
+
+      if (state.scope) {
+        const nodeState = findNodeState(state.scope.id, nodeId, state.nodeStates);
+        const effectiveNode = resolveEffectiveNode(node, nodeState);
+        const evaluation = evaluateInspectorDraft(draft, effectiveNode);
+        if (evaluation.status !== "saveable" || !evaluation.dirty) return;
+
+        dispatch({
+          type: "update-node-state",
+          boardId,
+          workspaceId,
+          scopeId: state.scope.id,
+          nodeId,
+          version: nodeState?.version ?? null,
+          ...normalizeNodeStateOverrides(node, evaluation.input),
+        });
+        return;
+      }
 
       const evaluation = evaluateInspectorDraft(draft, node);
       if (evaluation.status !== "saveable" || !evaluation.dirty) return;
