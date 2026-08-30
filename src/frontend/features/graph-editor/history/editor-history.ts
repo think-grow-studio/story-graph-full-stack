@@ -77,16 +77,7 @@ export function createEditorHistory({
     publish();
   }
 
-  function noteNormalCommand(command: EditorCommand) {
-    if (command.type === "remove-board-node") {
-      const changed = undoEntries.length > 0 || redoEntries.length > 0;
-      undoEntries.length = 0;
-      redoEntries.length = 0;
-      boundaryGeneration += 1;
-      if (changed) publish();
-      return;
-    }
-
+  function noteNormalCommand(_command: EditorCommand) {
     const redoChanged = clearRedo();
     boundaryGeneration += 1;
     if (redoChanged) publish();
