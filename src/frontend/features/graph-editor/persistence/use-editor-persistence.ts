@@ -1,6 +1,7 @@
 import {
   useCreateEdgeOnBoardMutation,
   useCreateNodeOnBoardMutation,
+  usePlaceNodeOnBoardMutation,
   useRemoveEdgeFromBoardMutation,
   useRemoveNodeFromBoardMutation,
   useRestoreEdgeToBoardMutation,
@@ -17,6 +18,7 @@ export function useEditorPersistence(
   boardId: string,
 ) {
   const createNode = useCreateNodeOnBoardMutation();
+  const placeNode = usePlaceNodeOnBoardMutation(workspaceId, boardId);
   const createEdge = useCreateEdgeOnBoardMutation();
   const updateNode = useUpdateNodeMutation(workspaceId, boardId);
   const updateEdge = useUpdateEdgeMutation(workspaceId, boardId);
@@ -33,6 +35,13 @@ export function useEditorPersistence(
         workspaceId: command.workspaceId,
         id: command.nodeId,
         name: command.name,
+        position: command.position,
+      }),
+    placeBoardNode: (command) =>
+      placeNode.mutateAsync({
+        boardId: command.boardId,
+        nodeId: command.node.id,
+        workspaceId: command.workspaceId,
         position: command.position,
       }),
     moveNode: (command) =>
