@@ -13,8 +13,17 @@ const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
 const carolId = "66666666-6666-4666-8666-666666666666";
+const scopeId = "77777777-7777-4777-8777-777777777777";
 const workspaceId = "workspace-1";
 const now = "2026-08-29T00:00:00.000Z";
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 function hydratedStore() {
   const store = createGraphEditorStore();
@@ -104,6 +113,37 @@ function hydratedStore() {
         updatedAt: now,
       },
     ],
+  });
+  return store;
+}
+
+function scopedStore() {
+  const store = hydratedStore();
+  store.getState().hydrate({
+    story: { id: storyId, name: "Novel" },
+    board: {
+      id: boardId,
+      storyId,
+      scopeId,
+      name: "Chapter Characters",
+      description: "",
+      revision: 3,
+      createdAt: now,
+      updatedAt: now,
+    },
+    scope: {
+      id: scopeId,
+      storyId,
+      name: "Chapter 10",
+      description: "",
+      createdAt: now,
+      updatedAt: now,
+    },
+    nodes: store.getState().nodes,
+    nodeStates: [],
+    edges: store.getState().edges,
+    boardNodes: store.getState().boardNodes,
+    boardEdges: store.getState().boardEdges,
   });
   return store;
 }
@@ -340,5 +380,101 @@ describe("editor command runtime", () => {
       x: 500,
       y: 600,
     });
+  });
+
+  it("applies a first scoped NodeState write without mutating the canonical Node", () => {
+    const store = scopedStore();
+    const canonicalBefore = structuredClone(
+      store.getState().nodes.find((node) => node.id === aliceId)!,
+    );
+    const command = {
+      type: "update-node-state" as const,
+      boardId,
+      workspaceId,
+      scopeId,
+      nodeId: aliceId,
+      version: null,
+      name: "Queen Alice",
+      description: null,
+      properties: { role: "queen" },
+    };
+
+    expect(applyEditorCommand(store, command)).toBe(true);
+
+    expect(store.getState().nodes.find((node) => node.id === aliceId)).toEqual(
+      canonicalBefore,
+    );
+    expect(store.getState().nodeStates).toContainEqual({
+      scopeId,
+      nodeId: aliceId,
+      name: "Queen Alice",
+      description: null,
+      properties: { role: "queen" },
+      version: null,
+      createdAt: null,
+      updatedAt: null,
+    });
+  });
+
+  it("advances persisted NodeState metadata without overwriting a newer local override", async () => {
+    const store = scopedStore();
+    const gate = deferred<{
+      scopeId: string;
+      nodeId: string;
+      name: string | null;
+      description: string | null;
+      properties: Record<string, unknown> | null;
+      version: number;
+      createdAt: string;
+      updatedAt: string;
+    }>();
+    const durable = {
+      ...persistence(),
+      updateNodeState: vi.fn(() => gate.promise),
+    };
+    const first = {
+      type: "update-node-state" as const,
+      boardId,
+      workspaceId,
+      scopeId,
+      nodeId: aliceId,
+      version: null,
+      name: "Queen Alice",
+      description: null,
+      properties: null,
+    };
+
+    applyEditorCommand(store, first);
+    const persistencePromise = persistAndReconcileEditorCommand(store, durable, first);
+    applyEditorCommand(store, {
+      ...first,
+      name: "Empress Alice",
+    });
+
+    gate.resolve({
+      scopeId,
+      nodeId: aliceId,
+      name: "Queen Alice",
+      description: null,
+      properties: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: "2026-08-29T00:01:00.000Z",
+    });
+    await persistencePromise;
+
+    expect(store.getState().nodeStates).toContainEqual({
+      scopeId,
+      nodeId: aliceId,
+      name: "Empress Alice",
+      description: null,
+      properties: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: "2026-08-29T00:01:00.000Z",
+    });
+    expect(store.getState().nodes.find((node) => node.id === aliceId)?.name).toBe(
+      "Alice",
+    );
   });
 });
