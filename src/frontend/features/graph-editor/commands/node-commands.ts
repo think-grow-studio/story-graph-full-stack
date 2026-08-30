@@ -39,6 +39,18 @@ export type UpdateNodeCommand = {
   properties: Record<string, unknown>;
 };
 
+export type UpdateNodeStateCommand = {
+  type: "update-node-state";
+  boardId: string;
+  workspaceId: string;
+  scopeId: string;
+  nodeId: string;
+  version: number | null;
+  name: string | null;
+  description: string | null;
+  properties: Record<string, unknown> | null;
+};
+
 export type RemoveBoardNodeCommand = {
   type: "remove-board-node";
   boardId: string;
