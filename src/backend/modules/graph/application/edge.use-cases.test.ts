@@ -125,6 +125,7 @@ function createGraph(): GraphRepository {
     })),
     updateEdge: vi.fn(async (input) => ({ ...edge, ...input, version: edge.version + 1 })),
     removeEdgeFromBoard: vi.fn(async () => true),
+    restoreEdgeToBoard: vi.fn(),
   };
 }
 
