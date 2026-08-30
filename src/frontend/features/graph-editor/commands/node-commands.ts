@@ -34,3 +34,30 @@ export type RemoveBoardNodeCommand = {
   workspaceId: string;
   nodeId: string;
 };
+
+export type RestoreBoardNodeCommand = {
+  type: "restore-board-node";
+  boardId: string;
+  workspaceId: string;
+  nodeId: string;
+  boardNode: {
+    boardId: string;
+    nodeId: string;
+    x: number;
+    y: number;
+    width: number | null;
+    height: number | null;
+    zIndex: number;
+    style: Record<string, unknown>;
+    createdAt: string;
+    updatedAt: string;
+  };
+  boardEdges: Array<{
+    boardId: string;
+    edgeId: string;
+    style: Record<string, unknown>;
+    labelPresentation: Record<string, unknown>;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+};
