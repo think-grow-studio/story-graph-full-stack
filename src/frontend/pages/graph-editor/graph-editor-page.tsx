@@ -30,6 +30,10 @@ import {
   useInspectorAutosave,
   useInspectorDraftState,
 } from "@/frontend/features/graph-editor/inspector/use-inspector-autosave";
+import {
+  findNodeState,
+  resolveEffectiveNode,
+} from "@/frontend/features/graph-editor/model/effective-node";
 import { useEditorPersistence } from "@/frontend/features/graph-editor/persistence/use-editor-persistence";
 import { useEditorSaveQueue } from "@/frontend/features/graph-editor/save-queue/use-editor-save-queue";
 import {
@@ -110,7 +114,15 @@ function GraphEditorContent({
     const node = state.nodes.find(
       (candidate) => candidate.id === selectedEntity.id,
     );
-    if (node) inspectorSelection = { kind: "node", entity: node };
+    if (node) {
+      const nodeState = state.scope
+        ? findNodeState(state.scope.id, node.id, state.nodeStates)
+        : null;
+      inspectorSelection = {
+        kind: "node",
+        entity: resolveEffectiveNode(node, nodeState),
+      };
+    }
   } else if (selectedEntity?.kind === "edge") {
     const edge = state.edges.find(
       (candidate) => candidate.id === selectedEntity.id,
@@ -151,7 +163,14 @@ function GraphEditorContent({
       if (key.startsWith("node:")) {
         const nodeId = key.slice("node:".length);
         const node = state.nodes.find((candidate) => candidate.id === nodeId);
-        return !node || evaluateInspectorDraft(draft, node).dirty;
+        if (!node) return true;
+        const nodeState = state.scope
+          ? findNodeState(state.scope.id, node.id, state.nodeStates)
+          : null;
+        return evaluateInspectorDraft(
+          draft,
+          resolveEffectiveNode(node, nodeState),
+        ).dirty;
       }
 
       const edgeId = key.slice("edge:".length);
@@ -176,6 +195,25 @@ function GraphEditorContent({
           draftStore
             .getState()
             .replaceDraft(toInspectorEntityKey("node", command.nodeId), node);
+        }
+        return;
+      }
+
+      if (command.type === "update-node-state") {
+        const currentState = store.getState();
+        const node = currentState.nodes.find(
+          (candidate) => candidate.id === command.nodeId,
+        );
+        if (node) {
+          const nodeState = findNodeState(
+            command.scopeId,
+            command.nodeId,
+            currentState.nodeStates,
+          );
+          draftStore.getState().replaceDraft(
+            toInspectorEntityKey("node", command.nodeId),
+            resolveEffectiveNode(node, nodeState),
+          );
         }
         return;
       }
@@ -393,10 +431,14 @@ function GraphEditorContent({
   const canvasNodes = state.nodes.flatMap((node) => {
     const placement = placementByNodeId.get(node.id);
     if (!placement) return [];
+    const nodeState = state.scope
+      ? findNodeState(state.scope.id, node.id, state.nodeStates)
+      : null;
+    const effectiveNode = resolveEffectiveNode(node, nodeState);
     return [
       {
         id: node.id,
-        name: node.name,
+        name: effectiveNode.name,
         position: { x: placement.x, y: placement.y },
       },
     ];
@@ -426,6 +468,7 @@ function GraphEditorContent({
           (failure) =>
             failure.laneKey === selectedLaneKey &&
             (failure.command.type === "update-node" ||
+              failure.command.type === "update-node-state" ||
               failure.command.type === "update-edge"),
         )
     : undefined;
