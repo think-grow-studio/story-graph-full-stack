@@ -585,6 +585,8 @@ function getEditorFailureMessage(command: EditorCommand, error: unknown): string
         : "Unable to save Relationship.";
     case "remove-board-node":
       return "Unable to remove Node from Board.";
+    case "restore-board-node":
+      return "Unable to restore Node to Board.";
     case "remove-board-edge":
       return "Unable to remove Relationship from Board.";
     case "restore-board-edge":
