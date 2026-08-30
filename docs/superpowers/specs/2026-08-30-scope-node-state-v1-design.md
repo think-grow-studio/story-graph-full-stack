@@ -99,13 +99,15 @@ Workspace
 V1 fields:
 
 ```text
-id           client- or server-generated uuid-shaped text id
+id           server-generated uuid-shaped text id
 storyId      FK → Story
 name         string, 1..200 after trim
 description  string, max 10,000
 createdAt    timestamp
 updatedAt    timestamp
 ```
+
+Scope IDs follow the current Board-style server-generated identity pattern. The browser does not need a Scope ID before the create request returns.
 
 V1 explicitly excludes:
 
@@ -122,7 +124,7 @@ A future migration may add parent/order metadata without changing the V1 identit
 Add nullable:
 
 ```text
-scopeId  nullable FK-like reference to Scope
+scopeId  nullable reference to Scope
 ```
 
 The database must enforce same-Story identity with a composite relation:
@@ -476,7 +478,10 @@ Deletion behavior:
 - deleting Story cascades Scope and NodeState through Story ownership
 - deleting canonical Node cascades NodeState for that Node
 - deleting Scope would cascade NodeState, but Scope DELETE API is deferred
-- Board references to Scope should use a restrictive database relation in V1 because automatic composite `SET NULL` could incorrectly affect non-null Story identity; no Scope DELETE path is exposed until a dedicated detach-Boards transaction is designed
+- the composite Board→Scope foreign key uses the default `NO ACTION` behavior; V1 does not use composite `SET NULL` because that could incorrectly target the non-null Story identity column
+- a future Scope DELETE use-case must first detach referencing Boards (`scopeId = NULL`) in an explicit transaction and only then delete the Scope
+
+This keeps Scope deletion semantics explicit while allowing a Story-level delete statement to remove its Story-owned Boards/Scopes together and satisfy referential checks at statement completion.
 
 ---
 
@@ -488,12 +493,29 @@ Add:
 
 ```text
 scope: ScopeResponse | null
-nodeStates: NodeStateResponse[]
+nodeStates: EditorNodeState[]
 ```
 
 Canonical Node data stays in `nodes`.
 
 Do not overwrite canonical `nodes` with effective scoped values.
+
+The editor needs a small working model rather than storing only persisted response rows because a first scoped edit is optimistic before the server has assigned NodeState version/timestamps:
+
+```ts
+type EditorNodeState = {
+  scopeId: string;
+  nodeId: string;
+  name: string | null;
+  description: string | null;
+  properties: Record<string, unknown> | null;
+  version: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+```
+
+Hydrated persisted rows always have numeric version/timestamps. An optimistic first write may temporarily use `version = null` and null timestamps. Persistence reconciliation advances server metadata while preserving any newer local override values.
 
 Introduce pure selectors/model helpers:
 
@@ -606,9 +628,11 @@ Do not introduce a separate `node-state:` lane. Canonical and scoped Node conten
 
 ### Optimistic local apply
 
-`update-node-state` replaces/inserts the working `NodeState` in Zustand immediately. It never changes canonical `nodes`.
+`update-node-state` replaces/inserts the working `EditorNodeState` in Zustand immediately. It never changes canonical `nodes`.
 
 Persistence response may advance NodeState version/timestamps but must not overwrite a newer local override value, following the same stale-response rule already used by canonical edits.
+
+Before durable execution, persistence preparation reads the current working NodeState version. This mirrors current canonical Node/Edge command preparation and is required for a queued Undo behind a pending first write: the forward response can advance metadata to version 1 while preserving the already-applied inverse values, then the inverse persists with version 1.
 
 ### History
 
@@ -626,6 +650,8 @@ inverse state.name = null
 ```
 
 This distinction is required so Undo returns to inheritance rather than persisting a redundant `Alice` override.
+
+If the previous state row did not exist, Undo of the first scoped edit may leave a persisted all-null NodeState row. That is intentional in V1: effective semantics are restored exactly, row identity/version remain concurrency-safe, and compaction is deferred.
 
 Coalescing key:
 
@@ -767,11 +793,13 @@ Cover:
 - effective Node fallback rules
 - properties replacement semantics, not deep merge
 - effective Inspector draft → sparse override normalization
+- optimistic first NodeState uses null version until durable metadata arrives
 - unscoped Inspector continues emitting `update-node`
 - scoped Inspector emits `update-node-state`
 - optimistic NodeState does not mutate canonical Node
-- delayed persistence response cannot overwrite newer scoped working values
+- delayed persistence response cannot overwrite newer scoped working values but does advance version metadata
 - Undo inverse restores previous sparse override, including `null`
+- Undo queued behind a pending first scoped write persists with the forward result version
 - 2-second scoped edit coalescing
 - Story Board create Scope selection
 - existing Node picker filters already represented Nodes
