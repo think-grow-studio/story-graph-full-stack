@@ -111,6 +111,7 @@ function hydratedStore() {
 function persistence(): EditorPersistence {
   return {
     createNode: vi.fn(),
+    placeBoardNode: vi.fn(),
     moveNode: vi.fn(),
     createEdge: vi.fn(),
     updateNode: vi.fn(),
@@ -313,14 +314,11 @@ describe("editor command runtime", () => {
   it("keeps a newer local position when existing Node placement response is stale", async () => {
     const store = hydratedStore();
     const command = placeBoardNodeCommand();
-    const durable = {
-      ...persistence(),
-      placeBoardNode: vi.fn(),
-    };
+    const durable = persistence();
 
     applyEditorCommand(store, command);
     store.getState().setNodePosition(carolId, { x: 500, y: 600 });
-    durable.placeBoardNode.mockResolvedValue({
+    vi.mocked(durable.placeBoardNode).mockResolvedValue({
       node: existingCarol(),
       boardNode: {
         boardId,
