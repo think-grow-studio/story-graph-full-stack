@@ -81,6 +81,7 @@ function persistence(moveNode: EditorPersistence["moveNode"]): EditorPersistence
     updateEdge: vi.fn(),
     removeBoardNode: vi.fn(),
     removeBoardEdge: vi.fn(),
+    restoreBoardEdge: vi.fn(),
   };
 }
 
