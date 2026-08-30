@@ -391,7 +391,8 @@ export class DrizzleGraphRepository implements GraphRepository {
             eq(boardNode.boardId, input.boardId),
             inArray(boardNode.nodeId, endpointIds),
           ),
-        );
+        )
+        .for("update");
       if (representedEndpoints.length !== endpointIds.length) return null;
 
       const [created] = await tx
