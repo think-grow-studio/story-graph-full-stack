@@ -2,7 +2,9 @@ import type {
   EditorCommand,
   MoveNodeCommand,
   RemoveBoardEdgeCommand,
+  RemoveBoardNodeCommand,
   RestoreBoardEdgeCommand,
+  RestoreBoardNodeCommand,
   UpdateEdgeCommand,
   UpdateNodeCommand,
 } from "../commands/editor-command";
@@ -12,6 +14,8 @@ export type UndoableEditorCommand =
   | MoveNodeCommand
   | UpdateNodeCommand
   | UpdateEdgeCommand
+  | RemoveBoardNodeCommand
+  | RestoreBoardNodeCommand
   | RemoveBoardEdgeCommand
   | RestoreBoardEdgeCommand;
 
@@ -30,6 +34,8 @@ export function isUndoableEditorCommand(
     command.type === "move-node" ||
     command.type === "update-node" ||
     command.type === "update-edge" ||
+    command.type === "remove-board-node" ||
+    command.type === "restore-board-node" ||
     command.type === "remove-board-edge" ||
     command.type === "restore-board-edge"
   );
@@ -96,6 +102,55 @@ export function createEditorHistoryEntry({
         properties: current.properties,
       },
       `update-edge:${command.edgeId}`,
+      nowMs,
+    );
+  }
+
+  if (command.type === "remove-board-node") {
+    const state = store.getState();
+    const currentBoardNode = state.boardNodes.find(
+      (boardNode) => boardNode.nodeId === command.nodeId,
+    );
+    if (!currentBoardNode) return null;
+
+    const incidentEdgeIds = new Set(
+      state.edges
+        .filter(
+          (edge) =>
+            edge.sourceNodeId === command.nodeId ||
+            edge.targetNodeId === command.nodeId,
+        )
+        .map((edge) => edge.id),
+    );
+    const incidentBoardEdges = state.boardEdges.filter((boardEdge) =>
+      incidentEdgeIds.has(boardEdge.edgeId),
+    );
+
+    return entry(
+      command,
+      {
+        type: "restore-board-node",
+        boardId: command.boardId,
+        workspaceId: command.workspaceId,
+        nodeId: command.nodeId,
+        boardNode: currentBoardNode,
+        boardEdges: incidentBoardEdges,
+      },
+      null,
+      nowMs,
+    );
+  }
+
+  if (command.type === "restore-board-node") {
+    return entry(
+      command,
+      {
+        type: "remove-board-node",
+        boardId: command.boardId,
+        workspaceId: command.workspaceId,
+        nodeId: command.nodeId,
+      },
+      null,
       nowMs,
     );
   }
