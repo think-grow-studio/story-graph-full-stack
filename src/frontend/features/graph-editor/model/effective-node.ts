@@ -3,22 +3,45 @@ import type {
   NodeStateResponse,
 } from "@/contracts/graph/graph.contract";
 
-export type EffectiveNodeOverrides = Pick<
+export type EditorNodeState = Omit<
   NodeStateResponse,
+  "version" | "createdAt" | "updatedAt"
+> & {
+  version: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type EffectiveNodeOverrides = Pick<
+  EditorNodeState,
   "name" | "description" | "properties"
 >;
 
+export function findNodeState(
+  scopeId: string,
+  nodeId: string,
+  nodeStates: readonly EditorNodeState[],
+): EditorNodeState | null {
+  return (
+    nodeStates.find(
+      (state) => state.scopeId === scopeId && state.nodeId === nodeId,
+    ) ?? null
+  );
+}
+
 export function resolveEffectiveNode(
   canonical: GraphNodeResponse,
-  state: NodeStateResponse | null | undefined,
+  state: EditorNodeState | null | undefined,
 ): GraphNodeResponse {
   if (!state) return canonical;
 
   return {
     ...canonical,
-    name: state.name ?? canonical.name,
-    description: state.description ?? canonical.description,
-    properties: state.properties ?? canonical.properties,
+    name: state.name !== null ? state.name : canonical.name,
+    description:
+      state.description !== null ? state.description : canonical.description,
+    properties:
+      state.properties !== null ? state.properties : canonical.properties,
   };
 }
 
