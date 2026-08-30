@@ -46,6 +46,22 @@ export interface GraphRepository {
     style?: JsonObject;
   }): Promise<BoardNode | null>;
   removeNodeFromBoard(boardId: string, nodeId: string): Promise<boolean>;
+  restoreNodeToBoard(input: {
+    boardId: string;
+    nodeId: string;
+    placement: Pick<
+      BoardNode,
+      "x" | "y" | "width" | "height" | "zIndex" | "style"
+    >;
+    boardEdges: Array<
+      Pick<BoardEdge, "edgeId" | "style" | "labelPresentation">
+    >;
+  }): Promise<{
+    node: GraphNode;
+    boardNode: BoardNode;
+    edges: GraphEdge[];
+    boardEdges: BoardEdge[];
+  } | null>;
   createEdgeOnBoard(input: {
     boardId: string;
     edge: GraphEdge;
