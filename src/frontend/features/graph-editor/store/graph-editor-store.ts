@@ -33,6 +33,17 @@ export function createGraphEditorStore(): GraphEditorStore {
           current.id === node.id ? node : current,
         ),
       })),
+    replaceNodeState: (nodeState) =>
+      set((state) => ({
+        nodeStates: [
+          ...state.nodeStates.filter(
+            (current) =>
+              current.scopeId !== nodeState.scopeId ||
+              current.nodeId !== nodeState.nodeId,
+          ),
+          nodeState,
+        ],
+      })),
     removeNode: (nodeId) =>
       set((state) => ({
         nodes: state.nodes.filter((node) => node.id !== nodeId),
