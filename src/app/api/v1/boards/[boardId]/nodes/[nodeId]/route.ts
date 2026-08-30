@@ -13,7 +13,12 @@ import {
   workspaceQuerySchema,
 } from "@/contracts/graph/graph.contract";
 import { graphDependencies } from "../../../../_shared/graph-dependencies";
-import { toBoardNodeResponse } from "../../../../_shared/graph-http";
+import {
+  toBoardEdgeResponse,
+  toBoardNodeResponse,
+  toGraphEdgeResponse,
+  toGraphNodeResponse,
+} from "../../../../_shared/graph-http";
 import { identityDependencies } from "../../../../_shared/identity-dependencies";
 import { routeErrorResponse } from "../../../../_shared/route-error";
 
@@ -98,7 +103,14 @@ export async function PUT(request: Request, context: BoardNodeRouteContext) {
       },
       graphDependencies,
     );
-    return NextResponse.json(restoreBoardNodeResponseSchema.parse(restored));
+    return NextResponse.json(
+      restoreBoardNodeResponseSchema.parse({
+        node: toGraphNodeResponse(restored.node),
+        boardNode: toBoardNodeResponse(restored.boardNode),
+        edges: restored.edges.map(toGraphEdgeResponse),
+        boardEdges: restored.boardEdges.map(toBoardEdgeResponse),
+      }),
+    );
   } catch (error) {
     return routeErrorResponse(error);
   }
