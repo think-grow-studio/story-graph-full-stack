@@ -6,6 +6,7 @@ import type {
   BoardSnapshotResponse,
   GraphEdgeResponse,
   GraphNodeResponse,
+  NodeStateResponse,
   RestoreBoardNodeResponse,
   ScopeResponse,
 } from "@/contracts/graph/graph.contract";
@@ -27,6 +28,7 @@ import {
   updateBoardNode,
   updateEdge,
   updateNode,
+  updateNodeState,
   type PlaceNodeOnBoardInput,
   type RemoveEdgeFromBoardInput,
   type RemoveNodeFromBoardInput,
@@ -34,6 +36,7 @@ import {
   type RestoreNodeToBoardInput,
   type UpdateEdgeInput,
   type UpdateNodeInput,
+  type UpdateNodeStateInput,
 } from "./graph.api";
 
 export const graphQueryKeys = {
@@ -191,6 +194,23 @@ export function useUpdateNodeMutation(
   });
 }
 
+export function useUpdateNodeStateMutation(
+  workspaceId: string | undefined,
+  boardId: string,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateNodeStateInput) => updateNodeState(input),
+    onSuccess: (nodeState) => {
+      if (!workspaceId) return;
+      queryClient.setQueryData<BoardSnapshotResponse>(
+        graphQueryKeys.snapshot(workspaceId, boardId),
+        (current) => replaceSnapshotNodeState(current, nodeState),
+      );
+    },
+  });
+}
+
 export function useUpdateEdgeMutation(
   workspaceId: string | undefined,
   boardId: string,
@@ -310,6 +330,23 @@ function replaceSnapshotNode(
     nodes: current.nodes.map((candidate) =>
       candidate.id === node.id ? node : candidate,
     ),
+  };
+}
+
+function replaceSnapshotNodeState(
+  current: BoardSnapshotResponse | undefined,
+  nodeState: NodeStateResponse,
+): BoardSnapshotResponse | undefined {
+  if (!current) return current;
+  return {
+    ...current,
+    nodeStates: [
+      ...current.nodeStates.filter(
+        (candidate) =>
+          candidate.scopeId !== nodeState.scopeId || candidate.nodeId !== nodeState.nodeId,
+      ),
+      nodeState,
+    ],
   };
 }
 
