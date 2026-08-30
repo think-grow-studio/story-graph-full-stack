@@ -105,6 +105,7 @@ function createPersistence(
 ): EditorPersistence {
   return {
     createNode: vi.fn(),
+    placeBoardNode: vi.fn(),
     moveNode: vi.fn(),
     createEdge: vi.fn(),
     updateNode: updateNodeImpl,
