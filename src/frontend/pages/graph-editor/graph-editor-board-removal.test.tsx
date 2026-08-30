@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getBootstrap: vi.fn(),
   getBoardSnapshot: vi.fn(),
+  listStoryNodes: vi.fn(),
   createNodeOnBoard: vi.fn(),
   updateBoardNode: vi.fn(),
   createEdgeOnBoard: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
 
 vi.mock("@/frontend/api/graph/graph.api", () => ({
   getBoardSnapshot: mocks.getBoardSnapshot,
+  listStoryNodes: mocks.listStoryNodes,
   createNodeOnBoard: mocks.createNodeOnBoard,
   updateBoardNode: mocks.updateBoardNode,
   createEdgeOnBoard: mocks.createEdgeOnBoard,
@@ -76,12 +78,14 @@ function snapshot() {
     board: {
       id: boardId,
       storyId,
+      scopeId: null,
       name: "Characters",
       description: "",
       revision: 3,
       createdAt: now,
       updatedAt: now,
     },
+    scope: null,
     nodes: [
       {
         id: aliceId,
@@ -106,6 +110,7 @@ function snapshot() {
         updatedAt: now,
       },
     ],
+    nodeStates: [],
     edges: [
       {
         id: edgeId,
@@ -179,6 +184,7 @@ beforeEach(() => {
     workspace: { id: "workspace-1", name: "Workspace", slug: "workspace" },
   });
   mocks.getBoardSnapshot.mockResolvedValue(snapshot());
+  mocks.listStoryNodes.mockResolvedValue(snapshot().nodes);
   mocks.removeNodeFromBoard.mockResolvedValue(undefined);
   mocks.restoreNodeToBoard.mockResolvedValue({
     node: snapshot().nodes[0],
