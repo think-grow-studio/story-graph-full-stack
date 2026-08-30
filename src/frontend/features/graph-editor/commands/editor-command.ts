@@ -1,6 +1,7 @@
 import type {
   CreateEdgeCommand,
   RemoveBoardEdgeCommand,
+  RestoreBoardEdgeCommand,
   UpdateEdgeCommand,
 } from "./edge-commands";
 import type {
@@ -17,7 +18,8 @@ export type EditorCommand =
   | UpdateNodeCommand
   | UpdateEdgeCommand
   | RemoveBoardNodeCommand
-  | RemoveBoardEdgeCommand;
+  | RemoveBoardEdgeCommand
+  | RestoreBoardEdgeCommand;
 
 export type {
   CreateEdgeCommand,
@@ -25,6 +27,7 @@ export type {
   MoveNodeCommand,
   RemoveBoardEdgeCommand,
   RemoveBoardNodeCommand,
+  RestoreBoardEdgeCommand,
   UpdateEdgeCommand,
   UpdateNodeCommand,
 };
