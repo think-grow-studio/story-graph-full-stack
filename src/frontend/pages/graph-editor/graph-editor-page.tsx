@@ -648,6 +648,10 @@ function getEditorFailureMessage(command: EditorCommand, error: unknown): string
       return isAxiosError(error) && error.response?.status === 409
         ? "This Node changed elsewhere. Reload before saving again."
         : "Unable to save Node.";
+    case "update-node-state":
+      return isAxiosError(error) && error.response?.status === 409
+        ? "This scoped Node state changed elsewhere. Reload before saving again."
+        : "Unable to save scoped Node state.";
     case "update-edge":
       return isAxiosError(error) && error.response?.status === 409
         ? "This Relationship changed elsewhere. Reload before saving again."
