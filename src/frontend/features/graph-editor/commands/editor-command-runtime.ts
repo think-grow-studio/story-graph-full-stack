@@ -42,6 +42,26 @@ export function applyEditorCommand(
       });
       return true;
     }
+    case "update-node-state": {
+      const state = store.getState();
+      const node = state.nodes.find((candidate) => candidate.id === command.nodeId);
+      if (!node || state.scope?.id !== command.scopeId) return false;
+      const current = state.nodeStates.find(
+        (candidate) =>
+          candidate.scopeId === command.scopeId && candidate.nodeId === command.nodeId,
+      );
+      state.replaceNodeState({
+        scopeId: command.scopeId,
+        nodeId: command.nodeId,
+        name: command.name,
+        description: command.description,
+        properties: command.properties,
+        version: current?.version ?? command.version,
+        createdAt: current?.createdAt ?? null,
+        updatedAt: current?.updatedAt ?? null,
+      });
+      return true;
+    }
     case "update-edge": {
       const current = store
         .getState()
@@ -264,6 +284,24 @@ export async function persistAndReconcileEditorCommand(
       );
       return;
     }
+    case "update-node-state": {
+      const persisted = await persistence.updateNodeState(prepared);
+      const current = store.getState().nodeStates.find(
+        (candidate) =>
+          candidate.scopeId === prepared.scopeId && candidate.nodeId === prepared.nodeId,
+      );
+      store.getState().replaceNodeState(
+        current
+          ? {
+              ...persisted,
+              name: current.name,
+              description: current.description,
+              properties: current.properties,
+            }
+          : persisted,
+      );
+      return;
+    }
     case "update-edge": {
       const persisted = await persistence.updateEdge(prepared);
       const current = store
@@ -349,6 +387,13 @@ function prepareEditorCommandForPersistence(
     const current = store
       .getState()
       .nodes.find((node) => node.id === command.nodeId);
+    return current ? { ...command, version: current.version } : command;
+  }
+  if (command.type === "update-node-state") {
+    const current = store.getState().nodeStates.find(
+      (candidate) =>
+        candidate.scopeId === command.scopeId && candidate.nodeId === command.nodeId,
+    );
     return current ? { ...command, version: current.version } : command;
   }
   if (command.type === "update-edge") {
