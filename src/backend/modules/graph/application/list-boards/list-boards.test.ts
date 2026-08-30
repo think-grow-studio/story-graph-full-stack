@@ -20,6 +20,7 @@ const boards: Board[] = [
   {
     id: "22222222-2222-4222-8222-222222222222",
     storyId: story.id,
+    scopeId: null,
     name: "Main Board",
     description: "",
     revision: 0,
