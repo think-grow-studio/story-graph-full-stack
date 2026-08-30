@@ -9,6 +9,7 @@ import type {
   CreateEdgeCommand,
   CreateNodeCommand,
   MoveNodeCommand,
+  PlaceBoardNodeCommand,
   RemoveBoardEdgeCommand,
   RemoveBoardNodeCommand,
   RestoreBoardEdgeCommand,
@@ -23,6 +24,7 @@ import type {
 
 export type EditorPersistence = {
   createNode: (command: CreateNodeCommand) => Promise<GraphEditorNodePair>;
+  placeBoardNode: (command: PlaceBoardNodeCommand) => Promise<GraphEditorNodePair>;
   moveNode: (command: MoveNodeCommand) => Promise<BoardNodeResponse>;
   createEdge: (command: CreateEdgeCommand) => Promise<GraphEditorEdgePair>;
   updateNode: (command: UpdateNodeCommand) => Promise<GraphNodeResponse>;
