@@ -77,7 +77,8 @@ export function createEditorHistory({
     publish();
   }
 
-  function noteNormalCommand(_command: EditorCommand) {
+  function noteNormalCommand(command: EditorCommand) {
+    void command;
     const redoChanged = clearRedo();
     boundaryGeneration += 1;
     if (redoChanged) publish();
