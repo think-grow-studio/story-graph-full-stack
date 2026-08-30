@@ -4,6 +4,7 @@ import type {
   CreateEdgeCommand,
   CreateNodeCommand,
   EditorCommand,
+  PlaceBoardNodeCommand,
 } from "./editor-command";
 
 export function applyEditorCommand(
@@ -14,6 +15,14 @@ export function applyEditorCommand(
     case "create-node":
       store.getState().addOptimisticNode(toOptimisticNodePair(command));
       return true;
+    case "place-board-node": {
+      const state = store.getState();
+      if (state.boardNodes.some((boardNode) => boardNode.nodeId === command.node.id)) {
+        return false;
+      }
+      state.addOptimisticNode(toPlacedNodePair(command));
+      return true;
+    }
     case "move-node":
       store.getState().setNodePosition(command.nodeId, command.position);
       return true;
@@ -129,6 +138,40 @@ export async function persistAndReconcileEditorCommand(
       const currentBoardNode = store
         .getState()
         .boardNodes.find((node) => node.nodeId === prepared.nodeId);
+
+      store.getState().replaceNode(
+        currentNode
+          ? {
+              ...persisted.node,
+              name: currentNode.name,
+              description: currentNode.description,
+              iconKey: currentNode.iconKey,
+              properties: currentNode.properties,
+            }
+          : persisted.node,
+      );
+
+      if (currentBoardNode) {
+        store.getState().replaceBoardNode({
+          ...persisted.boardNode,
+          x: currentBoardNode.x,
+          y: currentBoardNode.y,
+          width: currentBoardNode.width,
+          height: currentBoardNode.height,
+          zIndex: currentBoardNode.zIndex,
+          style: currentBoardNode.style,
+        });
+      }
+      return;
+    }
+    case "place-board-node": {
+      const persisted = await persistence.placeBoardNode(prepared);
+      const currentNode = store
+        .getState()
+        .nodes.find((node) => node.id === prepared.node.id);
+      const currentBoardNode = store
+        .getState()
+        .boardNodes.find((node) => node.nodeId === prepared.node.id);
 
       store.getState().replaceNode(
         currentNode
@@ -333,6 +376,24 @@ function toOptimisticNodePair(command: CreateNodeCommand) {
     boardNode: {
       boardId: command.boardId,
       nodeId: command.nodeId,
+      x: command.position.x,
+      y: command.position.y,
+      width: null,
+      height: null,
+      zIndex: 0,
+      style: {},
+      createdAt: command.createdAt,
+      updatedAt: command.createdAt,
+    },
+  };
+}
+
+function toPlacedNodePair(command: PlaceBoardNodeCommand) {
+  return {
+    node: command.node,
+    boardNode: {
+      boardId: command.boardId,
+      nodeId: command.node.id,
       x: command.position.x,
       y: command.position.y,
       width: null,
