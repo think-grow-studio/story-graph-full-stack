@@ -190,6 +190,41 @@ describe("editor history entry", () => {
     );
   });
 
+  it("uses all-null sparse state as the inverse for the first scoped edit", () => {
+    const store = hydratedStore();
+    const forward = {
+      type: "update-node-state" as const,
+      boardId,
+      workspaceId,
+      scopeId,
+      nodeId: aliceId,
+      version: null,
+      name: "Queen Alice",
+      description: null,
+      properties: { role: "queen" },
+    };
+
+    expect(
+      createEditorHistoryEntry({ store, command: forward, nowMs: 1_750 }),
+    ).toEqual({
+      forward,
+      inverse: {
+        type: "update-node-state",
+        boardId,
+        workspaceId,
+        scopeId,
+        nodeId: aliceId,
+        version: null,
+        name: null,
+        description: null,
+        properties: null,
+      },
+      coalescingKey: `update-node-state:${scopeId}:${aliceId}`,
+      createdAtMs: 1_750,
+      updatedAtMs: 1_750,
+    });
+  });
+
   it("derives a canonical Edge inverse from the pre-command working state", () => {
     const store = hydratedStore();
     const forward = {
