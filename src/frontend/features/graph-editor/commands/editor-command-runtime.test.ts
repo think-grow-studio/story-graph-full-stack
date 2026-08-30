@@ -12,6 +12,7 @@ const boardId = "22222222-2222-4222-8222-222222222222";
 const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
+const carolId = "66666666-6666-4666-8666-666666666666";
 const workspaceId = "workspace-1";
 const now = "2026-08-29T00:00:00.000Z";
 
@@ -127,8 +128,33 @@ function createNodeCommand() {
     boardId,
     workspaceId,
     storyId,
-    nodeId: "66666666-6666-4666-8666-666666666666",
+    nodeId: carolId,
     name: "Carol",
+    position: { x: 250, y: 180 },
+    createdAt: now,
+  };
+}
+
+function existingCarol() {
+  return {
+    id: carolId,
+    storyId,
+    name: "Carol",
+    description: "Scout",
+    iconKey: null,
+    properties: { faction: "Guard" },
+    version: 3,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function placeBoardNodeCommand() {
+  return {
+    type: "place-board-node" as const,
+    boardId,
+    workspaceId,
+    node: existingCarol(),
     position: { x: 250, y: 180 },
     createdAt: now,
   };
@@ -260,6 +286,59 @@ describe("editor command runtime", () => {
     await persistAndReconcileEditorCommand(store, durable, command);
 
     expect(store.getState().boardNodes.find((node) => node.nodeId === command.nodeId)).toMatchObject({
+      x: 500,
+      y: 600,
+    });
+  });
+
+  it("places an existing canonical Node locally without creating NodeState", () => {
+    const store = hydratedStore();
+    const command = placeBoardNodeCommand();
+    const nodeStateCount = store.getState().nodeStates.length;
+
+    expect(applyEditorCommand(store, command)).toBe(true);
+
+    expect(store.getState().nodes.find((node) => node.id === carolId)).toEqual(
+      existingCarol(),
+    );
+    expect(store.getState().boardNodes.find((node) => node.nodeId === carolId)).toMatchObject({
+      boardId,
+      nodeId: carolId,
+      x: 250,
+      y: 180,
+    });
+    expect(store.getState().nodeStates).toHaveLength(nodeStateCount);
+  });
+
+  it("keeps a newer local position when existing Node placement response is stale", async () => {
+    const store = hydratedStore();
+    const command = placeBoardNodeCommand();
+    const durable = {
+      ...persistence(),
+      placeBoardNode: vi.fn(),
+    };
+
+    applyEditorCommand(store, command);
+    store.getState().setNodePosition(carolId, { x: 500, y: 600 });
+    durable.placeBoardNode.mockResolvedValue({
+      node: existingCarol(),
+      boardNode: {
+        boardId,
+        nodeId: carolId,
+        x: 250,
+        y: 180,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
+        createdAt: now,
+        updatedAt: "2026-08-29T00:01:00.000Z",
+      },
+    });
+
+    await persistAndReconcileEditorCommand(store, durable, command);
+
+    expect(store.getState().boardNodes.find((node) => node.nodeId === carolId)).toMatchObject({
       x: 500,
       y: 600,
     });
