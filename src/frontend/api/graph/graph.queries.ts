@@ -7,14 +7,19 @@ import type {
   GraphEdgeResponse,
   GraphNodeResponse,
   RestoreBoardNodeResponse,
+  ScopeResponse,
 } from "@/contracts/graph/graph.contract";
 
 import {
   createBoard,
   createEdgeOnBoard,
   createNodeOnBoard,
+  createScope,
   getBoardSnapshot,
   listBoards,
+  listScopes,
+  listStoryNodes,
+  placeNodeOnBoard,
   removeEdgeFromBoard,
   removeNodeFromBoard,
   restoreEdgeToBoard,
@@ -22,6 +27,7 @@ import {
   updateBoardNode,
   updateEdge,
   updateNode,
+  type PlaceNodeOnBoardInput,
   type RemoveEdgeFromBoardInput,
   type RemoveNodeFromBoardInput,
   type RestoreEdgeToBoardInput,
@@ -31,11 +37,51 @@ import {
 } from "./graph.api";
 
 export const graphQueryKeys = {
+  scopes: (workspaceId: string, storyId: string) =>
+    ["graph", "scopes", workspaceId, storyId] as const,
   boards: (workspaceId: string, storyId: string) =>
     ["graph", "boards", workspaceId, storyId] as const,
+  nodes: (workspaceId: string, storyId: string) =>
+    ["graph", "nodes", workspaceId, storyId] as const,
   snapshot: (workspaceId: string, boardId: string) =>
     ["graph", "snapshot", workspaceId, boardId] as const,
 };
+
+export function useScopesQuery(
+  workspaceId: string | undefined,
+  storyId: string,
+) {
+  return useQuery({
+    queryKey: workspaceId
+      ? graphQueryKeys.scopes(workspaceId, storyId)
+      : ["graph", "scopes", "pending", storyId],
+    queryFn: () => listScopes(storyId, workspaceId!),
+    enabled: Boolean(workspaceId),
+  });
+}
+
+export function useCreateScopeMutation(
+  workspaceId: string | undefined,
+  storyId: string,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { name: string; description: string }) => {
+      if (!workspaceId) {
+        throw new Error("Workspace is not ready");
+      }
+      return createScope({ storyId, workspaceId, ...input });
+    },
+    onSuccess: (created) => {
+      if (!workspaceId) return;
+      queryClient.setQueryData<ScopeResponse[]>(
+        graphQueryKeys.scopes(workspaceId, storyId),
+        (current = []) => [...current, created],
+      );
+    },
+  });
+}
 
 export function useBoardsQuery(
   workspaceId: string | undefined,
@@ -57,7 +103,11 @@ export function useCreateBoardMutation(
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: { name: string; description: string }) => {
+    mutationFn: (input: {
+      name: string;
+      description: string;
+      scopeId: string | null;
+    }) => {
       if (!workspaceId) {
         throw new Error("Workspace is not ready");
       }
@@ -70,6 +120,19 @@ export function useCreateBoardMutation(
         (current = []) => [...current, created],
       );
     },
+  });
+}
+
+export function useStoryNodesQuery(
+  workspaceId: string | undefined,
+  storyId: string,
+) {
+  return useQuery({
+    queryKey: workspaceId
+      ? graphQueryKeys.nodes(workspaceId, storyId)
+      : ["graph", "nodes", "pending", storyId],
+    queryFn: () => listStoryNodes(storyId, workspaceId!),
+    enabled: Boolean(workspaceId),
   });
 }
 
@@ -88,6 +151,23 @@ export function useBoardSnapshotQuery(
 
 export function useCreateNodeOnBoardMutation() {
   return useMutation({ mutationFn: createNodeOnBoard });
+}
+
+export function usePlaceNodeOnBoardMutation(
+  workspaceId?: string,
+  boardId?: string,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PlaceNodeOnBoardInput) => placeNodeOnBoard(input),
+    onSuccess: (placed) => {
+      if (!workspaceId || !boardId) return;
+      queryClient.setQueryData<BoardSnapshotResponse>(
+        graphQueryKeys.snapshot(workspaceId, boardId),
+        (current) => addSnapshotNode(current, placed),
+      );
+    },
+  });
 }
 
 export function useCreateEdgeOnBoardMutation() {
@@ -200,6 +280,26 @@ export function useRestoreEdgeToBoardMutation(
   });
 }
 
+function addSnapshotNode(
+  current: BoardSnapshotResponse | undefined,
+  placed: { node: GraphNodeResponse; boardNode: BoardSnapshotResponse["boardNodes"][number] },
+): BoardSnapshotResponse | undefined {
+  if (!current) return current;
+  return {
+    ...current,
+    nodes: [
+      ...current.nodes.filter((node) => node.id !== placed.node.id),
+      placed.node,
+    ],
+    boardNodes: [
+      ...current.boardNodes.filter(
+        (boardNode) => boardNode.nodeId !== placed.boardNode.nodeId,
+      ),
+      placed.boardNode,
+    ],
+  };
+}
+
 function replaceSnapshotNode(
   current: BoardSnapshotResponse | undefined,
   node: GraphNodeResponse,
@@ -241,6 +341,7 @@ function detachSnapshotNode(
   return {
     ...current,
     nodes: current.nodes.filter((node) => node.id !== nodeId),
+    nodeStates: current.nodeStates.filter((state) => state.nodeId !== nodeId),
     boardNodes: current.boardNodes.filter(
       (boardNode) => boardNode.nodeId !== nodeId,
     ),
