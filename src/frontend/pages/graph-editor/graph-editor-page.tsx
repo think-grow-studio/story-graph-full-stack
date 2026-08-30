@@ -12,7 +12,10 @@ import {
 } from "react";
 
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
-import { useBoardSnapshotQuery } from "@/frontend/api/graph/graph.queries";
+import {
+  useBoardSnapshotQuery,
+  useStoryNodesQuery,
+} from "@/frontend/api/graph/graph.queries";
 import type { EditorCommand } from "@/frontend/features/graph-editor/commands/editor-command";
 import type { UndoableEditorCommand } from "@/frontend/features/graph-editor/history/editor-history-entry";
 import { useEditorHistory } from "@/frontend/features/graph-editor/history/use-editor-history";
@@ -68,6 +71,7 @@ function GraphEditorContent({
     useState<SelectedGraphEntity | null>(null);
   const [isNodeFormOpen, setNodeFormOpen] = useState(false);
   const [nodeName, setNodeName] = useState("");
+  const [selectedExistingNodeId, setSelectedExistingNodeId] = useState("");
   const [pendingConnection, setPendingConnection] = useState<{
     sourceNodeId: string;
     targetNodeId: string;
@@ -81,6 +85,7 @@ function GraphEditorContent({
   const bootstrap = useBootstrapQuery();
   const workspaceId = bootstrap.data?.workspace.id;
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
+  const storyNodes = useStoryNodesQuery(workspaceId, storyId);
   const { persistence } = useEditorPersistence(workspaceId, boardId);
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
@@ -240,6 +245,31 @@ function GraphEditorContent({
     }
   }
 
+  function handleAddExistingNode() {
+    if (!workspaceId || !selectedExistingNodeId || !storyNodes.data) return;
+
+    const node = storyNodes.data.find(
+      (candidate) => candidate.id === selectedExistingNodeId,
+    );
+    if (!node) return;
+
+    const isAlreadyRepresented = store
+      .getState()
+      .boardNodes.some((candidate) => candidate.nodeId === node.id);
+    if (isAlreadyRepresented) return;
+
+    const position = canvasRef.current?.getCenterPosition() ?? { x: 0, y: 0 };
+    const operationId = history.dispatch({
+      type: "place-board-node",
+      boardId,
+      workspaceId,
+      node,
+      position,
+      createdAt: new Date().toISOString(),
+    });
+    if (operationId) setSelectedExistingNodeId("");
+  }
+
   function handleConnectNodes(sourceNodeId: string, targetNodeId: string) {
     setPendingConnection({ sourceNodeId, targetNodeId });
     setRelationshipName("");
@@ -356,6 +386,10 @@ function GraphEditorContent({
   const placementByNodeId = new Map(
     state.boardNodes.map((boardNode) => [boardNode.nodeId, boardNode]),
   );
+  const representedNodeIds = new Set(state.boardNodes.map((boardNode) => boardNode.nodeId));
+  const availableExistingNodes = (storyNodes.data ?? []).filter(
+    (node) => !representedNodeIds.has(node.id),
+  );
   const canvasNodes = state.nodes.flatMap((node) => {
     const placement = placementByNodeId.get(node.id);
     if (!placement) return [];
@@ -417,6 +451,9 @@ function GraphEditorContent({
           </Link>
           <h1 className="text-2xl font-semibold">{snapshot.data.board.name}</h1>
           <p className="text-sm text-neutral-500">{snapshot.data.story.name}</p>
+          {state.scope ? (
+            <p className="text-sm text-neutral-500">Scope: {state.scope.name}</p>
+          ) : null}
         </div>
         <div className="flex items-center gap-3">
           <div aria-live="polite" className="text-sm text-neutral-500">
@@ -465,6 +502,36 @@ function GraphEditorContent({
       </header>
 
       <div className="grid gap-2">
+        <div className="flex max-w-md gap-2 rounded-lg border border-neutral-200 bg-white p-3">
+          <label className="sr-only" htmlFor="existing-node">
+            Existing Node
+          </label>
+          <select
+            className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2"
+            disabled={storyNodes.isPending || availableExistingNodes.length === 0}
+            id="existing-node"
+            onChange={(event) => setSelectedExistingNodeId(event.target.value)}
+            value={selectedExistingNodeId}
+          >
+            <option value="">Select existing Node</option>
+            {availableExistingNodes.map((node) => (
+              <option key={node.id} value={node.id}>
+                {node.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="rounded-md border border-neutral-300 px-3 py-2 font-medium disabled:opacity-50"
+            disabled={!selectedExistingNodeId}
+            onClick={handleAddExistingNode}
+            type="button"
+          >
+            Add Existing Node
+          </button>
+        </div>
+        {storyNodes.isError ? (
+          <p className="text-sm text-red-600">Unable to load Story Nodes.</p>
+        ) : null}
         {isNodeFormOpen ? (
           <form
             className="flex max-w-md gap-2 rounded-lg border border-neutral-200 bg-white p-3"
@@ -571,6 +638,8 @@ function getEditorFailureMessage(command: EditorCommand, error: unknown): string
   switch (command.type) {
     case "create-node":
       return "Unable to create Node.";
+    case "place-board-node":
+      return "Unable to add Node to Board.";
     case "move-node":
       return "Unable to save Node position.";
     case "create-edge":
