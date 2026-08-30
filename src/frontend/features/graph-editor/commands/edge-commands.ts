@@ -27,3 +27,14 @@ export type RemoveBoardEdgeCommand = {
   workspaceId: string;
   edgeId: string;
 };
+
+export type RestoreBoardEdgeCommand = {
+  type: "restore-board-edge";
+  boardId: string;
+  workspaceId: string;
+  edgeId: string;
+  style: Record<string, unknown>;
+  labelPresentation: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
