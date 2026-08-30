@@ -107,6 +107,30 @@ export const restoreBoardEdgeRequestSchema = z.object({
   labelPresentation: jsonObjectSchema.default({}),
 });
 
+const restoreBoardNodeEdgePresentationSchema = z.object({
+  edgeId: graphIdSchema,
+  style: jsonObjectSchema.default({}),
+  labelPresentation: jsonObjectSchema.default({}),
+});
+
+export const restoreBoardNodeRequestSchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    x: finiteNumberSchema,
+    y: finiteNumberSchema,
+    width: positiveNullableNumberSchema.default(null),
+    height: positiveNullableNumberSchema.default(null),
+    zIndex: z.number().int().default(0),
+    style: jsonObjectSchema.default({}),
+    boardEdges: z.array(restoreBoardNodeEdgePresentationSchema).default([]),
+  })
+  .refine(
+    (value) =>
+      new Set(value.boardEdges.map((boardEdge) => boardEdge.edgeId)).size ===
+      value.boardEdges.length,
+    { message: "BoardEdge ids must be unique", path: ["boardEdges"] },
+  );
+
 export const boardResponseSchema = z.object({
   id: graphIdSchema,
   storyId: graphIdSchema,
@@ -179,6 +203,13 @@ export const createEdgeResponseSchema = z.object({
   boardEdge: boardEdgeResponseSchema,
 });
 
+export const restoreBoardNodeResponseSchema = z.object({
+  node: graphNodeResponseSchema,
+  boardNode: boardNodeResponseSchema,
+  edges: z.array(graphEdgeResponseSchema),
+  boardEdges: z.array(boardEdgeResponseSchema),
+});
+
 export const boardSnapshotResponseSchema = z.object({
   story: z.object({ id: graphIdSchema, name: z.string() }),
   board: boardResponseSchema,
@@ -198,3 +229,5 @@ export type CreateBoardRequest = z.infer<typeof createBoardRequestSchema>;
 export type CreateNodeRequest = z.infer<typeof createNodeRequestSchema>;
 export type UpdateBoardNodeRequest = z.infer<typeof updateBoardNodeRequestSchema>;
 export type RestoreBoardEdgeRequest = z.infer<typeof restoreBoardEdgeRequestSchema>;
+export type RestoreBoardNodeRequest = z.infer<typeof restoreBoardNodeRequestSchema>;
+export type RestoreBoardNodeResponse = z.infer<typeof restoreBoardNodeResponseSchema>;

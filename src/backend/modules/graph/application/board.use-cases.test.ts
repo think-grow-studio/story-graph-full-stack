@@ -69,6 +69,7 @@ function createGraph(boardValue: Board = boardFixture()): GraphRepository {
     updateNode: vi.fn(),
     updateBoardNode: vi.fn(),
     removeNodeFromBoard: vi.fn(),
+    restoreNodeToBoard: vi.fn(),
     createEdgeOnBoard: vi.fn(),
     updateEdge: vi.fn(),
     removeEdgeFromBoard: vi.fn(),

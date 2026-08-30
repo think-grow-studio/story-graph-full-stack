@@ -276,6 +276,161 @@ export class DrizzleGraphRepository implements GraphRepository {
     });
   }
 
+  async restoreNodeToBoard(input: {
+    boardId: string;
+    nodeId: string;
+    placement: Pick<
+      BoardNode,
+      "x" | "y" | "width" | "height" | "zIndex" | "style"
+    >;
+    boardEdges: Array<
+      Pick<BoardEdge, "edgeId" | "style" | "labelPresentation">
+    >;
+  }): Promise<{
+    node: GraphNode;
+    boardNode: BoardNode;
+    edges: GraphEdge[];
+    boardEdges: BoardEdge[];
+  } | null> {
+    return db.transaction(async (tx) => {
+      const [foundBoard] = await tx
+        .select({ storyId: board.storyId })
+        .from(board)
+        .where(eq(board.id, input.boardId))
+        .limit(1);
+      if (!foundBoard) return null;
+
+      const [foundNode] = await tx
+        .select()
+        .from(graphNode)
+        .where(
+          and(
+            eq(graphNode.id, input.nodeId),
+            eq(graphNode.storyId, foundBoard.storyId),
+          ),
+        )
+        .limit(1);
+      if (!foundNode) return null;
+
+      const requestedEdgeIds = input.boardEdges.map((boardEdge) => boardEdge.edgeId);
+      if (new Set(requestedEdgeIds).size !== requestedEdgeIds.length) return null;
+
+      const foundEdges =
+        requestedEdgeIds.length === 0
+          ? []
+          : await tx
+              .select()
+              .from(graphEdge)
+              .where(
+                and(
+                  eq(graphEdge.storyId, foundBoard.storyId),
+                  inArray(graphEdge.id, requestedEdgeIds),
+                ),
+              );
+      if (foundEdges.length !== requestedEdgeIds.length) return null;
+
+      const foundEdgeById = new Map(foundEdges.map((edge) => [edge.id, edge]));
+      const requiredOtherEndpointIds = new Set<string>();
+      for (const edgeId of requestedEdgeIds) {
+        const edge = foundEdgeById.get(edgeId);
+        if (!edge) return null;
+        if (edge.sourceNodeId !== input.nodeId && edge.targetNodeId !== input.nodeId) {
+          return null;
+        }
+        if (edge.sourceNodeId !== input.nodeId) {
+          requiredOtherEndpointIds.add(edge.sourceNodeId);
+        }
+        if (edge.targetNodeId !== input.nodeId) {
+          requiredOtherEndpointIds.add(edge.targetNodeId);
+        }
+      }
+
+      if (requiredOtherEndpointIds.size > 0) {
+        const representedEndpoints = await tx
+          .select({ nodeId: boardNode.nodeId })
+          .from(boardNode)
+          .where(
+            and(
+              eq(boardNode.boardId, input.boardId),
+              inArray(boardNode.nodeId, [...requiredOtherEndpointIds]),
+            ),
+          )
+          .for("update");
+        if (representedEndpoints.length !== requiredOtherEndpointIds.size) return null;
+      }
+
+      const [createdBoardNode] = await tx
+        .insert(boardNode)
+        .values({
+          boardId: input.boardId,
+          nodeId: foundNode.id,
+          storyId: foundBoard.storyId,
+          ...input.placement,
+        })
+        .onConflictDoNothing()
+        .returning();
+
+      const createdBoardEdges =
+        input.boardEdges.length === 0
+          ? []
+          : await tx
+              .insert(boardEdge)
+              .values(
+                input.boardEdges.map((restored) => ({
+                  boardId: input.boardId,
+                  edgeId: restored.edgeId,
+                  storyId: foundBoard.storyId,
+                  style: restored.style,
+                  labelPresentation: restored.labelPresentation,
+                })),
+              )
+              .onConflictDoNothing()
+              .returning();
+
+      if (createdBoardNode || createdBoardEdges.length > 0) {
+        await tx
+          .update(board)
+          .set({ revision: sql`${board.revision} + 1`, updatedAt: new Date() })
+          .where(eq(board.id, input.boardId));
+      }
+
+      const [restoredBoardNode] = await tx
+        .select()
+        .from(boardNode)
+        .where(
+          and(
+            eq(boardNode.boardId, input.boardId),
+            eq(boardNode.nodeId, input.nodeId),
+          ),
+        )
+        .limit(1);
+      if (!restoredBoardNode) return null;
+
+      const restoredBoardEdges =
+        requestedEdgeIds.length === 0
+          ? []
+          : await tx
+              .select()
+              .from(boardEdge)
+              .where(
+                and(
+                  eq(boardEdge.boardId, input.boardId),
+                  inArray(boardEdge.edgeId, requestedEdgeIds),
+                ),
+              );
+      if (restoredBoardEdges.length !== requestedEdgeIds.length) return null;
+
+      return {
+        node: foundNode,
+        boardNode: toBoardNode(restoredBoardNode),
+        edges: requestedEdgeIds.map((edgeId) => foundEdgeById.get(edgeId)!),
+        boardEdges: requestedEdgeIds.map((edgeId) =>
+          toBoardEdge(restoredBoardEdges.find((row) => row.edgeId === edgeId)!),
+        ),
+      };
+    });
+  }
+
   async createEdgeOnBoard(input: {
     boardId: string;
     edge: GraphEdge;

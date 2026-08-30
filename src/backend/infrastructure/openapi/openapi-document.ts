@@ -38,6 +38,8 @@ export async function buildOpenApiDocument() {
       graphNodeResponseSchema,
       listBoardsResponseSchema,
       restoreBoardEdgeRequestSchema,
+      restoreBoardNodeRequestSchema,
+      restoreBoardNodeResponseSchema,
       updateBoardNodeRequestSchema,
       updateEdgeRequestSchema,
       updateNodeRequestSchema,
@@ -67,6 +69,14 @@ export async function buildOpenApiDocument() {
   const updateBoardNodeRequest = registry.register(
     "UpdateBoardNodeRequest",
     updateBoardNodeRequestSchema,
+  );
+  const restoreBoardNodeRequest = registry.register(
+    "RestoreBoardNodeRequest",
+    restoreBoardNodeRequestSchema,
+  );
+  const restoreBoardNodeResponse = registry.register(
+    "RestoreBoardNodeResponse",
+    restoreBoardNodeResponseSchema,
   );
   const graphNodeResponse = registry.register("GraphNodeResponse", graphNodeResponseSchema);
   const boardNodeResponse = registry.register("BoardNodeResponse", boardNodeResponseSchema);
@@ -285,6 +295,28 @@ export async function buildOpenApiDocument() {
     },
     responses: {
       200: { description: "Updated Board Node presentation", content: json(boardNodeResponse) },
+      400: errorResponse,
+      401: errorResponse,
+      403: errorResponse,
+      404: errorResponse,
+    },
+  });
+
+  registry.registerPath({
+    method: "put",
+    path: "/api/v1/boards/{boardId}/nodes/{nodeId}",
+    tags: ["Graph"],
+    summary: "Restore an existing Node and its incident relationships to a Board",
+    security: secured,
+    request: {
+      params: boardNodeParams,
+      body: { content: json(restoreBoardNodeRequest) },
+    },
+    responses: {
+      200: {
+        description: "Restored Node and Board presentation",
+        content: json(restoreBoardNodeResponse),
+      },
       400: errorResponse,
       401: errorResponse,
       403: errorResponse,

@@ -6,6 +6,7 @@ import type {
   BoardSnapshotResponse,
   GraphEdgeResponse,
   GraphNodeResponse,
+  RestoreBoardNodeResponse,
 } from "@/contracts/graph/graph.contract";
 
 import {
@@ -17,12 +18,14 @@ import {
   removeEdgeFromBoard,
   removeNodeFromBoard,
   restoreEdgeToBoard,
+  restoreNodeToBoard,
   updateBoardNode,
   updateEdge,
   updateNode,
   type RemoveEdgeFromBoardInput,
   type RemoveNodeFromBoardInput,
   type RestoreEdgeToBoardInput,
+  type RestoreNodeToBoardInput,
   type UpdateEdgeInput,
   type UpdateNodeInput,
 } from "./graph.api";
@@ -146,6 +149,23 @@ export function useRemoveNodeFromBoardMutation(
   });
 }
 
+export function useRestoreNodeToBoardMutation(
+  workspaceId: string | undefined,
+  boardId: string,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RestoreNodeToBoardInput) => restoreNodeToBoard(input),
+    onSuccess: (restored) => {
+      if (!workspaceId) return;
+      queryClient.setQueryData<BoardSnapshotResponse>(
+        graphQueryKeys.snapshot(workspaceId, boardId),
+        (current) => restoreSnapshotNode(current, restored),
+      );
+    },
+  });
+}
+
 export function useRemoveEdgeFromBoardMutation(
   workspaceId: string | undefined,
   boardId: string,
@@ -228,6 +248,40 @@ function detachSnapshotNode(
     boardEdges: current.boardEdges.filter(
       (boardEdge) => !incidentEdgeIds.has(boardEdge.edgeId),
     ),
+  };
+}
+
+function restoreSnapshotNode(
+  current: BoardSnapshotResponse | undefined,
+  restored: RestoreBoardNodeResponse,
+): BoardSnapshotResponse | undefined {
+  if (!current) return current;
+  const edgeIds = new Set(restored.edges.map((edge) => edge.id));
+  const boardEdgeIds = new Set(
+    restored.boardEdges.map((boardEdge) => boardEdge.edgeId),
+  );
+  return {
+    ...current,
+    nodes: [
+      ...current.nodes.filter((node) => node.id !== restored.node.id),
+      restored.node,
+    ],
+    boardNodes: [
+      ...current.boardNodes.filter(
+        (boardNode) => boardNode.nodeId !== restored.boardNode.nodeId,
+      ),
+      restored.boardNode,
+    ],
+    edges: [
+      ...current.edges.filter((edge) => !edgeIds.has(edge.id)),
+      ...restored.edges,
+    ],
+    boardEdges: [
+      ...current.boardEdges.filter(
+        (boardEdge) => !boardEdgeIds.has(boardEdge.edgeId),
+      ),
+      ...restored.boardEdges,
+    ],
   };
 }
 

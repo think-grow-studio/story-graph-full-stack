@@ -174,6 +174,7 @@ function persistence(moveNode: EditorPersistence["moveNode"]): EditorPersistence
     updateNode: vi.fn(),
     updateEdge: vi.fn(),
     removeBoardNode: vi.fn(),
+    restoreBoardNode: vi.fn(),
     removeBoardEdge: vi.fn(),
     restoreBoardEdge: vi.fn(),
   };
@@ -314,6 +315,7 @@ describe("useEditorSaveQueue", () => {
       updateNode: vi.fn(),
       updateEdge: vi.fn(),
       removeBoardNode,
+      restoreBoardNode: vi.fn(),
       removeBoardEdge,
       restoreBoardEdge,
     };

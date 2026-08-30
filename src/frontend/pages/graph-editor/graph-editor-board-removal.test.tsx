@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   updateNode: vi.fn(),
   updateEdge: vi.fn(),
   removeNodeFromBoard: vi.fn(),
+  restoreNodeToBoard: vi.fn(),
   removeEdgeFromBoard: vi.fn(),
   restoreEdgeToBoard: vi.fn(),
 }));
@@ -28,6 +29,7 @@ vi.mock("@/frontend/api/graph/graph.api", () => ({
   updateNode: mocks.updateNode,
   updateEdge: mocks.updateEdge,
   removeNodeFromBoard: mocks.removeNodeFromBoard,
+  restoreNodeToBoard: mocks.restoreNodeToBoard,
   removeEdgeFromBoard: mocks.removeEdgeFromBoard,
   restoreEdgeToBoard: mocks.restoreEdgeToBoard,
 }));
@@ -178,6 +180,12 @@ beforeEach(() => {
   });
   mocks.getBoardSnapshot.mockResolvedValue(snapshot());
   mocks.removeNodeFromBoard.mockResolvedValue(undefined);
+  mocks.restoreNodeToBoard.mockResolvedValue({
+    node: snapshot().nodes[0],
+    boardNode: snapshot().boardNodes[0],
+    edges: snapshot().edges,
+    boardEdges: snapshot().boardEdges,
+  });
   mocks.removeEdgeFromBoard.mockResolvedValue(undefined);
   mocks.restoreEdgeToBoard.mockResolvedValue({
     edge: snapshot().edges[0],
@@ -214,6 +222,41 @@ describe("Graph Editor Board removal", () => {
     expect(cached?.nodes.map((node) => node.id)).toEqual([bobId]);
     expect(cached?.edges).toEqual([]);
     expect(cached?.boardEdges).toEqual([]);
+  });
+
+  it("undoes Node Board removal with its incident Relationship and snapshot cache", async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+    await user.click(screen.getByRole("button", { name: "Remove from Board" }));
+    await waitFor(() => expect(mocks.removeNodeFromBoard).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+
+    await waitFor(() => expect(mocks.restoreNodeToBoard).toHaveBeenCalledTimes(1));
+    expect(mocks.restoreNodeToBoard.mock.calls[0][0]).toEqual({
+      boardId,
+      nodeId: aliceId,
+      workspaceId: "workspace-1",
+      boardNode: snapshot().boardNodes[0],
+      boardEdges: snapshot().boardEdges,
+    });
+    expect(await screen.findByRole("button", { name: "Select Alice" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Select knows" })).toBeInTheDocument();
+
+    const cached = queryClient.getQueryData<ReturnType<typeof snapshot>>([
+      "graph",
+      "snapshot",
+      "workspace-1",
+      boardId,
+    ]);
+    expect(cached?.nodes).toContainEqual(expect.objectContaining({ id: aliceId }));
+    expect(cached?.edges).toContainEqual(expect.objectContaining({ id: edgeId }));
+    expect(cached?.boardNodes).toContainEqual(
+      expect.objectContaining({ nodeId: aliceId, x: 100, y: 100 }),
+    );
+    expect(cached?.boardEdges).toContainEqual(expect.objectContaining({ edgeId }));
   });
 
   it("removes a selected Relationship from Board presentation while leaving both Nodes", async () => {

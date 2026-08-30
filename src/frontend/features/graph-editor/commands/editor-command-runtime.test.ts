@@ -115,6 +115,7 @@ function persistence(): EditorPersistence {
     updateNode: vi.fn(),
     updateEdge: vi.fn(),
     removeBoardNode: vi.fn(),
+    restoreBoardNode: vi.fn(),
     removeBoardEdge: vi.fn(),
     restoreBoardEdge: vi.fn(),
   };

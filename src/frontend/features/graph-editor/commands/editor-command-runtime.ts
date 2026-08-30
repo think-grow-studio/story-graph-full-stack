@@ -48,6 +48,43 @@ export function applyEditorCommand(
     }
     case "remove-board-node":
       return store.getState().detachNodeFromBoard(command.nodeId).boardNode !== null;
+    case "restore-board-node": {
+      const state = store.getState();
+      const node = state.nodes.find((candidate) => candidate.id === command.nodeId);
+      if (!node) return false;
+
+      const representedNodeIds = new Set(
+        state.boardNodes.map((boardNode) => boardNode.nodeId),
+      );
+      for (const boardEdge of command.boardEdges) {
+        const edge = state.edges.find((candidate) => candidate.id === boardEdge.edgeId);
+        if (!edge) return false;
+        if (
+          edge.sourceNodeId !== command.nodeId &&
+          edge.targetNodeId !== command.nodeId
+        ) {
+          return false;
+        }
+        if (
+          edge.sourceNodeId !== command.nodeId &&
+          !representedNodeIds.has(edge.sourceNodeId)
+        ) {
+          return false;
+        }
+        if (
+          edge.targetNodeId !== command.nodeId &&
+          !representedNodeIds.has(edge.targetNodeId)
+        ) {
+          return false;
+        }
+      }
+
+      state.restoreNodeToBoard({
+        boardNode: command.boardNode,
+        boardEdges: command.boardEdges,
+      });
+      return true;
+    }
     case "remove-board-edge":
       return store.getState().detachEdgeFromBoard(command.edgeId) !== null;
     case "restore-board-edge": {
@@ -205,6 +242,42 @@ export async function persistAndReconcileEditorCommand(
     case "remove-board-node":
       await persistence.removeBoardNode(prepared);
       return;
+    case "restore-board-node": {
+      const persisted = await persistence.restoreBoardNode(prepared);
+      const state = store.getState();
+      const currentBoardNode = state.boardNodes.find(
+        (boardNode) => boardNode.nodeId === prepared.nodeId,
+      );
+      if (!currentBoardNode) return;
+
+      const currentBoardEdges = new Map(
+        state.boardEdges.map((boardEdge) => [boardEdge.edgeId, boardEdge]),
+      );
+      store.getState().restoreNodeToBoard({
+        boardNode: {
+          ...persisted.boardNode,
+          x: currentBoardNode.x,
+          y: currentBoardNode.y,
+          width: currentBoardNode.width,
+          height: currentBoardNode.height,
+          zIndex: currentBoardNode.zIndex,
+          style: currentBoardNode.style,
+        },
+        boardEdges: persisted.boardEdges.flatMap((boardEdge) => {
+          const current = currentBoardEdges.get(boardEdge.edgeId);
+          return current
+            ? [
+                {
+                  ...boardEdge,
+                  style: current.style,
+                  labelPresentation: current.labelPresentation,
+                },
+              ]
+            : [];
+        }),
+      });
+      return;
+    }
     case "remove-board-edge":
       await persistence.removeBoardEdge(prepared);
       return;
