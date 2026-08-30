@@ -20,7 +20,10 @@ export type EditorSaveQueueSnapshot = {
 
 export type EditorSaveQueue = {
   activate(): void;
-  enqueue(command: EditorCommand): string;
+  enqueue(
+    command: EditorCommand,
+    options?: { waitForLaneKeys?: readonly string[] },
+  ): string;
   retryFailed(): void;
   getSnapshot(): EditorSaveQueueSnapshot;
   subscribe(listener: () => void): () => void;
@@ -152,23 +155,51 @@ export function createEditorSaveQueue({
     );
   }
 
-  function dependencyIdsFor(command: EditorCommand) {
-    if (command.type !== "create-edge") return [];
+  function dependencyIdsFor(
+    command: EditorCommand,
+    waitForLaneKeys: readonly string[],
+  ) {
+    const dependencyOperationIds = new Set<string>();
 
-    return [
-      activeNodeCreateOperationIds.get(command.sourceNodeId),
-      activeNodeCreateOperationIds.get(command.targetNodeId),
-    ].filter((operationId): operationId is string => operationId !== undefined);
+    if (command.type === "create-edge") {
+      for (const operationId of [
+        activeNodeCreateOperationIds.get(command.sourceNodeId),
+        activeNodeCreateOperationIds.get(command.targetNodeId),
+      ]) {
+        if (operationId) dependencyOperationIds.add(operationId);
+      }
+    }
+
+    for (const laneKey of waitForLaneKeys) {
+      const lane = lanes.get(laneKey);
+      if (!lane) continue;
+
+      if (lane.running) dependencyOperationIds.add(lane.running.operationId);
+      for (const pending of lane.pending) {
+        dependencyOperationIds.add(pending.operationId);
+      }
+      if (lane.failed) {
+        dependencyOperationIds.add(lane.failed.operation.operationId);
+      }
+    }
+
+    return [...dependencyOperationIds];
   }
 
-  function enqueue(command: EditorCommand) {
+  function enqueue(
+    command: EditorCommand,
+    options: { waitForLaneKeys?: readonly string[] } = {},
+  ) {
     const laneKey = getEditorCommandLaneKey(command);
     const operation: EditorOperation = {
       operationId: createOperationId(),
       attempt: 0,
       laneKey,
       command,
-      dependencyOperationIds: dependencyIdsFor(command),
+      dependencyOperationIds: dependencyIdsFor(
+        command,
+        options.waitForLaneKeys ?? [],
+      ),
     };
     const lane = getLane(laneKey);
 
