@@ -10,6 +10,7 @@ import {
   graphEdgeResponseSchema,
   graphNodeResponseSchema,
   listBoardsResponseSchema,
+  restoreBoardEdgeRequestSchema,
   updateBoardNodeRequestSchema,
   updateEdgeRequestSchema,
   updateNodeRequestSchema,
@@ -203,4 +204,27 @@ export async function removeEdgeFromBoard(
   await apiClient.delete(`/boards/${input.boardId}/edges/${input.edgeId}`, {
     params: { workspaceId: input.workspaceId },
   });
+}
+
+export type RestoreEdgeToBoardInput = {
+  boardId: string;
+  edgeId: string;
+  workspaceId: string;
+  style: Record<string, unknown>;
+  labelPresentation: Record<string, unknown>;
+};
+
+export async function restoreEdgeToBoard(
+  input: RestoreEdgeToBoardInput,
+): Promise<{ edge: GraphEdgeResponse; boardEdge: BoardEdgeResponse }> {
+  const payload = restoreBoardEdgeRequestSchema.parse({
+    workspaceId: input.workspaceId,
+    style: input.style,
+    labelPresentation: input.labelPresentation,
+  });
+  const response = await apiClient.put(
+    `/boards/${input.boardId}/edges/${input.edgeId}`,
+    payload,
+  );
+  return createEdgeResponseSchema.parse(response.data);
 }
