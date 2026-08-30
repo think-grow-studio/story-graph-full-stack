@@ -587,5 +587,7 @@ function getEditorFailureMessage(command: EditorCommand, error: unknown): string
       return "Unable to remove Node from Board.";
     case "remove-board-edge":
       return "Unable to remove Relationship from Board.";
+    case "restore-board-edge":
+      return "Unable to restore Relationship to Board.";
   }
 }
