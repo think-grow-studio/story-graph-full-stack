@@ -20,7 +20,7 @@ export interface GraphRepository {
   findScope(id: string): Promise<Scope | null>;
   createBoard(input: {
     storyId: string;
-    scopeId: string | null;
+    scopeId?: string | null;
     name: string;
     description: string;
   }): Promise<Board>;
