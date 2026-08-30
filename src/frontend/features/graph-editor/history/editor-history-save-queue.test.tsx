@@ -1,7 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { GraphNodeResponse } from "@/contracts/graph/graph.contract";
+import type {
+  GraphNodeResponse,
+  NodeStateResponse,
+} from "@/contracts/graph/graph.contract";
 import type { EditorCommand } from "../commands/editor-command";
 import type { EditorPersistence } from "../persistence/editor-persistence";
 import { useEditorSaveQueue } from "../save-queue/use-editor-save-queue";
@@ -11,6 +14,7 @@ import { useEditorHistory } from "./use-editor-history";
 const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
 const nodeId = "33333333-3333-4333-8333-333333333333";
+const scopeId = "77777777-7777-4777-8777-777777777777";
 const workspaceId = "workspace-1";
 const now = "2026-08-30T00:00:00.000Z";
 
@@ -87,6 +91,50 @@ function createStore() {
   return store;
 }
 
+function createScopedStore() {
+  const store = createGraphEditorStore();
+  store.getState().hydrate({
+    story: { id: storyId, name: "Novel" },
+    board: {
+      id: boardId,
+      storyId,
+      scopeId,
+      name: "Chapter Characters",
+      description: "",
+      revision: 1,
+      createdAt: now,
+      updatedAt: now,
+    },
+    scope: {
+      id: scopeId,
+      storyId,
+      name: "Chapter 10",
+      description: "",
+      createdAt: now,
+      updatedAt: now,
+    },
+    nodes: [node("Alice", 3)],
+    nodeStates: [],
+    edges: [],
+    boardNodes: [
+      {
+        boardId,
+        nodeId,
+        x: 100,
+        y: 100,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    boardEdges: [],
+  });
+  return store;
+}
+
 function updateNode(name: string): EditorCommand {
   return {
     type: "update-node",
@@ -102,6 +150,7 @@ function updateNode(name: string): EditorCommand {
 
 function createPersistence(
   updateNodeImpl: EditorPersistence["updateNode"],
+  updateNodeStateImpl: EditorPersistence["updateNodeState"] = vi.fn(),
 ): EditorPersistence {
   return {
     createNode: vi.fn(),
@@ -109,7 +158,7 @@ function createPersistence(
     moveNode: vi.fn(),
     createEdge: vi.fn(),
     updateNode: updateNodeImpl,
-    updateNodeState: vi.fn(),
+    updateNodeState: updateNodeStateImpl,
     updateEdge: vi.fn(),
     removeBoardNode: vi.fn(),
     restoreBoardNode: vi.fn(),
@@ -167,6 +216,100 @@ describe("editor history with Save Queue", () => {
       name: "Alice",
       version: 4,
     });
+    expect(result.current.history.snapshot).toMatchObject({
+      undoCount: 0,
+      redoCount: 1,
+    });
+  });
+
+  it("queues first-write NodeState Undo behind the pending create and reuses version 1", async () => {
+    const first = deferred<NodeStateResponse>();
+    const updateNodeStatePersistence = vi
+      .fn<EditorPersistence["updateNodeState"]>()
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValueOnce({
+        scopeId,
+        nodeId,
+        name: null,
+        description: null,
+        properties: null,
+        version: 2,
+        createdAt: now,
+        updatedAt: "2026-08-30T00:02:00.000Z",
+      });
+    const store = createScopedStore();
+    const persistence = createPersistence(vi.fn(), updateNodeStatePersistence);
+
+    const { result } = renderHook(() => {
+      const saveQueue = useEditorSaveQueue(store, persistence, boardId);
+      const history = useEditorHistory({
+        store,
+        boardId,
+        dispatchToSaveQueue: saveQueue.dispatch,
+        blocked: saveQueue.snapshot.saveState === "error",
+      });
+      return { saveQueue, history };
+    });
+
+    act(() => {
+      result.current.history.dispatch({
+        type: "update-node-state",
+        boardId,
+        workspaceId,
+        scopeId,
+        nodeId,
+        version: null,
+        name: "Queen Alice",
+        description: null,
+        properties: null,
+      });
+    });
+    await act(flushMicrotasks);
+
+    expect(updateNodeStatePersistence).toHaveBeenCalledTimes(1);
+    expect(updateNodeStatePersistence.mock.calls[0]?.[0]).toMatchObject({
+      version: null,
+      name: "Queen Alice",
+    });
+    expect(store.getState().nodeStates[0]).toMatchObject({
+      name: "Queen Alice",
+      version: null,
+    });
+
+    act(() => {
+      expect(result.current.history.undo()).toBe(true);
+    });
+    expect(store.getState().nodeStates[0]).toMatchObject({
+      name: null,
+      description: null,
+      properties: null,
+      version: null,
+    });
+    await act(flushMicrotasks);
+    expect(updateNodeStatePersistence).toHaveBeenCalledTimes(1);
+
+    first.resolve({
+      scopeId,
+      nodeId,
+      name: "Queen Alice",
+      description: null,
+      properties: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: "2026-08-30T00:01:00.000Z",
+    });
+    await act(async () => {
+      await flushUntilCalls(updateNodeStatePersistence, 2);
+    });
+
+    expect(updateNodeStatePersistence).toHaveBeenCalledTimes(2);
+    expect(updateNodeStatePersistence.mock.calls[1]?.[0]).toMatchObject({
+      version: 1,
+      name: null,
+      description: null,
+      properties: null,
+    });
+    expect(store.getState().nodes[0]?.name).toBe("Alice");
     expect(result.current.history.snapshot).toMatchObject({
       undoCount: 0,
       redoCount: 1,
