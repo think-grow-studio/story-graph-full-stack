@@ -107,6 +107,7 @@ function hydratedStore() {
 function persistence(): EditorPersistence {
   return {
     createNode: vi.fn(),
+    placeBoardNode: vi.fn(),
     moveNode: vi.fn(),
     createEdge: vi.fn(),
     updateNode: vi.fn(),
