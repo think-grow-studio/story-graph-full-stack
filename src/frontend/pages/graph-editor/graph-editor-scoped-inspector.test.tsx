@@ -168,7 +168,9 @@ describe("Graph Editor scoped inspector", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Select Queen Alice" }),
+    );
 
     expect(screen.getByLabelText("Name")).toHaveValue("Queen Alice");
     expect(screen.getByLabelText("Description")).toHaveValue("Protagonist");
