@@ -1,12 +1,22 @@
 import type {
   BoardEdgeResponse,
   BoardNodeResponse,
+  BoardResponse,
   BoardSnapshotResponse,
   GraphEdgeResponse,
   GraphNodeResponse,
+  NodeStateResponse,
+  ScopeResponse,
 } from "@/contracts/graph/graph.contract";
 
-export type GraphEditorSnapshot = BoardSnapshotResponse;
+export type GraphEditorSnapshot = Omit<
+  BoardSnapshotResponse,
+  "board" | "scope" | "nodeStates"
+> & {
+  board: Omit<BoardResponse, "scopeId"> & { scopeId?: string | null };
+  scope?: ScopeResponse | null;
+  nodeStates?: NodeStateResponse[];
+};
 export type GraphEditorNodePair = {
   node: GraphNodeResponse;
   boardNode: BoardNodeResponse;
@@ -21,7 +31,9 @@ export type DetachedGraphEditorNodePresentation = {
 };
 
 export type GraphEditorState = {
+  scope: ScopeResponse | null;
   nodes: GraphNodeResponse[];
+  nodeStates: NodeStateResponse[];
   edges: GraphEdgeResponse[];
   boardNodes: BoardNodeResponse[];
   boardEdges: BoardEdgeResponse[];
