@@ -10,6 +10,7 @@ import type {
   MoveNodeCommand,
   RemoveBoardEdgeCommand,
   RemoveBoardNodeCommand,
+  RestoreBoardEdgeCommand,
   UpdateEdgeCommand,
   UpdateNodeCommand,
 } from "../commands/editor-command";
@@ -26,4 +27,5 @@ export type EditorPersistence = {
   updateEdge: (command: UpdateEdgeCommand) => Promise<GraphEdgeResponse>;
   removeBoardNode: (command: RemoveBoardNodeCommand) => Promise<void>;
   removeBoardEdge: (command: RemoveBoardEdgeCommand) => Promise<void>;
+  restoreBoardEdge: (command: RestoreBoardEdgeCommand) => Promise<GraphEditorEdgePair>;
 };

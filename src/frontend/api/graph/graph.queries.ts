@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
+  BoardEdgeResponse,
   BoardResponse,
   BoardSnapshotResponse,
   GraphEdgeResponse,
@@ -15,11 +16,13 @@ import {
   listBoards,
   removeEdgeFromBoard,
   removeNodeFromBoard,
+  restoreEdgeToBoard,
   updateBoardNode,
   updateEdge,
   updateNode,
   type RemoveEdgeFromBoardInput,
   type RemoveNodeFromBoardInput,
+  type RestoreEdgeToBoardInput,
   type UpdateEdgeInput,
   type UpdateNodeInput,
 } from "./graph.api";
@@ -160,6 +163,23 @@ export function useRemoveEdgeFromBoardMutation(
   });
 }
 
+export function useRestoreEdgeToBoardMutation(
+  workspaceId: string | undefined,
+  boardId: string,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RestoreEdgeToBoardInput) => restoreEdgeToBoard(input),
+    onSuccess: (restored) => {
+      if (!workspaceId) return;
+      queryClient.setQueryData<BoardSnapshotResponse>(
+        graphQueryKeys.snapshot(workspaceId, boardId),
+        (current) => restoreSnapshotEdge(current, restored),
+      );
+    },
+  });
+}
+
 function replaceSnapshotNode(
   current: BoardSnapshotResponse | undefined,
   node: GraphNodeResponse,
@@ -220,5 +240,25 @@ function detachSnapshotEdge(
     ...current,
     edges: current.edges.filter((edge) => edge.id !== edgeId),
     boardEdges: current.boardEdges.filter((boardEdge) => boardEdge.edgeId !== edgeId),
+  };
+}
+
+function restoreSnapshotEdge(
+  current: BoardSnapshotResponse | undefined,
+  restored: { edge: GraphEdgeResponse; boardEdge: BoardEdgeResponse },
+): BoardSnapshotResponse | undefined {
+  if (!current) return current;
+  return {
+    ...current,
+    edges: [
+      ...current.edges.filter((edge) => edge.id !== restored.edge.id),
+      restored.edge,
+    ],
+    boardEdges: [
+      ...current.boardEdges.filter(
+        (boardEdge) => boardEdge.edgeId !== restored.boardEdge.edgeId,
+      ),
+      restored.boardEdge,
+    ],
   };
 }

@@ -101,6 +101,12 @@ export const updateEdgeRequestSchema = z
     { message: "At least one Edge field must be provided" },
   );
 
+export const restoreBoardEdgeRequestSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  style: jsonObjectSchema.default({}),
+  labelPresentation: jsonObjectSchema.default({}),
+});
+
 export const boardResponseSchema = z.object({
   id: graphIdSchema,
   storyId: graphIdSchema,
@@ -191,3 +197,4 @@ export type BoardSnapshotResponse = z.infer<typeof boardSnapshotResponseSchema>;
 export type CreateBoardRequest = z.infer<typeof createBoardRequestSchema>;
 export type CreateNodeRequest = z.infer<typeof createNodeRequestSchema>;
 export type UpdateBoardNodeRequest = z.infer<typeof updateBoardNodeRequestSchema>;
+export type RestoreBoardEdgeRequest = z.infer<typeof restoreBoardEdgeRequestSchema>;

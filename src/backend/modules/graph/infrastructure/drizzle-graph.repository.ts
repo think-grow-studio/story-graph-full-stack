@@ -353,4 +353,81 @@ export class DrizzleGraphRepository implements GraphRepository {
       return true;
     });
   }
+
+  async restoreEdgeToBoard(input: {
+    boardId: string;
+    edgeId: string;
+    style: BoardEdge["style"];
+    labelPresentation: BoardEdge["labelPresentation"];
+  }): Promise<{ edge: GraphEdge; boardEdge: BoardEdge } | null> {
+    return db.transaction(async (tx) => {
+      const [foundBoard] = await tx
+        .select({ storyId: board.storyId })
+        .from(board)
+        .where(eq(board.id, input.boardId))
+        .limit(1);
+      if (!foundBoard) return null;
+
+      const [foundEdge] = await tx
+        .select()
+        .from(graphEdge)
+        .where(
+          and(
+            eq(graphEdge.id, input.edgeId),
+            eq(graphEdge.storyId, foundBoard.storyId),
+          ),
+        )
+        .limit(1);
+      if (!foundEdge) return null;
+
+      const endpointIds = Array.from(
+        new Set([foundEdge.sourceNodeId, foundEdge.targetNodeId]),
+      );
+      const representedEndpoints = await tx
+        .select({ nodeId: boardNode.nodeId })
+        .from(boardNode)
+        .where(
+          and(
+            eq(boardNode.boardId, input.boardId),
+            inArray(boardNode.nodeId, endpointIds),
+          ),
+        )
+        .for("update");
+      if (representedEndpoints.length !== endpointIds.length) return null;
+
+      const [created] = await tx
+        .insert(boardEdge)
+        .values({
+          boardId: input.boardId,
+          edgeId: foundEdge.id,
+          storyId: foundBoard.storyId,
+          style: input.style,
+          labelPresentation: input.labelPresentation,
+        })
+        .onConflictDoNothing()
+        .returning();
+
+      if (created) {
+        await tx
+          .update(board)
+          .set({ revision: sql`${board.revision} + 1`, updatedAt: new Date() })
+          .where(eq(board.id, input.boardId));
+        return { edge: foundEdge, boardEdge: toBoardEdge(created) };
+      }
+
+      const [existing] = await tx
+        .select()
+        .from(boardEdge)
+        .where(
+          and(
+            eq(boardEdge.boardId, input.boardId),
+            eq(boardEdge.edgeId, input.edgeId),
+          ),
+        )
+        .limit(1);
+      return existing
+        ? { edge: foundEdge, boardEdge: toBoardEdge(existing) }
+        : null;
+    });
+  }
 }

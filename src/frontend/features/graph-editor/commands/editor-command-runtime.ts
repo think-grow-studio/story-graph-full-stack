@@ -50,6 +50,29 @@ export function applyEditorCommand(
       return store.getState().detachNodeFromBoard(command.nodeId).boardNode !== null;
     case "remove-board-edge":
       return store.getState().detachEdgeFromBoard(command.edgeId) !== null;
+    case "restore-board-edge": {
+      const state = store.getState();
+      const edge = state.edges.find((candidate) => candidate.id === command.edgeId);
+      if (!edge) return false;
+      const representedNodeIds = new Set(
+        state.boardNodes.map((boardNode) => boardNode.nodeId),
+      );
+      if (
+        !representedNodeIds.has(edge.sourceNodeId) ||
+        !representedNodeIds.has(edge.targetNodeId)
+      ) {
+        return false;
+      }
+      state.restoreEdgeToBoard({
+        boardId: command.boardId,
+        edgeId: command.edgeId,
+        style: command.style,
+        labelPresentation: command.labelPresentation,
+        createdAt: command.createdAt,
+        updatedAt: command.updatedAt,
+      });
+      return true;
+    }
   }
 }
 
@@ -184,6 +207,21 @@ export async function persistAndReconcileEditorCommand(
       return;
     case "remove-board-edge":
       await persistence.removeBoardEdge(prepared);
+      return;
+    case "restore-board-edge": {
+      const persisted = await persistence.restoreBoardEdge(prepared);
+      const current = store
+        .getState()
+        .boardEdges.find((boardEdge) => boardEdge.edgeId === prepared.edgeId);
+      if (!current) return;
+
+      store.getState().restoreEdgeToBoard({
+        ...persisted.boardEdge,
+        style: current.style,
+        labelPresentation: current.labelPresentation,
+      });
+      return;
+    }
   }
 }
 

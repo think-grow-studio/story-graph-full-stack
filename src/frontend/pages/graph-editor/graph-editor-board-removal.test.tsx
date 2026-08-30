@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   updateEdge: vi.fn(),
   removeNodeFromBoard: vi.fn(),
   removeEdgeFromBoard: vi.fn(),
+  restoreEdgeToBoard: vi.fn(),
 }));
 
 vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
@@ -28,6 +29,7 @@ vi.mock("@/frontend/api/graph/graph.api", () => ({
   updateEdge: mocks.updateEdge,
   removeNodeFromBoard: mocks.removeNodeFromBoard,
   removeEdgeFromBoard: mocks.removeEdgeFromBoard,
+  restoreEdgeToBoard: mocks.restoreEdgeToBoard,
 }));
 
 vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
@@ -177,6 +179,10 @@ beforeEach(() => {
   mocks.getBoardSnapshot.mockResolvedValue(snapshot());
   mocks.removeNodeFromBoard.mockResolvedValue(undefined);
   mocks.removeEdgeFromBoard.mockResolvedValue(undefined);
+  mocks.restoreEdgeToBoard.mockResolvedValue({
+    edge: snapshot().edges[0],
+    boardEdge: snapshot().boardEdges[0],
+  });
 });
 
 afterEach(cleanup);
@@ -226,5 +232,38 @@ describe("Graph Editor Board removal", () => {
     expect(screen.queryByRole("button", { name: "Select knows" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Select Alice" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Select Bob" })).toBeInTheDocument();
+  });
+
+  it("undoes Relationship Board removal through restore persistence and snapshot cache", async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Select knows" }));
+    await user.click(screen.getByRole("button", { name: "Remove from Board" }));
+    await waitFor(() => expect(mocks.removeEdgeFromBoard).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("button", { name: "Select knows" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+
+    await waitFor(() => expect(mocks.restoreEdgeToBoard).toHaveBeenCalledTimes(1));
+    expect(mocks.restoreEdgeToBoard.mock.calls[0][0]).toEqual({
+      boardId,
+      edgeId,
+      workspaceId: "workspace-1",
+      style: {},
+      labelPresentation: {},
+    });
+    expect(await screen.findByRole("button", { name: "Select knows" })).toBeInTheDocument();
+
+    const cached = queryClient.getQueryData<ReturnType<typeof snapshot>>([
+      "graph",
+      "snapshot",
+      "workspace-1",
+      boardId,
+    ]);
+    expect(cached?.edges).toContainEqual(expect.objectContaining({ id: edgeId }));
+    expect(cached?.boardEdges).toContainEqual(
+      expect.objectContaining({ boardId, edgeId }),
+    );
   });
 });

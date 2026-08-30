@@ -43,6 +43,7 @@ describe("buildOpenApiDocument", () => {
     expect(paths["/api/v1/boards/{boardId}/nodes/{nodeId}"]?.delete).toBeDefined();
     expect(paths["/api/v1/nodes/{nodeId}"]?.patch).toBeDefined();
     expect(paths["/api/v1/boards/{boardId}/edges"]?.post).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/edges/{edgeId}"]?.put).toBeDefined();
     expect(paths["/api/v1/boards/{boardId}/edges/{edgeId}"]?.delete).toBeDefined();
     expect(paths["/api/v1/edges/{edgeId}"]?.patch).toBeDefined();
 

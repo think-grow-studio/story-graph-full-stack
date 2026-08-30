@@ -37,6 +37,7 @@ export async function buildOpenApiDocument() {
       graphIdSchema,
       graphNodeResponseSchema,
       listBoardsResponseSchema,
+      restoreBoardEdgeRequestSchema,
       updateBoardNodeRequestSchema,
       updateEdgeRequestSchema,
       updateNodeRequestSchema,
@@ -71,6 +72,10 @@ export async function buildOpenApiDocument() {
   const boardNodeResponse = registry.register("BoardNodeResponse", boardNodeResponseSchema);
   const createNodeResponse = registry.register("CreateNodeResponse", createNodeResponseSchema);
   const createEdgeRequest = registry.register("CreateEdgeRequest", createEdgeRequestSchema);
+  const restoreBoardEdgeRequest = registry.register(
+    "RestoreBoardEdgeRequest",
+    restoreBoardEdgeRequestSchema,
+  );
   const updateEdgeRequest = registry.register("UpdateEdgeRequest", updateEdgeRequestSchema);
   const graphEdgeResponse = registry.register("GraphEdgeResponse", graphEdgeResponseSchema);
   registry.register("BoardEdgeResponse", boardEdgeResponseSchema);
@@ -335,6 +340,28 @@ export async function buildOpenApiDocument() {
     },
     responses: {
       201: { description: "Created Edge and Board membership", content: json(createEdgeResponse) },
+      400: errorResponse,
+      401: errorResponse,
+      403: errorResponse,
+      404: errorResponse,
+    },
+  });
+
+  registry.registerPath({
+    method: "put",
+    path: "/api/v1/boards/{boardId}/edges/{edgeId}",
+    tags: ["Graph"],
+    summary: "Restore an existing Edge to a Board",
+    security: secured,
+    request: {
+      params: boardEdgeParams,
+      body: { content: json(restoreBoardEdgeRequest) },
+    },
+    responses: {
+      200: {
+        description: "Restored Edge and Board membership",
+        content: json(createEdgeResponse),
+      },
       400: errorResponse,
       401: errorResponse,
       403: errorResponse,

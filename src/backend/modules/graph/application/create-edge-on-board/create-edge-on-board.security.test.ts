@@ -45,6 +45,7 @@ describe("createEdgeOnBoard workspace isolation", () => {
       createEdgeOnBoard: vi.fn(),
       updateEdge: vi.fn(),
       removeEdgeFromBoard: vi.fn(),
+      restoreEdgeToBoard: vi.fn(),
     };
     const access: WorkspaceAccessService = {
       findPersonalWorkspace: vi.fn(),
