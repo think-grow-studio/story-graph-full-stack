@@ -61,6 +61,7 @@ export function getEditorCommandLaneKey(command: EditorCommand): string {
     case "create-edge":
     case "update-edge":
     case "remove-board-edge":
+    case "restore-board-edge":
       return `edge:${command.edgeId}`;
   }
 }
