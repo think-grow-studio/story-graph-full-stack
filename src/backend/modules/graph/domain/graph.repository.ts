@@ -6,16 +6,27 @@ import type {
   GraphEdge,
   GraphNode,
   JsonObject,
+  NodeState,
+  Scope,
 } from "./graph";
 
 export interface GraphRepository {
+  createScope(input: {
+    storyId: string;
+    name: string;
+    description: string;
+  }): Promise<Scope>;
+  listScopes(storyId: string): Promise<Scope[]>;
+  findScope(id: string): Promise<Scope | null>;
   createBoard(input: {
     storyId: string;
+    scopeId: string | null;
     name: string;
     description: string;
   }): Promise<Board>;
   listBoards(storyId: string): Promise<Board[]>;
   findBoard(id: string): Promise<Board | null>;
+  listNodes(storyId: string): Promise<GraphNode[]>;
   findNode(id: string): Promise<GraphNode | null>;
   findEdge(id: string): Promise<GraphEdge | null>;
   getBoardSnapshot(boardId: string): Promise<BoardSnapshot | null>;
@@ -27,6 +38,22 @@ export interface GraphRepository {
       "x" | "y" | "width" | "height" | "zIndex" | "style"
     >;
   }): Promise<{ node: GraphNode; boardNode: BoardNode }>;
+  placeNodeOnBoard(input: {
+    boardId: string;
+    nodeId: string;
+    placement: Pick<
+      BoardNode,
+      "x" | "y" | "width" | "height" | "zIndex" | "style"
+    >;
+  }): Promise<{ node: GraphNode; boardNode: BoardNode } | null>;
+  putNodeState(input: {
+    scopeId: string;
+    nodeId: string;
+    expectedVersion: number | null;
+    name: string | null;
+    description: string | null;
+    properties: JsonObject | null;
+  }): Promise<NodeState | "conflict" | null>;
   updateNode(input: {
     id: string;
     expectedVersion: number;
