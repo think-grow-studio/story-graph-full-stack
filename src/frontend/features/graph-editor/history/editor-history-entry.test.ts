@@ -242,7 +242,7 @@ describe("editor history entry", () => {
     ).toBeNull();
   });
 
-  it("marks only Move and canonical update commands as undoable", () => {
+  it("marks Move, canonical updates, and Board Edge removal as undoable", () => {
     expect(
       isUndoableEditorCommand({
         type: "move-node",
@@ -271,6 +271,6 @@ describe("editor history entry", () => {
         workspaceId,
         edgeId,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
