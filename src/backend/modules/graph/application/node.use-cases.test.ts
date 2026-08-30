@@ -102,6 +102,7 @@ function createGraph(): GraphRepository {
     createEdgeOnBoard: vi.fn(),
     updateEdge: vi.fn(),
     removeEdgeFromBoard: vi.fn(),
+    restoreEdgeToBoard: vi.fn(),
   };
 }
 
