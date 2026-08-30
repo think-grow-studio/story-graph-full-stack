@@ -7,12 +7,17 @@ import {
   createEdgeResponseSchema,
   createNodeRequestSchema,
   createNodeResponseSchema,
+  createScopeRequestSchema,
   graphEdgeResponseSchema,
   graphNodeResponseSchema,
   listBoardsResponseSchema,
+  listScopesResponseSchema,
+  listStoryNodesResponseSchema,
+  placeBoardNodeRequestSchema,
   restoreBoardEdgeRequestSchema,
   restoreBoardNodeRequestSchema,
   restoreBoardNodeResponseSchema,
+  scopeResponseSchema,
   updateBoardNodeRequestSchema,
   updateEdgeRequestSchema,
   updateNodeRequestSchema,
@@ -23,9 +28,35 @@ import {
   type GraphEdgeResponse,
   type GraphNodeResponse,
   type RestoreBoardNodeResponse,
+  type ScopeResponse,
 } from "@/contracts/graph/graph.contract";
 
 import { apiClient } from "../client/api-client";
+
+export async function listScopes(
+  storyId: string,
+  workspaceId: string,
+): Promise<ScopeResponse[]> {
+  const response = await apiClient.get(`/stories/${storyId}/scopes`, {
+    params: { workspaceId },
+  });
+  return listScopesResponseSchema.parse(response.data).scopes;
+}
+
+export async function createScope(input: {
+  storyId: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+}): Promise<ScopeResponse> {
+  const payload = createScopeRequestSchema.parse({
+    workspaceId: input.workspaceId,
+    name: input.name,
+    description: input.description,
+  });
+  const response = await apiClient.post(`/stories/${input.storyId}/scopes`, payload);
+  return scopeResponseSchema.parse(response.data);
+}
 
 export async function listBoards(
   storyId: string,
@@ -40,16 +71,28 @@ export async function listBoards(
 export async function createBoard(input: {
   storyId: string;
   workspaceId: string;
+  scopeId: string | null;
   name: string;
   description: string;
 }): Promise<BoardResponse> {
   const payload = createBoardRequestSchema.parse({
     workspaceId: input.workspaceId,
+    scopeId: input.scopeId,
     name: input.name,
     description: input.description,
   });
   const response = await apiClient.post(`/stories/${input.storyId}/boards`, payload);
   return boardResponseSchema.parse(response.data);
+}
+
+export async function listStoryNodes(
+  storyId: string,
+  workspaceId: string,
+): Promise<GraphNodeResponse[]> {
+  const response = await apiClient.get(`/stories/${storyId}/nodes`, {
+    params: { workspaceId },
+  });
+  return listStoryNodesResponseSchema.parse(response.data).nodes;
 }
 
 export async function getBoardSnapshot(
@@ -87,6 +130,32 @@ export async function createNodeOnBoard(
     style: {},
   });
   const response = await apiClient.post(`/boards/${input.boardId}/nodes`, payload);
+  return createNodeResponseSchema.parse(response.data);
+}
+
+export type PlaceNodeOnBoardInput = {
+  boardId: string;
+  nodeId: string;
+  workspaceId: string;
+  position: { x: number; y: number };
+};
+
+export async function placeNodeOnBoard(
+  input: PlaceNodeOnBoardInput,
+): Promise<{ node: GraphNodeResponse; boardNode: BoardNodeResponse }> {
+  const payload = placeBoardNodeRequestSchema.parse({
+    workspaceId: input.workspaceId,
+    x: input.position.x,
+    y: input.position.y,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
+  });
+  const response = await apiClient.put(
+    `/boards/${input.boardId}/nodes/${input.nodeId}/presentation`,
+    payload,
+  );
   return createNodeResponseSchema.parse(response.data);
 }
 
