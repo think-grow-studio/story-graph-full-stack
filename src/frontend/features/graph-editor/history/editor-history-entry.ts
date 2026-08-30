@@ -7,12 +7,14 @@ import type {
   RestoreBoardNodeCommand,
   UpdateEdgeCommand,
   UpdateNodeCommand,
+  UpdateNodeStateCommand,
 } from "../commands/editor-command";
 import type { GraphEditorStore } from "../store/graph-editor-store";
 
 export type UndoableEditorCommand =
   | MoveNodeCommand
   | UpdateNodeCommand
+  | UpdateNodeStateCommand
   | UpdateEdgeCommand
   | RemoveBoardNodeCommand
   | RestoreBoardNodeCommand
@@ -33,6 +35,7 @@ export function isUndoableEditorCommand(
   return (
     command.type === "move-node" ||
     command.type === "update-node" ||
+    command.type === "update-node-state" ||
     command.type === "update-edge" ||
     command.type === "remove-board-node" ||
     command.type === "restore-board-node" ||
@@ -82,6 +85,33 @@ export function createEditorHistoryEntry({
         properties: current.properties,
       },
       `update-node:${command.nodeId}`,
+      nowMs,
+    );
+  }
+
+  if (command.type === "update-node-state") {
+    const state = store.getState();
+    if (
+      state.scope?.id !== command.scopeId ||
+      !state.nodes.some((node) => node.id === command.nodeId)
+    ) {
+      return null;
+    }
+    const current = state.nodeStates.find(
+      (candidate) =>
+        candidate.scopeId === command.scopeId && candidate.nodeId === command.nodeId,
+    );
+
+    return entry(
+      command,
+      {
+        ...command,
+        version: current?.version ?? null,
+        name: current?.name ?? null,
+        description: current?.description ?? null,
+        properties: current?.properties ?? null,
+      },
+      `update-node-state:${command.scopeId}:${command.nodeId}`,
       nowMs,
     );
   }
