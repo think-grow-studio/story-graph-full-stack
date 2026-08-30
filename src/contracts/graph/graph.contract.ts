@@ -13,10 +13,17 @@ const dateTimeSchema = z.iso.datetime();
 
 export const workspaceQuerySchema = z.object({ workspaceId: workspaceIdSchema });
 
+export const createScopeRequestSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  name: nameSchema,
+  description: descriptionSchema.default(""),
+});
+
 export const createBoardRequestSchema = z.object({
   workspaceId: workspaceIdSchema,
   name: nameSchema,
   description: descriptionSchema.default(""),
+  scopeId: graphIdSchema.nullable().default(null),
 });
 
 export const createNodeRequestSchema = z.object({
@@ -31,6 +38,24 @@ export const createNodeRequestSchema = z.object({
   height: positiveNullableNumberSchema.default(null),
   zIndex: z.number().int().default(0),
   style: jsonObjectSchema.default({}),
+});
+
+export const placeBoardNodeRequestSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  x: finiteNumberSchema,
+  y: finiteNumberSchema,
+  width: positiveNullableNumberSchema.default(null),
+  height: positiveNullableNumberSchema.default(null),
+  zIndex: z.number().int().default(0),
+  style: jsonObjectSchema.default({}),
+});
+
+export const putNodeStateRequestSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  version: z.number().int().min(1).nullable(),
+  name: nameSchema.nullable(),
+  description: descriptionSchema.nullable(),
+  properties: jsonObjectSchema.nullable(),
 });
 
 export const updateNodeRequestSchema = z
@@ -131,14 +156,39 @@ export const restoreBoardNodeRequestSchema = z
     { message: "BoardEdge ids must be unique", path: ["boardEdges"] },
   );
 
+export const scopeResponseSchema = z.object({
+  id: graphIdSchema,
+  storyId: graphIdSchema,
+  name: z.string(),
+  description: z.string(),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
+});
+
+export const nodeStateResponseSchema = z.object({
+  scopeId: graphIdSchema,
+  nodeId: graphIdSchema,
+  name: z.string().nullable(),
+  description: z.string().nullable(),
+  properties: jsonObjectSchema.nullable(),
+  version: z.number().int().min(1),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
+});
+
 export const boardResponseSchema = z.object({
   id: graphIdSchema,
   storyId: graphIdSchema,
+  scopeId: graphIdSchema.nullable(),
   name: z.string(),
   description: z.string(),
   revision: z.number().int().min(0),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
+});
+
+export const listScopesResponseSchema = z.object({
+  scopes: z.array(scopeResponseSchema),
 });
 
 export const listBoardsResponseSchema = z.object({
@@ -155,6 +205,10 @@ export const graphNodeResponseSchema = z.object({
   version: z.number().int().min(1),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
+});
+
+export const listStoryNodesResponseSchema = z.object({
+  nodes: z.array(graphNodeResponseSchema),
 });
 
 export const graphEdgeResponseSchema = z.object({
@@ -213,20 +267,27 @@ export const restoreBoardNodeResponseSchema = z.object({
 export const boardSnapshotResponseSchema = z.object({
   story: z.object({ id: graphIdSchema, name: z.string() }),
   board: boardResponseSchema,
+  scope: scopeResponseSchema.nullable(),
   nodes: z.array(graphNodeResponseSchema),
+  nodeStates: z.array(nodeStateResponseSchema),
   edges: z.array(graphEdgeResponseSchema),
   boardNodes: z.array(boardNodeResponseSchema),
   boardEdges: z.array(boardEdgeResponseSchema),
 });
 
+export type ScopeResponse = z.infer<typeof scopeResponseSchema>;
+export type NodeStateResponse = z.infer<typeof nodeStateResponseSchema>;
 export type BoardResponse = z.infer<typeof boardResponseSchema>;
 export type GraphNodeResponse = z.infer<typeof graphNodeResponseSchema>;
 export type GraphEdgeResponse = z.infer<typeof graphEdgeResponseSchema>;
 export type BoardNodeResponse = z.infer<typeof boardNodeResponseSchema>;
 export type BoardEdgeResponse = z.infer<typeof boardEdgeResponseSchema>;
 export type BoardSnapshotResponse = z.infer<typeof boardSnapshotResponseSchema>;
+export type CreateScopeRequest = z.infer<typeof createScopeRequestSchema>;
 export type CreateBoardRequest = z.infer<typeof createBoardRequestSchema>;
 export type CreateNodeRequest = z.infer<typeof createNodeRequestSchema>;
+export type PlaceBoardNodeRequest = z.infer<typeof placeBoardNodeRequestSchema>;
+export type PutNodeStateRequest = z.infer<typeof putNodeStateRequestSchema>;
 export type UpdateBoardNodeRequest = z.infer<typeof updateBoardNodeRequestSchema>;
 export type RestoreBoardEdgeRequest = z.infer<typeof restoreBoardEdgeRequestSchema>;
 export type RestoreBoardNodeRequest = z.infer<typeof restoreBoardNodeRequestSchema>;
