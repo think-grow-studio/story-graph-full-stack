@@ -111,6 +111,7 @@ function persistence(): EditorPersistence {
     moveNode: vi.fn(),
     createEdge: vi.fn(),
     updateNode: vi.fn(),
+    updateNodeState: vi.fn(),
     updateEdge: vi.fn(),
     removeBoardNode: vi.fn(),
     restoreBoardNode: vi.fn(),
