@@ -91,12 +91,7 @@ export function createEditorHistoryEntry({
 
   if (command.type === "update-node-state") {
     const state = store.getState();
-    if (
-      state.scope?.id !== command.scopeId ||
-      !state.nodes.some((node) => node.id === command.nodeId)
-    ) {
-      return null;
-    }
+    if (!state.nodes.some((node) => node.id === command.nodeId)) return null;
     const current = state.nodeStates.find(
       (candidate) =>
         candidate.scopeId === command.scopeId && candidate.nodeId === command.nodeId,
