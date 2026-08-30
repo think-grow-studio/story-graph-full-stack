@@ -6,12 +6,14 @@ vi.mock("server-only", () => ({}));
 import { db } from "@/backend/infrastructure/database/client";
 import {
   board,
+  boardNode,
   graphNode,
   nodeState,
   organization,
   scope,
   user,
 } from "@/backend/infrastructure/database/schema";
+import { DrizzleGraphRepository } from "@/backend/modules/graph/infrastructure/drizzle-graph.repository";
 import type { Story } from "@/backend/modules/story/domain/story";
 import { DrizzleStoryRepository } from "@/backend/modules/story/infrastructure/drizzle-story.repository";
 import { ensurePersonalWorkspace } from "@/backend/modules/workspace/application/ensure-personal-workspace/ensure-personal-workspace";
@@ -122,5 +124,77 @@ describe("Scope and NodeState database invariants", () => {
         name: "Invalid Scoped Board",
       }),
     ).rejects.toBeTruthy();
+  });
+
+  it("returns only represented NodeState rows for a scoped Board snapshot", async () => {
+    const workspace = await createWorkspace("Scoped Snapshot Owner");
+    const story = await createStory(workspace.id, "Snapshot Story");
+    const scopeId = crypto.randomUUID();
+    const boardId = crypto.randomUUID();
+    const representedNodeId = crypto.randomUUID();
+    const hiddenNodeId = crypto.randomUUID();
+
+    await db.insert(scope).values({ id: scopeId, storyId: story.id, name: "Chapter 10" });
+    await db.insert(board).values({
+      id: boardId,
+      storyId: story.id,
+      scopeId,
+      name: "Scoped Board",
+    });
+    await db.insert(graphNode).values([
+      { id: representedNodeId, storyId: story.id, name: "Alice" },
+      { id: hiddenNodeId, storyId: story.id, name: "Bob" },
+    ]);
+    await db.insert(boardNode).values({
+      boardId,
+      nodeId: representedNodeId,
+      storyId: story.id,
+      x: 10,
+      y: 20,
+    });
+    await db.insert(nodeState).values([
+      {
+        scopeId,
+        nodeId: representedNodeId,
+        storyId: story.id,
+        name: "Queen Alice",
+      },
+      {
+        scopeId,
+        nodeId: hiddenNodeId,
+        storyId: story.id,
+        name: "Hidden Bob",
+      },
+    ]);
+
+    const snapshot = await new DrizzleGraphRepository().getBoardSnapshot(boardId);
+
+    expect(snapshot?.scope).toMatchObject({ id: scopeId, name: "Chapter 10" });
+    expect(snapshot?.nodes.map((node) => node.id)).toEqual([representedNodeId]);
+    expect(snapshot?.nodeStates).toEqual([
+      expect.objectContaining({
+        scopeId,
+        nodeId: representedNodeId,
+        name: "Queen Alice",
+      }),
+    ]);
+  });
+
+  it("returns canonical-only state metadata for an unscoped Board snapshot", async () => {
+    const workspace = await createWorkspace("Unscoped Snapshot Owner");
+    const story = await createStory(workspace.id, "Canonical Story");
+    const boardId = crypto.randomUUID();
+
+    await db.insert(board).values({
+      id: boardId,
+      storyId: story.id,
+      scopeId: null,
+      name: "Canonical Board",
+    });
+
+    const snapshot = await new DrizzleGraphRepository().getBoardSnapshot(boardId);
+
+    expect(snapshot?.scope).toBeNull();
+    expect(snapshot?.nodeStates).toEqual([]);
   });
 });
