@@ -1,3 +1,5 @@
+import type { GraphNodeResponse } from "@/contracts/graph/graph.contract";
+
 export type CreateNodeCommand = {
   type: "create-node";
   boardId: string;
@@ -5,6 +7,15 @@ export type CreateNodeCommand = {
   storyId: string;
   nodeId: string;
   name: string;
+  position: { x: number; y: number };
+  createdAt: string;
+};
+
+export type PlaceBoardNodeCommand = {
+  type: "place-board-node";
+  boardId: string;
+  workspaceId: string;
+  node: GraphNodeResponse;
   position: { x: number; y: number };
   createdAt: string;
 };
