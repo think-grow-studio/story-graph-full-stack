@@ -15,6 +15,7 @@ const boardId = "22222222-2222-4222-8222-222222222222";
 const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
+const scopeId = "77777777-7777-4777-8777-777777777777";
 const workspaceId = "workspace-1";
 const now = "2026-08-29T00:00:00.000Z";
 
@@ -138,6 +139,102 @@ function setup() {
   return { graphStore, draftStore, dispatch, controller };
 }
 
+function setupScoped() {
+  const graphStore = createGraphEditorStore();
+  graphStore.getState().hydrate({
+    story: { id: storyId, name: "Novel" },
+    board: {
+      id: boardId,
+      storyId,
+      scopeId,
+      name: "Chapter Characters",
+      description: "",
+      revision: 2,
+      createdAt: now,
+      updatedAt: now,
+    },
+    scope: {
+      id: scopeId,
+      storyId,
+      name: "Chapter 10",
+      description: "",
+      createdAt: now,
+      updatedAt: now,
+    },
+    nodes: [alice(), bob()],
+    nodeStates: [
+      {
+        scopeId,
+        nodeId: aliceId,
+        name: "Queen Alice",
+        description: null,
+        properties: { role: "queen" },
+        version: 2,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    edges: [relationship()],
+    boardNodes: [
+      {
+        boardId,
+        nodeId: aliceId,
+        x: 100,
+        y: 100,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        boardId,
+        nodeId: bobId,
+        x: 400,
+        y: 100,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    boardEdges: [
+      {
+        boardId,
+        edgeId,
+        style: {},
+        labelPresentation: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+  });
+
+  const draftStore = createInspectorDraftStore();
+  draftStore.getState().ensureDraft(toInspectorEntityKey("node", aliceId), {
+    ...alice(),
+    name: "Queen Alice",
+    properties: { role: "queen" },
+  });
+
+  const dispatch = vi.fn((command: EditorCommand) => {
+    void command;
+    return "operation-1";
+  });
+  const controller = createInspectorAutosaveController({
+    draftStore,
+    graphStore,
+    boardId,
+    workspaceId,
+    dispatch,
+  });
+  controller.start();
+  return { graphStore, draftStore, dispatch, controller };
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
@@ -172,6 +269,29 @@ describe("inspector autosave controller", () => {
       name: "Alicia",
       description: "Protagonist",
       properties: { role: "lead" },
+    });
+
+    controller.dispose();
+  });
+
+  it("dispatches scoped Node edits as sparse NodeState updates", async () => {
+    const { draftStore, dispatch, controller } = setupScoped();
+    const key = toInspectorEntityKey("node", aliceId);
+
+    draftStore.getState().updateDraft(key, { name: "Empress Alice" });
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "update-node-state",
+      boardId,
+      workspaceId,
+      scopeId,
+      nodeId: aliceId,
+      version: 2,
+      name: "Empress Alice",
+      description: null,
+      properties: { role: "queen" },
     });
 
     controller.dispose();
