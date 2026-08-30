@@ -13,7 +13,9 @@ import {
   listBoardsResponseSchema,
   listScopesResponseSchema,
   listStoryNodesResponseSchema,
+  nodeStateResponseSchema,
   placeBoardNodeRequestSchema,
+  putNodeStateRequestSchema,
   restoreBoardEdgeRequestSchema,
   restoreBoardNodeRequestSchema,
   restoreBoardNodeResponseSchema,
@@ -27,6 +29,7 @@ import {
   type BoardSnapshotResponse,
   type GraphEdgeResponse,
   type GraphNodeResponse,
+  type NodeStateResponse,
   type RestoreBoardNodeResponse,
   type ScopeResponse,
 } from "@/contracts/graph/graph.contract";
@@ -204,6 +207,33 @@ export async function updateNode(input: UpdateNodeInput): Promise<GraphNodeRespo
   });
   const response = await apiClient.patch(`/nodes/${input.nodeId}`, payload);
   return graphNodeResponseSchema.parse(response.data);
+}
+
+export type UpdateNodeStateInput = {
+  scopeId: string;
+  nodeId: string;
+  workspaceId: string;
+  version: number | null;
+  name: string | null;
+  description: string | null;
+  properties: Record<string, unknown> | null;
+};
+
+export async function updateNodeState(
+  input: UpdateNodeStateInput,
+): Promise<NodeStateResponse> {
+  const payload = putNodeStateRequestSchema.parse({
+    workspaceId: input.workspaceId,
+    version: input.version,
+    name: input.name,
+    description: input.description,
+    properties: input.properties,
+  });
+  const response = await apiClient.put(
+    `/scopes/${input.scopeId}/nodes/${input.nodeId}/state`,
+    payload,
+  );
+  return nodeStateResponseSchema.parse(response.data);
 }
 
 export type UpdateEdgeInput = {
