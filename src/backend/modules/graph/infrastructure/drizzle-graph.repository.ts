@@ -91,13 +91,19 @@ export class DrizzleGraphRepository implements GraphRepository {
 
   async createBoard(input: {
     storyId: string;
-    scopeId: string | null;
+    scopeId?: string | null;
     name: string;
     description: string;
   }): Promise<Board> {
     const [created] = await db
       .insert(board)
-      .values({ id: crypto.randomUUID(), ...input })
+      .values({
+        id: crypto.randomUUID(),
+        storyId: input.storyId,
+        scopeId: input.scopeId ?? null,
+        name: input.name,
+        description: input.description,
+      })
       .returning();
     return created;
   }
