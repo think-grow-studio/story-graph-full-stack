@@ -59,4 +59,10 @@ export interface GraphRepository {
     properties?: JsonObject;
   }): Promise<GraphEdge | null>;
   removeEdgeFromBoard(boardId: string, edgeId: string): Promise<boolean>;
+  restoreEdgeToBoard(input: {
+    boardId: string;
+    edgeId: string;
+    style: JsonObject;
+    labelPresentation: JsonObject;
+  }): Promise<{ edge: GraphEdge; boardEdge: BoardEdge } | null>;
 }
