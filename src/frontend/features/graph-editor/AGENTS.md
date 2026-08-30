@@ -8,3 +8,5 @@
 - Story Node/Edge와 Board 표현 상태를 분리한다.
 - 편집은 draft → debounce → command/operation → Save Queue 흐름을 지킨다.
 - Undo/Redo는 command inverse를 Save Queue로 재실행하며 snapshot/DB rollback을 쓰지 않는다.
+- Relationship Board removal은 inverse restore로 되돌린다.
+- Node Board removal은 incident Relationship 복구가 없으므로 현재 history를 reset한다.
