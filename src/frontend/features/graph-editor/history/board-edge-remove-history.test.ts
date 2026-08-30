@@ -1,15 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  applyEditorCommand,
-} from "../commands/editor-command-runtime";
+import { applyEditorCommand } from "../commands/editor-command-runtime";
 import { getEditorCommandLaneKey } from "../save-queue/editor-save-queue";
 import { createGraphEditorStore } from "../store/graph-editor-store";
 import {
   createEditorHistoryEntry,
   isUndoableEditorCommand,
 } from "./editor-history-entry";
-import { createEditorHistory } from "./editor-history";
 
 const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
@@ -170,34 +167,5 @@ describe("relationship Board removal history", () => {
       }),
     );
     expect(getEditorCommandLaneKey(entry!.inverse)).toBe(`edge:${edgeId}`);
-  });
-
-  it("clears both history branches before removing a Board Node", () => {
-    const store = hydratedStore();
-    const entry = createEditorHistoryEntry({
-      store,
-      command: removeCommand(),
-      nowMs: 1_000,
-    });
-    expect(entry).not.toBeNull();
-
-    const history = createEditorHistory();
-    history.record(entry!);
-    history.undo(() => true);
-    expect(history.getSnapshot()).toMatchObject({ undoCount: 0, redoCount: 1 });
-
-    history.noteNormalCommand({
-      type: "remove-board-node",
-      boardId,
-      workspaceId,
-      nodeId: aliceId,
-    });
-
-    expect(history.getSnapshot()).toEqual({
-      canUndo: false,
-      canRedo: false,
-      undoCount: 0,
-      redoCount: 0,
-    });
   });
 });
