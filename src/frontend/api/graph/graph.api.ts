@@ -11,6 +11,8 @@ import {
   graphNodeResponseSchema,
   listBoardsResponseSchema,
   restoreBoardEdgeRequestSchema,
+  restoreBoardNodeRequestSchema,
+  restoreBoardNodeResponseSchema,
   updateBoardNodeRequestSchema,
   updateEdgeRequestSchema,
   updateNodeRequestSchema,
@@ -20,6 +22,7 @@ import {
   type BoardSnapshotResponse,
   type GraphEdgeResponse,
   type GraphNodeResponse,
+  type RestoreBoardNodeResponse,
 } from "@/contracts/graph/graph.contract";
 
 import { apiClient } from "../client/api-client";
@@ -190,6 +193,39 @@ export async function removeNodeFromBoard(
   await apiClient.delete(`/boards/${input.boardId}/nodes/${input.nodeId}`, {
     params: { workspaceId: input.workspaceId },
   });
+}
+
+export type RestoreNodeToBoardInput = {
+  boardId: string;
+  nodeId: string;
+  workspaceId: string;
+  boardNode: Pick<
+    BoardNodeResponse,
+    "x" | "y" | "width" | "height" | "zIndex" | "style"
+  >;
+  boardEdges: Array<
+    Pick<BoardEdgeResponse, "edgeId" | "style" | "labelPresentation">
+  >;
+};
+
+export async function restoreNodeToBoard(
+  input: RestoreNodeToBoardInput,
+): Promise<RestoreBoardNodeResponse> {
+  const payload = restoreBoardNodeRequestSchema.parse({
+    workspaceId: input.workspaceId,
+    x: input.boardNode.x,
+    y: input.boardNode.y,
+    width: input.boardNode.width,
+    height: input.boardNode.height,
+    zIndex: input.boardNode.zIndex,
+    style: input.boardNode.style,
+    boardEdges: input.boardEdges,
+  });
+  const response = await apiClient.put(
+    `/boards/${input.boardId}/nodes/${input.nodeId}`,
+    payload,
+  );
+  return restoreBoardNodeResponseSchema.parse(response.data);
 }
 
 export type RemoveEdgeFromBoardInput = {
