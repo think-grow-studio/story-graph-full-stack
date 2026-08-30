@@ -18,11 +18,11 @@ The product must remain genre-agnostic and highly extensible. Templates may be a
 - Board = View. A Board controls placement and presentation, not canonical story data.
 - Scope = State. A Scope represents a user-defined boundary such as episode, chapter, era, season, past, present, or any custom period.
 - The same canonical Node is reused across Boards and Scopes.
-- Future NodeState/EdgeState override canonical data for a Scope. Board-specific state must not replace this concept.
+- Scope + NodeState V1 is implemented: NodeState sparsely overrides canonical Node data for a Scope. EdgeState remains deferred. Board-specific state must not replace this concept.
 
 ## 3. Domain model
 
-Initial model:
+Current model:
 
 ```text
 User
@@ -31,19 +31,19 @@ User
           └─ Story
               ├─ Node
               ├─ Edge
-              └─ Board
+              ├─ Scope
+              │   └─ NodeState
+              └─ Board ── optional scopeId
                   ├─ BoardNode
                   └─ BoardEdge
 ```
 
-Future extension:
+Deferred extension:
 
 ```text
 Story
- ├─ Scope
- │   ├─ NodeState
- │   └─ EdgeState
- └─ Board ── optional scopeId
+ └─ Scope
+     └─ EdgeState
 ```
 
 ### Node
@@ -70,7 +70,11 @@ Board-only presentation state. BoardNode stores position, size, z-index, and sty
 
 ### Scope
 
-Not required in the first UI, but reserved as a first-class future concept. Suggested fields: `id`, `storyId`, `name`, `description`, optional `parentScopeId`, `sortOrder`.
+A first-class Story-owned state boundary. V1 fields are `id`, `storyId`, `name`, `description`, and timestamps. Scope hierarchy, `parentScopeId`, `sortOrder`, deletion, and live scope switching remain deferred.
+
+### NodeState
+
+Sparse state keyed by `(scopeId, nodeId)` for `name`, `description`, and `properties`. A `null` field inherits the canonical Node value; non-null `properties` replaces the whole canonical properties object rather than deep-merging it. NodeState never creates a second Node identity and never overwrites the canonical Node row.
 
 ## 4. Application architecture
 
@@ -198,6 +202,7 @@ Load flow:
 GET Board Snapshot
   → TanStack Query
   → hydrate Zustand
+  → resolve canonical Node + scoped NodeState when Scope exists
   → React Flow renders Zustand state
 ```
 
@@ -224,6 +229,8 @@ Use autosave rather than a primary Save button.
 - Create/delete/connect operations persist immediately after local optimistic application.
 - Generate entity IDs client-side so follow-up edits/edge creation do not wait for server-generated IDs.
 - Durable writes serialize per `node:<id>` / `edge:<id>` Save Queue lane; unrelated lanes may progress independently.
+- Canonical Node writes and scoped NodeState writes for the same Node share `node:<id>`.
+- Scoped Inspector edits resolve the effective Node, then normalize back to sparse NodeState overrides before persistence.
 - Pending, not-yet-started Node move writes coalesce to the latest position without mutating a running move.
 - A queued `create-edge` waits for still-active `create-node` operations for its source/target Node IDs so Relationship persistence cannot outrun endpoint creation.
 - Failed lanes preserve the current Zustand working state and resume only through explicit Retry; there is no infinite automatic retry loop.
@@ -232,11 +239,13 @@ Use autosave rather than a primary Save button.
 - Network failure must not immediately destroy the local working state.
 - Commands must not directly know Axios/HTTP so persistence can later move to collaboration/WebSocket infrastructure.
 
-Undo/redo is command-based. Undo means applying and persisting the inverse change, not rolling back the database transaction history.
+Undo/redo is command-based. Undo means applying and persisting the inverse change, not rolling back the database transaction history. Scoped NodeState history stores the previous sparse override, not the resolved canonical/effective value. History remains session-local in V1 and is not persisted across reloads.
 
 ## 9. Concurrency
 
 Use per-resource optimistic locking for important story data (`version`). Stale updates return `409 Conflict`.
+
+NodeState uses create-if-absent when `version = null` and compare-and-set when a numeric version is supplied. Scope and Node must belong to the same Story.
 
 Board `revision` remains a coarse snapshot generation/version marker, not the sole concurrency lock. Board placement data may use lighter conflict behavior such as last-write-wins where appropriate.
 
@@ -252,16 +261,20 @@ Examples:
 
 ```text
 POST  /api/v1/boards/:boardId/nodes
-POST  /api/v1/boards/:boardId/nodes/:nodeId
+PUT   /api/v1/boards/:boardId/nodes/:nodeId/presentation
 PATCH /api/v1/nodes/:nodeId
 PATCH /api/v1/boards/:boardId/nodes/:nodeId
 POST  /api/v1/boards/:boardId/edges
 GET   /api/v1/boards/:boardId/snapshot
+GET   /api/v1/stories/:storyId/scopes
+POST  /api/v1/stories/:storyId/scopes
+GET   /api/v1/stories/:storyId/nodes
+PUT   /api/v1/scopes/:scopeId/nodes/:nodeId/state
 ```
 
-Creating a node from a Board is one backend use-case/transaction that creates both canonical Node and BoardNode.
+Creating a node from a Board is one backend use-case/transaction that creates both canonical Node and BoardNode. Placing an existing canonical Node on another Board creates only Board presentation state.
 
-The board snapshot endpoint returns the editor bootstrap payload in one request: story/board/scope metadata, canonical nodes/edges, board presentation state, and revision.
+The board snapshot endpoint returns the editor bootstrap payload in one request: story/board/scope metadata, canonical nodes/edges, scoped NodeStates, board presentation state, and revision. Canonical Nodes and NodeStates remain separate in the payload.
 
 ## 11. Authentication and authorization
 
@@ -318,7 +331,7 @@ Use a testing pyramid.
 - Frontend component: React Testing Library for normal UI components.
 - E2E: Playwright for graph canvas behavior and critical user workflows.
 
-Graph-domain invariants require tests, especially directed multi-edge behavior. E2E editor tests should frequently use `edit → saved → reload → verify` to catch persistence failures.
+Graph-domain invariants require tests, especially directed multi-edge behavior. E2E editor tests should frequently use `edit → saved → reload → verify` to catch persistence failures. Scope acceptance must prove the same canonical Node ID can resolve differently on scoped and unscoped Boards without mutating canonical data.
 
 CI minimum: lint, typecheck, unit tests, integration tests, Next build, critical E2E.
 
@@ -389,8 +402,10 @@ UI와 사용자 상호작용만 담당한다.
 - Zustand가 working state를 소유한다.
 - React Flow는 rendering/input engine이다.
 - Query cache를 drag/edit state로 사용하지 않는다.
-- Story Node/Edge와 Board 표현 상태를 분리한다.
-- 변경은 command/operation으로 표현해 undo/autosave 확장을 보존한다.
+- Board는 표현 상태만 소유한다.
+- Scope가 있으면 Node는 canonical+NodeState로 resolve한다.
+- NodeState는 canonical Node를 덮어쓰지 않는다.
+- scoped Node edit도 node:<id> lane과 command/history를 사용한다.
 ```
 
 ### `/src/backend/AGENTS.md`
@@ -445,4 +460,4 @@ Frontend↔Backend의 유일한 공유 계약.
 2. Do not build infrastructure for hypothetical scale before it is required.
 3. Preserve domain concepts independently of React Flow, Drizzle, Better Auth, or any deployment vendor.
 4. Any architecture exception must be explicit and should update the nearest AGENTS.md/spec when it becomes a new rule.
-5. Optimize V1 for a high-quality graph authoring experience while preserving the path toward Scope state, AI reasoning, collaboration, version history, and backend extraction.
+5. Optimize V1 for a high-quality graph authoring experience while preserving the path toward EdgeState, AI reasoning, collaboration, version history, and backend extraction.
