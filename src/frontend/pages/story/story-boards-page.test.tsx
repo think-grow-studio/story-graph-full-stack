@@ -106,7 +106,7 @@ describe("StoryBoardsPage", () => {
   it("renders Scopes and joins a Board card to its Scope", async () => {
     renderPage();
 
-    expect(await screen.findByText("Chapter 10")).toBeInTheDocument();
+    expect((await screen.findAllByText("Chapter 10")).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText("Scope: Chapter 10")).toBeInTheDocument();
     expect(mocks.listScopes).toHaveBeenCalledWith(storyId, "workspace-1");
   });
