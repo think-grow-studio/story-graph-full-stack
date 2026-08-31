@@ -8,6 +8,7 @@ import {
   useRestoreNodeToBoardMutation,
   useUpdateBoardNodeMutation,
   useUpdateEdgeMutation,
+  useUpdateEdgeStateMutation,
   useUpdateNodeMutation,
   useUpdateNodeStateMutation,
 } from "@/frontend/api/graph/graph.queries";
@@ -24,6 +25,7 @@ export function useEditorPersistence(
   const updateNode = useUpdateNodeMutation(workspaceId, boardId);
   const updateNodeState = useUpdateNodeStateMutation(workspaceId, boardId);
   const updateEdge = useUpdateEdgeMutation(workspaceId, boardId);
+  const updateEdgeState = useUpdateEdgeStateMutation(workspaceId, boardId);
   const moveNode = useUpdateBoardNodeMutation();
   const removeNode = useRemoveNodeFromBoardMutation(workspaceId, boardId);
   const restoreNode = useRestoreNodeToBoardMutation(workspaceId, boardId);
@@ -84,6 +86,16 @@ export function useEditorPersistence(
       }),
     updateEdge: (command) =>
       updateEdge.mutateAsync({
+        edgeId: command.edgeId,
+        workspaceId: command.workspaceId,
+        version: command.version,
+        name: command.name,
+        description: command.description,
+        properties: command.properties,
+      }),
+    updateEdgeState: (command) =>
+      updateEdgeState.mutateAsync({
+        scopeId: command.scopeId,
         edgeId: command.edgeId,
         workspaceId: command.workspaceId,
         version: command.version,
