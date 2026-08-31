@@ -88,10 +88,10 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
     const node = page.locator(`.react-flow__node[data-id="${setup.nodeId}"]`);
     await expect(node).toContainText("Alice");
     await node.click();
-    await expect(page.getByRole("heading", { name: "Node Inspector" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "노드" })).toBeVisible();
 
     const forwardPromise = waitForNodePatch(page, setup.nodeId);
-    await page.getByLabel("Name").fill("Alicia");
+    await page.getByLabel("이름").fill("Alicia");
     const forward = await forwardPromise;
     expect(forward.status()).toBe(200);
     expect(await forward.json()).toMatchObject({
@@ -99,7 +99,7 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
       name: "Alicia",
       version: 2,
     });
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
     await expect(node).toContainText("Alicia");
 
     const undoPromise = waitForNodePatch(page, setup.nodeId);
@@ -111,9 +111,9 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
       name: "Alice",
       version: 3,
     });
-    await expect(page.getByLabel("Name")).toHaveValue("Alice");
+    await expect(page.getByLabel("이름")).toHaveValue("Alice");
     await expect(node).toContainText("Alice");
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const redoPromise = waitForNodePatch(page, setup.nodeId);
     await page.getByRole("button", { name: "Redo" }).click();
@@ -124,9 +124,9 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
       name: "Alicia",
       version: 4,
     });
-    await expect(page.getByLabel("Name")).toHaveValue("Alicia");
+    await expect(page.getByLabel("이름")).toHaveValue("Alicia");
     await expect(node).toContainText("Alicia");
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const finalUndoPromise = waitForNodePatch(page, setup.nodeId);
     await page.getByRole("button", { name: "Undo" }).click();
@@ -137,7 +137,7 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
       name: "Alice",
       version: 5,
     });
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
@@ -217,7 +217,7 @@ test("Graph Editor persists drag Undo back to the original Board position", asyn
       x: initialPlacement.x,
       y: initialPlacement.y,
     });
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const undoPromise = waitForBoardNodePatch(
       page,
@@ -232,7 +232,7 @@ test("Graph Editor persists drag Undo back to the original Board position", asyn
       x: initialPlacement.x,
       y: initialPlacement.y,
     });
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
