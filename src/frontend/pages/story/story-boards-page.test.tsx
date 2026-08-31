@@ -15,10 +15,11 @@ const mocks = vi.hoisted(() => ({
   listScopes: vi.fn(),
   createScope: vi.fn(),
   replace: vi.fn(),
+  push: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: mocks.replace }),
+  useRouter: () => ({ replace: mocks.replace, push: mocks.push }),
 }));
 
 vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
@@ -36,6 +37,10 @@ vi.mock("@/frontend/api/graph/graph.api", () => ({
   createScope: mocks.createScope,
 }));
 
+vi.mock("@/frontend/features/auth/logout-button", () => ({
+  LogoutButton: () => <button type="button">로그아웃</button>,
+}));
+
 import { StoryBoardsPage } from "./story-boards-page";
 
 function renderPage() {
@@ -49,83 +54,128 @@ function renderPage() {
   );
 }
 
+const bootstrap = {
+  actor: { id: "user-1", email: "writer@example.com", name: "Writer" },
+  workspace: { id: "workspace-1", name: "Writer Workspace", slug: "writer" },
+};
+
+const story = {
+  id: storyId,
+  workspaceId: "workspace-1",
+  name: "My Novel",
+  description: "World notes",
+  createdAt: "2026-08-28T00:00:00.000Z",
+  updatedAt: "2026-08-28T00:00:00.000Z",
+};
+
+const scope = {
+  id: scopeId,
+  storyId,
+  name: "Chapter 10",
+  description: "",
+  createdAt: "2026-08-28T00:00:00.000Z",
+  updatedAt: "2026-08-28T00:00:00.000Z",
+};
+
+const board = {
+  id: boardId,
+  storyId,
+  scopeId,
+  name: "Characters",
+  description: "",
+  revision: 0,
+  createdAt: "2026-08-28T00:00:00.000Z",
+  updatedAt: "2026-08-28T00:00:00.000Z",
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getBootstrap.mockResolvedValue({
-    actor: { id: "user-1", email: "user@example.com", name: "Writer" },
-    workspace: { id: "workspace-1", name: "Writer's Workspace", slug: "personal-user-1" },
-  });
-  mocks.getStory.mockResolvedValue({
-    id: storyId,
-    workspaceId: "workspace-1",
-    name: "My Novel",
-    description: "World notes",
-    createdAt: "2026-08-28T00:00:00.000Z",
-    updatedAt: "2026-08-28T00:00:00.000Z",
-  });
-  mocks.listScopes.mockResolvedValue([
-    {
-      id: scopeId,
-      storyId,
-      name: "Chapter 10",
-      description: "",
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
-    },
-  ]);
-  mocks.listBoards.mockResolvedValue([
-    {
-      id: boardId,
-      storyId,
-      scopeId,
-      name: "Characters",
-      description: "",
-      revision: 0,
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
-    },
-  ]);
+  mocks.getBootstrap.mockResolvedValue(bootstrap);
+  mocks.getStory.mockResolvedValue(story);
+  mocks.listScopes.mockResolvedValue([scope]);
+  mocks.listBoards.mockResolvedValue([board]);
 });
 
 afterEach(cleanup);
 
 describe("StoryBoardsPage", () => {
-  it("loads the Story and links its Boards to the Editor", async () => {
+  it("makes Boards primary and shows attached context", async () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "My Novel" })).toBeInTheDocument();
-    const link = await screen.findByRole("link", { name: "Characters" });
-    expect(link).toHaveAttribute(
+    expect(screen.getByText("World notes")).toBeInTheDocument();
+    expect(screen.getByText("컨텍스트: Chapter 10")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Characters" })).toHaveAttribute(
       "href",
       `/stories/${storyId}/boards/${boardId}`,
     );
-    expect(mocks.getStory).toHaveBeenCalledWith("workspace-1", storyId);
-    expect(mocks.listBoards).toHaveBeenCalledWith(storyId, "workspace-1");
   });
 
-  it("renders Scopes and joins a Board card to its Scope", async () => {
+  it("explains the first Board when none exist", async () => {
+    mocks.listBoards.mockResolvedValue([]);
     renderPage();
 
-    expect((await screen.findAllByText("Chapter 10")).length).toBeGreaterThanOrEqual(1);
-    expect(await screen.findByText("Scope: Chapter 10")).toBeInTheDocument();
-    expect(mocks.listScopes).toHaveBeenCalledWith(storyId, "workspace-1");
+    expect(await screen.findByText("아직 보드가 없습니다")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "첫 보드 만들기" })).toBeInTheDocument();
   });
 
-  it("creates a Scope in the current Story", async () => {
-    mocks.createScope.mockResolvedValue({
-      id: "55555555-5555-4555-8555-555555555555",
-      storyId,
-      name: "Chapter 20",
-      description: "",
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
-    });
+  it("creates an unscoped Board and opens the returned editor", async () => {
+    const createdBoard = { ...board, id: "33333333-3333-4333-8333-333333333333", scopeId: null, name: "Plot" };
+    mocks.createBoard.mockResolvedValue(createdBoard);
     const user = userEvent.setup();
     renderPage();
 
     await screen.findByRole("heading", { name: "My Novel" });
-    await user.type(screen.getByLabelText("Scope name"), "Chapter 20");
-    await user.click(screen.getByRole("button", { name: "Create Scope" }));
+    await user.click(screen.getByRole("button", { name: "새 보드" }));
+    expect(screen.getByLabelText("컨텍스트")).toHaveValue("");
+    await user.type(screen.getByLabelText("보드 이름"), "Plot");
+    await user.click(screen.getByRole("button", { name: "보드 만들기" }));
+
+    await waitFor(() =>
+      expect(mocks.createBoard).toHaveBeenCalledWith({
+        storyId,
+        workspaceId: "workspace-1",
+        scopeId: null,
+        name: "Plot",
+        description: "",
+      }),
+    );
+    expect(mocks.push).toHaveBeenCalledWith(
+      `/stories/${storyId}/boards/${createdBoard.id}`,
+    );
+  });
+
+  it("creates a Board in the selected context", async () => {
+    mocks.createBoard.mockResolvedValue({ ...board, name: "Chapter Characters" });
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole("heading", { name: "My Novel" });
+    await user.click(screen.getByRole("button", { name: "새 보드" }));
+    await user.selectOptions(screen.getByLabelText("컨텍스트"), scopeId);
+    await user.type(screen.getByLabelText("보드 이름"), "Chapter Characters");
+    await user.click(screen.getByRole("button", { name: "보드 만들기" }));
+
+    await waitFor(() =>
+      expect(mocks.createBoard).toHaveBeenCalledWith({
+        storyId,
+        workspaceId: "workspace-1",
+        scopeId,
+        name: "Chapter Characters",
+        description: "",
+      }),
+    );
+  });
+
+  it("keeps context management secondary but usable", async () => {
+    mocks.createScope.mockResolvedValue({ ...scope, id: "scope-2", name: "Chapter 20" });
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole("heading", { name: "My Novel" });
+    await user.click(screen.getByRole("button", { name: "컨텍스트 관리" }));
+    await user.type(screen.getByLabelText("컨텍스트 이름"), "Chapter 20");
+    await user.click(screen.getByRole("button", { name: "컨텍스트 만들기" }));
 
     await waitFor(() =>
       expect(mocks.createScope).toHaveBeenCalledWith({
@@ -137,63 +187,13 @@ describe("StoryBoardsPage", () => {
     );
   });
 
-  it("creates an unscoped Board by default", async () => {
-    mocks.createBoard.mockResolvedValue({
-      id: "33333333-3333-4333-8333-333333333333",
-      storyId,
-      scopeId: null,
-      name: "Plot",
-      description: "",
-      revision: 0,
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
+  it("redirects an expired session to login", async () => {
+    mocks.getBootstrap.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 401 },
     });
-    const user = userEvent.setup();
     renderPage();
 
-    await screen.findByRole("heading", { name: "My Novel" });
-    expect(screen.getByLabelText("Board scope")).toHaveValue("");
-    await user.type(screen.getByLabelText("Board name"), "Plot");
-    await user.click(screen.getByRole("button", { name: "Create Board" }));
-
-    await waitFor(() =>
-      expect(mocks.createBoard).toHaveBeenCalledWith({
-        storyId,
-        workspaceId: "workspace-1",
-        scopeId: null,
-        name: "Plot",
-        description: "",
-      }),
-    );
-  });
-
-  it("creates a Board in the selected Scope", async () => {
-    mocks.createBoard.mockResolvedValue({
-      id: "66666666-6666-4666-8666-666666666666",
-      storyId,
-      scopeId,
-      name: "Chapter Characters",
-      description: "",
-      revision: 0,
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
-    });
-    const user = userEvent.setup();
-    renderPage();
-
-    await screen.findByRole("heading", { name: "My Novel" });
-    await user.selectOptions(screen.getByLabelText("Board scope"), scopeId);
-    await user.type(screen.getByLabelText("Board name"), "Chapter Characters");
-    await user.click(screen.getByRole("button", { name: "Create Board" }));
-
-    await waitFor(() =>
-      expect(mocks.createBoard).toHaveBeenCalledWith({
-        storyId,
-        workspaceId: "workspace-1",
-        scopeId,
-        name: "Chapter Characters",
-        description: "",
-      }),
-    );
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/login"));
   });
 });
