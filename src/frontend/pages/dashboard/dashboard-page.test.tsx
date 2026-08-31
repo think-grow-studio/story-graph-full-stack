@@ -81,7 +81,7 @@ describe("DashboardPage", () => {
     renderDashboard();
 
     expect(await screen.findByText("아직 이야기가 없습니다")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "첫 이야기 만들기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "첫 이야기 시작하기" })).toBeInTheDocument();
   });
 
   it("creates a story in a dialog and opens the returned story", async () => {
