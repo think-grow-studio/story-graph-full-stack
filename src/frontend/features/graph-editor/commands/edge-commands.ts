@@ -21,6 +21,18 @@ export type UpdateEdgeCommand = {
   properties: Record<string, unknown>;
 };
 
+export type UpdateEdgeStateCommand = {
+  type: "update-edge-state";
+  boardId: string;
+  workspaceId: string;
+  scopeId: string;
+  edgeId: string;
+  version: number | null;
+  name: string | null;
+  description: string | null;
+  properties: Record<string, unknown> | null;
+};
+
 export type RemoveBoardEdgeCommand = {
   type: "remove-board-edge";
   boardId: string;
