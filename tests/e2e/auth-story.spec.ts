@@ -12,14 +12,14 @@ test.afterAll(async () => {
 
 test("Google is the only authentication entry", async ({ page }) => {
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "다시 만나서 반가워요" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Google로 계속하기" })).toBeVisible();
   await expect(page.getByLabel("Email")).toHaveCount(0);
   await expect(page.getByLabel("Password")).toHaveCount(0);
 
   await page.goto("/signup");
-  await expect(page.getByRole("heading", { name: "Get started" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "이야기를 연결해 보세요" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Google로 계속하기" })).toBeVisible();
   await expect(page.getByLabel("Email")).toHaveCount(0);
   await expect(page.getByLabel("Password")).toHaveCount(0);
 });
@@ -98,17 +98,17 @@ test("authenticated user creates a Story that survives reload", async ({
     );
 
     await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "내 이야기" })).toBeVisible();
 
-    await expect(
-      page.getByRole("heading", { name: "E2E Google User's Workspace" }),
-    ).toBeVisible();
+    await page.getByRole("button", { name: "새 이야기" }).click();
+    await page.getByLabel("이야기 이름").fill("My First Story");
+    await page.getByRole("button", { name: "이야기 만들기" }).click();
+    await expect(page).toHaveURL(/\/stories\/[0-9a-f-]+$/i);
+    await expect(page.getByRole("heading", { name: "My First Story" })).toBeVisible();
 
-    await page.getByLabel("Story name").fill("My First Story");
-    await page.getByRole("button", { name: "Create Story" }).click();
-    await expect(page.getByText("My First Story")).toBeVisible();
-
+    await page.goto("/dashboard");
     await page.reload();
-    await expect(page.getByText("My First Story")).toBeVisible();
+    await expect(page.getByRole("link", { name: "My First Story" })).toBeVisible();
   } finally {
     await cleanupE2EIdentity(identity);
   }
@@ -199,14 +199,14 @@ test("Graph Editor creates and repositions a Node through the UI", async ({
     const workspaceId = bootstrap.workspace.id as string;
 
     await page.goto("/dashboard");
-    await page.getByLabel("Story name").fill("Editor E2E Story");
-    await page.getByRole("button", { name: "Create Story" }).click();
-    await page.getByRole("link", { name: "Editor E2E Story" }).click();
+    await page.getByRole("button", { name: "새 이야기" }).click();
+    await page.getByLabel("이야기 이름").fill("Editor E2E Story");
+    await page.getByRole("button", { name: "이야기 만들기" }).click();
     await expect(page).toHaveURL(/\/stories\/[0-9a-f-]+$/i);
 
-    await page.getByLabel("Board name").fill("Characters");
-    await page.getByRole("button", { name: "Create Board" }).click();
-    await page.getByRole("link", { name: "Characters" }).click();
+    await page.getByRole("button", { name: "새 보드" }).click();
+    await page.getByLabel("보드 이름").fill("Characters");
+    await page.getByRole("button", { name: "보드 만들기" }).click();
     await expect(page).toHaveURL(
       /\/stories\/[0-9a-f-]+\/boards\/[0-9a-f-]+$/i,
     );
@@ -214,8 +214,8 @@ test("Graph Editor creates and repositions a Node through the UI", async ({
     const boardId = page.url().split("/").at(-1)!;
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
 
-    await page.getByRole("button", { name: "+ Node" }).click();
-    await page.getByLabel("Node name").fill("E2E Node");
+    await page.getByRole("button", { name: "노드 추가" }).click();
+    await page.getByLabel("노드 이름").fill("E2E Node");
 
     const createResponsePromise = page.waitForResponse((response) => {
       const path = new URL(response.url()).pathname;
@@ -224,7 +224,7 @@ test("Graph Editor creates and repositions a Node through the UI", async ({
         path === `/api/v1/boards/${boardId}/nodes`
       );
     });
-    await page.getByRole("button", { name: "Create Node" }).click();
+    await page.getByRole("button", { name: "새 노드 만들기" }).click();
 
     const createResponse = await createResponsePromise;
     expect(createResponse.status()).toBe(201);
@@ -370,8 +370,8 @@ test("Graph Editor connects two Nodes and restores the Relationship after reload
     );
     await page.mouse.up();
 
-    await expect(page.getByLabel("Relationship name")).toBeVisible();
-    await page.getByLabel("Relationship name").fill("sister");
+    await expect(page.getByLabel("관계 이름")).toBeVisible();
+    await page.getByLabel("관계 이름").fill("sister");
 
     const createResponsePromise = page.waitForResponse((response) => {
       const path = new URL(response.url()).pathname;
@@ -380,7 +380,7 @@ test("Graph Editor connects two Nodes and restores the Relationship after reload
         path === `/api/v1/boards/${board.id}/edges`
       );
     });
-    await page.getByRole("button", { name: "Create Relationship" }).click();
+    await page.getByRole("button", { name: "관계 만들기" }).click();
 
     const createResponse = await createResponsePromise;
     expect(createResponse.status()).toBe(201);
@@ -487,15 +487,15 @@ test("Graph Editor edits canonical Node and Relationship data through the Inspec
 
     const alice = page.locator(`.react-flow__node[data-id="${aliceId}"]`);
     await alice.click();
-    await expect(page.getByRole("heading", { name: "Node Inspector" })).toBeVisible();
-    await page.getByLabel("Name").fill("Alicia");
-    await page.getByLabel("Description").fill("Main protagonist");
+    await expect(page.getByRole("heading", { name: "노드" })).toBeVisible();
+    await page.getByLabel("이름").fill("Alicia");
+    await page.getByLabel("설명").fill("Main protagonist");
     const nodeUpdatePromise = page.waitForResponse((response) =>
       response.request().method() === "PATCH" &&
       new URL(response.url()).pathname === `/api/v1/nodes/${aliceId}`,
     );
-    await page.getByLabel("Properties JSON").fill('{"role":"lead","age":31}');
-    await expect(page.getByText("Unsaved")).toBeVisible();
+    await page.getByLabel("속성 JSON").fill('{"role":"lead","age":31}');
+    await expect(page.getByText("저장되지 않음")).toBeVisible();
 
     const nodeUpdate = await nodeUpdatePromise;
     expect(nodeUpdate.status()).toBe(200);
@@ -506,22 +506,20 @@ test("Graph Editor edits canonical Node and Relationship data through the Inspec
       properties: { role: "lead", age: 31 },
       version: 2,
     });
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
     await expect(page.locator(`.react-flow__node[data-id="${aliceId}"]`)).toContainText("Alicia");
 
     const relationship = page.locator(".react-flow__edge").filter({ hasText: "knows" });
     await relationship.click();
-    await expect(
-      page.getByRole("heading", { name: "Relationship Inspector" }),
-    ).toBeVisible();
-    await page.getByLabel("Name").fill("best friend");
-    await page.getByLabel("Description").fill("Childhood friends");
+    await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
+    await page.getByLabel("이름").fill("best friend");
+    await page.getByLabel("설명").fill("Childhood friends");
     const edgeUpdatePromise = page.waitForResponse((response) =>
       response.request().method() === "PATCH" &&
       new URL(response.url()).pathname === `/api/v1/edges/${edgeId}`,
     );
-    await page.getByLabel("Properties JSON").fill('{"since":2012}');
-    await expect(page.getByText("Unsaved")).toBeVisible();
+    await page.getByLabel("속성 JSON").fill('{"since":2012}');
+    await expect(page.getByText("저장되지 않음")).toBeVisible();
 
     const edgeUpdate = await edgeUpdatePromise;
     expect(edgeUpdate.status()).toBe(200);
@@ -532,7 +530,7 @@ test("Graph Editor edits canonical Node and Relationship data through the Inspec
       properties: { since: 2012 },
       version: 2,
     });
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
     await expect(page.locator(`.react-flow__node[data-id="${aliceId}"]`)).toContainText("Alicia");
@@ -643,14 +641,14 @@ test("Graph Editor removes a Node from the Board without deleting canonical grap
     await expect(relationship).toBeVisible();
 
     await alice.click();
-    await expect(page.getByRole("heading", { name: "Node Inspector" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "노드" })).toBeVisible();
 
     const removeResponsePromise = page.waitForResponse((response) =>
       response.request().method() === "DELETE" &&
       new URL(response.url()).pathname ===
         `/api/v1/boards/${board.id}/nodes/${aliceId}`,
     );
-    await page.getByRole("button", { name: "Remove from Board" }).click();
+    await page.getByRole("button", { name: "보드에서 제거" }).click();
     const removeResponse = await removeResponsePromise;
     expect(removeResponse.status()).toBe(204);
 
