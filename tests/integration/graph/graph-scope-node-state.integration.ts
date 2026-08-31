@@ -7,6 +7,8 @@ import { db } from "@/backend/infrastructure/database/client";
 import {
   board,
   boardNode,
+  edgeState,
+  graphEdge,
   graphNode,
   nodeState,
   organization,
@@ -98,6 +100,69 @@ describe("Scope and NodeState database invariants", () => {
         nodeId: secondNodeId,
         storyId: firstStory.id,
         name: "Invalid Bob",
+        description: null,
+        properties: null,
+      }),
+    ).rejects.toBeTruthy();
+  });
+
+  it("stores EdgeState only when Scope and Edge belong to the same Story", async () => {
+    const workspace = await createWorkspace("Edge State Owner");
+    const firstStory = await createStory(workspace.id, "First Edge Story");
+    const secondStory = await createStory(workspace.id, "Second Edge Story");
+    const scopeId = crypto.randomUUID();
+    const firstSourceId = crypto.randomUUID();
+    const firstTargetId = crypto.randomUUID();
+    const secondSourceId = crypto.randomUUID();
+    const secondTargetId = crypto.randomUUID();
+    const firstEdgeId = crypto.randomUUID();
+    const secondEdgeId = crypto.randomUUID();
+
+    await db.insert(scope).values({
+      id: scopeId,
+      storyId: firstStory.id,
+      name: "Chapter 10",
+    });
+    await db.insert(graphNode).values([
+      { id: firstSourceId, storyId: firstStory.id, name: "Alice" },
+      { id: firstTargetId, storyId: firstStory.id, name: "Crown" },
+      { id: secondSourceId, storyId: secondStory.id, name: "Bob" },
+      { id: secondTargetId, storyId: secondStory.id, name: "Council" },
+    ]);
+    await db.insert(graphEdge).values([
+      {
+        id: firstEdgeId,
+        storyId: firstStory.id,
+        sourceNodeId: firstSourceId,
+        targetNodeId: firstTargetId,
+        name: "serves",
+      },
+      {
+        id: secondEdgeId,
+        storyId: secondStory.id,
+        sourceNodeId: secondSourceId,
+        targetNodeId: secondTargetId,
+        name: "advises",
+      },
+    ]);
+
+    await expect(
+      db.insert(edgeState).values({
+        scopeId,
+        edgeId: firstEdgeId,
+        storyId: firstStory.id,
+        name: "rules",
+        description: null,
+        properties: null,
+      }),
+    ).resolves.toBeDefined();
+
+    await expect(
+      db.insert(edgeState).values({
+        scopeId,
+        edgeId: secondEdgeId,
+        storyId: firstStory.id,
+        name: "Invalid Edge State",
         description: null,
         properties: null,
       }),
