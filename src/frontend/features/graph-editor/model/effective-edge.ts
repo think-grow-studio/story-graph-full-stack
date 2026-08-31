@@ -17,6 +17,18 @@ export type EffectiveEdgeOverrides = Pick<
   "name" | "description" | "properties"
 >;
 
+export function findEdgeState(
+  scopeId: string,
+  edgeId: string,
+  edgeStates: readonly EditorEdgeState[],
+): EditorEdgeState | null {
+  return (
+    edgeStates.find(
+      (state) => state.scopeId === scopeId && state.edgeId === edgeId,
+    ) ?? null
+  );
+}
+
 export function resolveEffectiveEdge(
   canonical: GraphEdgeResponse,
   state: EditorEdgeState | null | undefined,
