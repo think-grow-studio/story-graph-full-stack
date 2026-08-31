@@ -3,6 +3,7 @@ import type {
   BoardNodeResponse,
   BoardResponse,
   BoardSnapshotResponse,
+  EdgeStateResponse,
   GraphEdgeResponse,
   GraphNodeResponse,
   NodeStateResponse,
@@ -12,11 +13,12 @@ import type { EditorNodeState } from "./effective-node";
 
 export type GraphEditorSnapshot = Omit<
   BoardSnapshotResponse,
-  "board" | "scope" | "nodeStates"
+  "board" | "scope" | "nodeStates" | "edgeStates"
 > & {
   board: Omit<BoardResponse, "scopeId"> & { scopeId?: string | null };
   scope?: ScopeResponse | null;
   nodeStates?: NodeStateResponse[];
+  edgeStates?: EdgeStateResponse[];
 };
 export type GraphEditorNodePair = {
   node: GraphNodeResponse;
