@@ -160,6 +160,7 @@ function createPersistence(
     updateNode: updateNodeImpl,
     updateNodeState: updateNodeStateImpl,
     updateEdge: vi.fn(),
+    updateEdgeState: vi.fn(),
     removeBoardNode: vi.fn(),
     restoreBoardNode: vi.fn(),
     removeBoardEdge: vi.fn(),
