@@ -20,6 +20,17 @@ export interface NodeState {
   updatedAt: Date;
 }
 
+export interface EdgeState {
+  scopeId: string;
+  edgeId: string;
+  name: string | null;
+  description: string | null;
+  properties: JsonObject | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Board {
   id: string;
   storyId: string;
