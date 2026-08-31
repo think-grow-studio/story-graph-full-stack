@@ -1,63 +1,12 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { isAxiosError } from "axios";
 
-import { getBootstrap } from "@/frontend/api/auth/bootstrap.api";
+import { AuthRouteGuard } from "@/frontend/features/auth/auth-route-guard";
 import { GoogleAuthButton } from "@/frontend/features/auth/google-auth-button";
 
-function isUnauthorized(error: unknown) {
-  return isAxiosError(error) && error.response?.status === 401;
-}
-
-export function GoogleAuthPage({ mode }: { mode: "login" | "signup" }) {
-  const router = useRouter();
+function AuthSurface({ mode }: { mode: "login" | "signup" }) {
   const isLogin = mode === "login";
-  const bootstrapQuery = useQuery({
-    queryKey: ["bootstrap"],
-    queryFn: getBootstrap,
-    retry: false,
-  });
-
-  useEffect(() => {
-    if (bootstrapQuery.data) {
-      router.replace("/dashboard");
-    }
-  }, [bootstrapQuery.data, router]);
-
-  const canAuthenticate =
-    bootstrapQuery.isError && isUnauthorized(bootstrapQuery.error);
-
-  if (!canAuthenticate) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-[var(--sg-canvas)] p-5 sm:p-8">
-        <section
-          aria-busy={bootstrapQuery.isPending || undefined}
-          className="w-full max-w-sm rounded-[var(--sg-radius-lg)] border border-[var(--sg-line)] bg-[var(--sg-surface)] p-6 sm:p-8"
-        >
-          <Link className="text-sm font-bold tracking-[-0.02em]" href="/">
-            Story Graph
-          </Link>
-          <div className="mt-8 grid gap-3">
-            <div
-              aria-hidden="true"
-              className="h-2 w-20 overflow-hidden rounded-full bg-[var(--sg-line)]"
-            >
-              <div className="h-full w-1/2 animate-pulse rounded-full bg-[var(--sg-brand)]" />
-            </div>
-            <p className="text-sm text-[var(--sg-muted)]">
-              {bootstrapQuery.isError
-                ? "로그인 상태를 확인하지 못했습니다. 페이지를 새로고침해 주세요."
-                : "로그인 상태를 확인하고 있습니다."}
-            </p>
-          </div>
-        </section>
-      </main>
-    );
-  }
 
   return (
     <main className="grid min-h-screen bg-[var(--sg-canvas)] lg:grid-cols-[1fr_0.92fr]">
@@ -86,10 +35,7 @@ export function GoogleAuthPage({ mode }: { mode: "login" | "signup" }) {
       <section className="flex min-h-screen items-center justify-center p-5 sm:p-8 lg:p-12">
         <div className="w-full max-w-md">
           <Link className="mb-10 inline-flex items-center gap-2 text-sm font-bold tracking-[-0.02em] lg:hidden" href="/">
-            <span
-              aria-hidden="true"
-              className="size-5 rounded-full border-2 border-[var(--sg-brand)]"
-            />
+            <span aria-hidden="true" className="size-5 rounded-full border-2 border-[var(--sg-brand)]" />
             Story Graph
           </Link>
 
@@ -98,7 +44,7 @@ export function GoogleAuthPage({ mode }: { mode: "login" | "signup" }) {
               {isLogin ? "로그인" : "처음 시작하기"}
             </p>
             <h1 className="mt-3 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
-              {isLogin ? "다시 만나서 반가워요" : "이야기 세계를 연결해 보세요"}
+              {isLogin ? "다시 만나서 반가워요" : "이야기를 연결해 보세요"}
             </h1>
             <p className="mt-4 text-sm leading-6 text-[var(--sg-muted)] sm:text-base sm:leading-7">
               {isLogin
@@ -123,5 +69,13 @@ export function GoogleAuthPage({ mode }: { mode: "login" | "signup" }) {
         </div>
       </section>
     </main>
+  );
+}
+
+export function GoogleAuthPage({ mode }: { mode: "login" | "signup" }) {
+  return (
+    <AuthRouteGuard>
+      <AuthSurface mode={mode} />
+    </AuthRouteGuard>
   );
 }
