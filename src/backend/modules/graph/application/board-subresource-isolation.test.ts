@@ -47,6 +47,7 @@ function createDependencies() {
     createNodeOnBoard: vi.fn(),
     placeNodeOnBoard: vi.fn(),
     putNodeState: vi.fn(),
+    putEdgeState: vi.fn(),
     updateNode: vi.fn(),
     updateBoardNode: vi.fn(),
     removeNodeFromBoard: vi.fn(),

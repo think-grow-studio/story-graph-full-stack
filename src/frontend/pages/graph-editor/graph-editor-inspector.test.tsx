@@ -17,7 +17,9 @@ const mocks = vi.hoisted(() => ({
   updateBoardNode: vi.fn(),
   createEdgeOnBoard: vi.fn(),
   updateNode: vi.fn(),
+  updateNodeState: vi.fn(),
   updateEdge: vi.fn(),
+  updateEdgeState: vi.fn(),
 }));
 
 vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
@@ -30,7 +32,9 @@ vi.mock("@/frontend/api/graph/graph.api", () => ({
   updateBoardNode: mocks.updateBoardNode,
   createEdgeOnBoard: mocks.createEdgeOnBoard,
   updateNode: mocks.updateNode,
+  updateNodeState: mocks.updateNodeState,
   updateEdge: mocks.updateEdge,
+  updateEdgeState: mocks.updateEdgeState,
 }));
 
 vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
@@ -83,6 +87,7 @@ const boardId = "22222222-2222-4222-8222-222222222222";
 const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
+const scopeId = "77777777-7777-4777-8777-777777777777";
 const now = "2026-08-28T00:00:00.000Z";
 
 function snapshot() {
@@ -168,6 +173,36 @@ function snapshot() {
         edgeId,
         style: {},
         labelPresentation: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+  };
+}
+
+function scopedSnapshot() {
+  const base = snapshot();
+  return {
+    ...base,
+    board: { ...base.board, scopeId, name: "Chapter Relationships" },
+    scope: {
+      id: scopeId,
+      storyId,
+      name: "Chapter 10",
+      description: "",
+      createdAt: now,
+      updatedAt: now,
+    },
+    nodeStates: [],
+    edges: [{ ...base.edges[0], name: "serves" }],
+    edgeStates: [
+      {
+        scopeId,
+        edgeId,
+        name: "rules",
+        description: null,
+        properties: null,
+        version: 2,
         createdAt: now,
         updatedAt: now,
       },
@@ -326,6 +361,32 @@ describe("Graph Editor inspector", () => {
         expect.objectContaining({ id: edgeId, name: "best friend", version: 5 }),
       );
     });
+  });
+
+  it("renders scoped Relationship state in both canvas and Inspector while canonical Edge stays unchanged", async () => {
+    mocks.getBoardSnapshot.mockResolvedValueOnce(scopedSnapshot());
+    const user = userEvent.setup();
+    const { queryClient } = renderPage();
+
+    expect(
+      await screen.findByRole("button", { name: "Select rules" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Select serves" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Select rules" }));
+    expect(
+      screen.getByRole("heading", { name: "Relationship Inspector" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("rules");
+
+    const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof scopedSnapshot>>([
+      "graph",
+      "snapshot",
+      "workspace-1",
+      boardId,
+    ]);
+    expect(cachedSnapshot?.edges[0]?.name).toBe("serves");
+    expect(cachedSnapshot?.edgeStates[0]?.name).toBe("rules");
   });
 
   it("preserves an invalid Alice draft across Alice -> Bob -> Alice selection", async () => {

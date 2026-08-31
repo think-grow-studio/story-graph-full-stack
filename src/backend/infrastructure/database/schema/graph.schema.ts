@@ -121,6 +121,39 @@ export const nodeState = pgTable(
   ],
 );
 
+export const edgeState = pgTable(
+  "edge_state",
+  {
+    scopeId: text("scope_id").notNull(),
+    edgeId: text("edge_id").notNull(),
+    storyId: text("story_id").notNull(),
+    name: text("name"),
+    description: text("description"),
+    properties: jsonb("properties").$type<JsonObject>(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "edge_state_pk",
+      columns: [table.scopeId, table.edgeId],
+    }),
+    index("edge_state_story_id_idx").on(table.storyId),
+    index("edge_state_edge_id_idx").on(table.edgeId),
+    foreignKey({
+      name: "edge_state_scope_story_fk",
+      columns: [table.scopeId, table.storyId],
+      foreignColumns: [scope.id, scope.storyId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "edge_state_edge_story_fk",
+      columns: [table.edgeId, table.storyId],
+      foreignColumns: [graphEdge.id, graphEdge.storyId],
+    }).onDelete("cascade"),
+  ],
+);
+
 export const board = pgTable(
   "board",
   {

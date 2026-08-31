@@ -7,6 +7,7 @@ import {
   board,
   boardEdge,
   boardNode,
+  edgeState,
   graphEdge,
   graphNode,
   nodeState,
@@ -17,6 +18,7 @@ import type {
   BoardEdge,
   BoardNode,
   BoardSnapshot,
+  EdgeState,
   GraphEdge,
   GraphNode,
   NodeState,
@@ -54,6 +56,19 @@ function toNodeState(row: typeof nodeState.$inferSelect): NodeState {
   return {
     scopeId: row.scopeId,
     nodeId: row.nodeId,
+    name: row.name,
+    description: row.description,
+    properties: row.properties,
+    version: row.version,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function toEdgeState(row: typeof edgeState.$inferSelect): EdgeState {
+  return {
+    scopeId: row.scopeId,
+    edgeId: row.edgeId,
     name: row.name,
     description: row.description,
     properties: row.properties,
@@ -204,6 +219,18 @@ export class DrizzleGraphRepository implements GraphRepository {
           edgeIds.length === 0
             ? []
             : await tx.select().from(graphEdge).where(inArray(graphEdge.id, edgeIds));
+        const edgeStates =
+          foundScope && edgeIds.length > 0
+            ? await tx
+                .select()
+                .from(edgeState)
+                .where(
+                  and(
+                    eq(edgeState.scopeId, foundScope.id),
+                    inArray(edgeState.edgeId, edgeIds),
+                  ),
+                )
+            : [];
 
         return {
           board: foundBoard,
@@ -211,6 +238,7 @@ export class DrizzleGraphRepository implements GraphRepository {
           nodes,
           nodeStates: nodeStates.map(toNodeState),
           edges,
+          edgeStates: edgeStates.map(toEdgeState),
           boardNodes: boardNodeRows.map(toBoardNode),
           boardEdges: boardEdgeRows.map(toBoardEdge),
         };
@@ -378,6 +406,71 @@ export class DrizzleGraphRepository implements GraphRepository {
         )
         .returning();
       return updated ? toNodeState(updated) : "conflict";
+    });
+  }
+
+  async putEdgeState(input: {
+    scopeId: string;
+    edgeId: string;
+    expectedVersion: number | null;
+    name: string | null;
+    description: string | null;
+    properties: EdgeState["properties"];
+  }): Promise<EdgeState | "conflict" | null> {
+    return db.transaction(async (tx) => {
+      const [foundScope] = await tx
+        .select({ storyId: scope.storyId })
+        .from(scope)
+        .where(eq(scope.id, input.scopeId))
+        .limit(1);
+      if (!foundScope) return null;
+
+      const [foundEdge] = await tx
+        .select({ id: graphEdge.id })
+        .from(graphEdge)
+        .where(
+          and(
+            eq(graphEdge.id, input.edgeId),
+            eq(graphEdge.storyId, foundScope.storyId),
+          ),
+        )
+        .limit(1);
+      if (!foundEdge) return null;
+
+      if (input.expectedVersion === null) {
+        const [created] = await tx
+          .insert(edgeState)
+          .values({
+            scopeId: input.scopeId,
+            edgeId: input.edgeId,
+            storyId: foundScope.storyId,
+            name: input.name,
+            description: input.description,
+            properties: input.properties,
+          })
+          .onConflictDoNothing()
+          .returning();
+        return created ? toEdgeState(created) : "conflict";
+      }
+
+      const [updated] = await tx
+        .update(edgeState)
+        .set({
+          name: input.name,
+          description: input.description,
+          properties: input.properties,
+          version: sql`${edgeState.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(edgeState.scopeId, input.scopeId),
+            eq(edgeState.edgeId, input.edgeId),
+            eq(edgeState.version, input.expectedVersion),
+          ),
+        )
+        .returning();
+      return updated ? toEdgeState(updated) : "conflict";
     });
   }
 

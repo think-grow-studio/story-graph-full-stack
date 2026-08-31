@@ -1,5 +1,10 @@
 import type { EditorCommand } from "../commands/editor-command";
 import {
+  findEdgeState,
+  normalizeEdgeStateOverrides,
+  resolveEffectiveEdge,
+} from "../model/effective-edge";
+import {
   findNodeState,
   normalizeNodeStateOverrides,
   resolveEffectiveNode,
@@ -88,10 +93,27 @@ export function createInspectorAutosaveController({
     }
 
     const edgeId = key.slice("edge:".length);
-    const edge = graphStore
-      .getState()
-      .edges.find((candidate) => candidate.id === edgeId);
+    const state = graphStore.getState();
+    const edge = state.edges.find((candidate) => candidate.id === edgeId);
     if (!edge) return;
+
+    if (state.scope) {
+      const edgeState = findEdgeState(state.scope.id, edgeId, state.edgeStates);
+      const effectiveEdge = resolveEffectiveEdge(edge, edgeState);
+      const evaluation = evaluateInspectorDraft(draft, effectiveEdge);
+      if (evaluation.status !== "saveable" || !evaluation.dirty) return;
+
+      dispatch({
+        type: "update-edge-state",
+        boardId,
+        workspaceId,
+        scopeId: state.scope.id,
+        edgeId,
+        version: edgeState?.version ?? null,
+        ...normalizeEdgeStateOverrides(edge, evaluation.input),
+      });
+      return;
+    }
 
     const evaluation = evaluateInspectorDraft(draft, edge);
     if (evaluation.status !== "saveable" || !evaluation.dirty) return;

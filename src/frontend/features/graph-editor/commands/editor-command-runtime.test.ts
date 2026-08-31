@@ -157,6 +157,7 @@ function persistence(): EditorPersistence {
     updateNode: vi.fn(),
     updateNodeState: vi.fn(),
     updateEdge: vi.fn(),
+    updateEdgeState: vi.fn(),
     removeBoardNode: vi.fn(),
     restoreBoardNode: vi.fn(),
     removeBoardEdge: vi.fn(),
@@ -476,6 +477,102 @@ describe("editor command runtime", () => {
     });
     expect(store.getState().nodes.find((node) => node.id === aliceId)?.name).toBe(
       "Alice",
+    );
+  });
+
+  it("applies a first scoped EdgeState write without mutating the canonical Edge", () => {
+    const store = scopedStore();
+    const canonicalBefore = structuredClone(
+      store.getState().edges.find((edge) => edge.id === edgeId)!,
+    );
+    const command = {
+      type: "update-edge-state" as const,
+      boardId,
+      workspaceId,
+      scopeId,
+      edgeId,
+      version: null,
+      name: "rules",
+      description: null,
+      properties: { strength: 9 },
+    };
+
+    expect(applyEditorCommand(store, command)).toBe(true);
+
+    expect(store.getState().edges.find((edge) => edge.id === edgeId)).toEqual(
+      canonicalBefore,
+    );
+    expect(store.getState().edgeStates).toContainEqual({
+      scopeId,
+      edgeId,
+      name: "rules",
+      description: null,
+      properties: { strength: 9 },
+      version: null,
+      createdAt: null,
+      updatedAt: null,
+    });
+  });
+
+  it("advances persisted EdgeState metadata without overwriting a newer local override", async () => {
+    const store = scopedStore();
+    const gate = deferred<{
+      scopeId: string;
+      edgeId: string;
+      name: string | null;
+      description: string | null;
+      properties: Record<string, unknown> | null;
+      version: number;
+      createdAt: string;
+      updatedAt: string;
+    }>();
+    const durable = {
+      ...persistence(),
+      updateEdgeState: vi.fn(() => gate.promise),
+    };
+    const first = {
+      type: "update-edge-state" as const,
+      boardId,
+      workspaceId,
+      scopeId,
+      edgeId,
+      version: null,
+      name: "rules",
+      description: null,
+      properties: null,
+    };
+
+    applyEditorCommand(store, first);
+    const persistencePromise = persistAndReconcileEditorCommand(store, durable, first);
+    applyEditorCommand(store, {
+      ...first,
+      name: "commands",
+    });
+
+    gate.resolve({
+      scopeId,
+      edgeId,
+      name: "rules",
+      description: null,
+      properties: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: "2026-08-29T00:01:00.000Z",
+    });
+    await persistencePromise;
+
+    expect(store.getState().edgeStates).toContainEqual({
+      scopeId,
+      edgeId,
+      name: "commands",
+      description: null,
+      properties: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: "2026-08-29T00:01:00.000Z",
+    });
+    expect(store.getState().edges.find((edge) => edge.id === edgeId)?.name).toBe(
+      "knows",
     );
   });
 });

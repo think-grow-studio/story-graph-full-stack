@@ -31,6 +31,10 @@ import {
   useInspectorDraftState,
 } from "@/frontend/features/graph-editor/inspector/use-inspector-autosave";
 import {
+  findEdgeState,
+  resolveEffectiveEdge,
+} from "@/frontend/features/graph-editor/model/effective-edge";
+import {
   findNodeState,
   resolveEffectiveNode,
 } from "@/frontend/features/graph-editor/model/effective-node";
@@ -127,7 +131,15 @@ function GraphEditorContent({
     const edge = state.edges.find(
       (candidate) => candidate.id === selectedEntity.id,
     );
-    if (edge) inspectorSelection = { kind: "edge", entity: edge };
+    if (edge) {
+      const edgeState = state.scope
+        ? findEdgeState(state.scope.id, edge.id, state.edgeStates)
+        : null;
+      inspectorSelection = {
+        kind: "edge",
+        entity: resolveEffectiveEdge(edge, edgeState),
+      };
+    }
   }
 
   const selectedDraftKey = inspectorSelection
@@ -175,7 +187,14 @@ function GraphEditorContent({
 
       const edgeId = key.slice("edge:".length);
       const edge = state.edges.find((candidate) => candidate.id === edgeId);
-      return !edge || evaluateInspectorDraft(draft, edge).dirty;
+      if (!edge) return true;
+      const edgeState = state.scope
+        ? findEdgeState(state.scope.id, edge.id, state.edgeStates)
+        : null;
+      return evaluateInspectorDraft(
+        draft,
+        resolveEffectiveEdge(edge, edgeState),
+      ).dirty;
     },
   );
   const editorSaveState = combineEditorSaveState(
@@ -226,6 +245,25 @@ function GraphEditorContent({
           draftStore
             .getState()
             .replaceDraft(toInspectorEntityKey("edge", command.edgeId), edge);
+        }
+        return;
+      }
+
+      if (command.type === "update-edge-state") {
+        const currentState = store.getState();
+        const edge = currentState.edges.find(
+          (candidate) => candidate.id === command.edgeId,
+        );
+        if (edge) {
+          const edgeState = findEdgeState(
+            command.scopeId,
+            command.edgeId,
+            currentState.edgeStates,
+          );
+          draftStore.getState().replaceDraft(
+            toInspectorEntityKey("edge", command.edgeId),
+            resolveEffectiveEdge(edge, edgeState),
+          );
         }
       }
     },
@@ -448,12 +486,18 @@ function GraphEditorContent({
   );
   const canvasEdges = state.edges
     .filter((edge) => representedEdgeIds.has(edge.id))
-    .map((edge) => ({
-      id: edge.id,
-      name: edge.name,
-      sourceNodeId: edge.sourceNodeId,
-      targetNodeId: edge.targetNodeId,
-    }));
+    .map((edge) => {
+      const edgeState = state.scope
+        ? findEdgeState(state.scope.id, edge.id, state.edgeStates)
+        : null;
+      const effectiveEdge = resolveEffectiveEdge(edge, edgeState);
+      return {
+        id: edge.id,
+        name: effectiveEdge.name,
+        sourceNodeId: edge.sourceNodeId,
+        targetNodeId: edge.targetNodeId,
+      };
+    });
 
   const selectedLaneKey = selectedDraftKey;
   const selectedLaneState = selectedLaneKey
@@ -469,7 +513,8 @@ function GraphEditorContent({
             failure.laneKey === selectedLaneKey &&
             (failure.command.type === "update-node" ||
               failure.command.type === "update-node-state" ||
-              failure.command.type === "update-edge"),
+              failure.command.type === "update-edge" ||
+              failure.command.type === "update-edge-state"),
         )
     : undefined;
   const inspectorError = selectedInspectorFailure
@@ -699,6 +744,10 @@ function getEditorFailureMessage(command: EditorCommand, error: unknown): string
       return isAxiosError(error) && error.response?.status === 409
         ? "This Relationship changed elsewhere. Reload before saving again."
         : "Unable to save Relationship.";
+    case "update-edge-state":
+      return isAxiosError(error) && error.response?.status === 409
+        ? "This scoped Relationship state changed elsewhere. Reload before saving again."
+        : "Unable to save scoped Relationship state.";
     case "remove-board-node":
       return "Unable to remove Node from Board.";
     case "restore-board-node":

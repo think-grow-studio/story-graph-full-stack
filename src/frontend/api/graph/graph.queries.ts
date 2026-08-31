@@ -4,6 +4,7 @@ import type {
   BoardEdgeResponse,
   BoardResponse,
   BoardSnapshotResponse,
+  EdgeStateResponse,
   GraphEdgeResponse,
   GraphNodeResponse,
   NodeStateResponse,
@@ -27,6 +28,7 @@ import {
   restoreNodeToBoard,
   updateBoardNode,
   updateEdge,
+  updateEdgeState,
   updateNode,
   updateNodeState,
   type PlaceNodeOnBoardInput,
@@ -35,6 +37,7 @@ import {
   type RestoreEdgeToBoardInput,
   type RestoreNodeToBoardInput,
   type UpdateEdgeInput,
+  type UpdateEdgeStateInput,
   type UpdateNodeInput,
   type UpdateNodeStateInput,
 } from "./graph.api";
@@ -228,6 +231,23 @@ export function useUpdateEdgeMutation(
   });
 }
 
+export function useUpdateEdgeStateMutation(
+  workspaceId: string | undefined,
+  boardId: string,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateEdgeStateInput) => updateEdgeState(input),
+    onSuccess: (edgeState) => {
+      if (!workspaceId) return;
+      queryClient.setQueryData<BoardSnapshotResponse>(
+        graphQueryKeys.snapshot(workspaceId, boardId),
+        (current) => replaceSnapshotEdgeState(current, edgeState),
+      );
+    },
+  });
+}
+
 export function useUpdateBoardNodeMutation() {
   return useMutation({ mutationFn: updateBoardNode });
 }
@@ -363,6 +383,23 @@ function replaceSnapshotEdge(
   };
 }
 
+function replaceSnapshotEdgeState(
+  current: BoardSnapshotResponse | undefined,
+  edgeState: EdgeStateResponse,
+): BoardSnapshotResponse | undefined {
+  if (!current) return current;
+  return {
+    ...current,
+    edgeStates: [
+      ...current.edgeStates.filter(
+        (candidate) =>
+          candidate.scopeId !== edgeState.scopeId || candidate.edgeId !== edgeState.edgeId,
+      ),
+      edgeState,
+    ],
+  };
+}
+
 function detachSnapshotNode(
   current: BoardSnapshotResponse | undefined,
   nodeId: string,
@@ -383,6 +420,7 @@ function detachSnapshotNode(
       (boardNode) => boardNode.nodeId !== nodeId,
     ),
     edges: current.edges.filter((edge) => !incidentEdgeIds.has(edge.id)),
+    edgeStates: current.edgeStates.filter((state) => !incidentEdgeIds.has(state.edgeId)),
     boardEdges: current.boardEdges.filter(
       (boardEdge) => !incidentEdgeIds.has(boardEdge.edgeId),
     ),
@@ -431,6 +469,7 @@ function detachSnapshotEdge(
   return {
     ...current,
     edges: current.edges.filter((edge) => edge.id !== edgeId),
+    edgeStates: current.edgeStates.filter((state) => state.edgeId !== edgeId),
     boardEdges: current.boardEdges.filter((boardEdge) => boardEdge.edgeId !== edgeId),
   };
 }

@@ -29,6 +29,13 @@
       "when": 1788099600000,
       "tag": "0003_scope_node_state_v1",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788144500000,
+      "tag": "0004_edge_state_v1",
+      "breakpoints": true
     }
   ]
 }

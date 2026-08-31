@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
+  EdgeStateResponse,
   GraphNodeResponse,
   NodeStateResponse,
 } from "@/contracts/graph/graph.contract";
@@ -14,6 +15,8 @@ import { useEditorHistory } from "./use-editor-history";
 const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
 const nodeId = "33333333-3333-4333-8333-333333333333";
+const targetNodeId = "44444444-4444-4444-8444-444444444444";
+const edgeId = "55555555-5555-4555-8555-555555555555";
 const scopeId = "77777777-7777-4777-8777-777777777777";
 const workspaceId = "workspace-1";
 const now = "2026-08-30T00:00:00.000Z";
@@ -113,9 +116,37 @@ function createScopedStore() {
       createdAt: now,
       updatedAt: now,
     },
-    nodes: [node("Alice", 3)],
+    nodes: [
+      node("Alice", 3),
+      {
+        id: targetNodeId,
+        storyId,
+        name: "Crown",
+        description: "",
+        iconKey: null,
+        properties: {},
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
     nodeStates: [],
-    edges: [],
+    edges: [
+      {
+        id: edgeId,
+        storyId,
+        sourceNodeId: nodeId,
+        targetNodeId,
+        name: "serves",
+        description: "",
+        iconKey: null,
+        properties: {},
+        version: 4,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    edgeStates: [],
     boardNodes: [
       {
         boardId,
@@ -129,8 +160,29 @@ function createScopedStore() {
         createdAt: now,
         updatedAt: now,
       },
+      {
+        boardId,
+        nodeId: targetNodeId,
+        x: 400,
+        y: 100,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
+        createdAt: now,
+        updatedAt: now,
+      },
     ],
-    boardEdges: [],
+    boardEdges: [
+      {
+        boardId,
+        edgeId,
+        style: {},
+        labelPresentation: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
   });
   return store;
 }
@@ -151,6 +203,7 @@ function updateNode(name: string): EditorCommand {
 function createPersistence(
   updateNodeImpl: EditorPersistence["updateNode"],
   updateNodeStateImpl: EditorPersistence["updateNodeState"] = vi.fn(),
+  updateEdgeStateImpl: EditorPersistence["updateEdgeState"] = vi.fn(),
 ): EditorPersistence {
   return {
     createNode: vi.fn(),
@@ -160,6 +213,7 @@ function createPersistence(
     updateNode: updateNodeImpl,
     updateNodeState: updateNodeStateImpl,
     updateEdge: vi.fn(),
+    updateEdgeState: updateEdgeStateImpl,
     removeBoardNode: vi.fn(),
     restoreBoardNode: vi.fn(),
     removeBoardEdge: vi.fn(),
@@ -310,6 +364,101 @@ describe("editor history with Save Queue", () => {
       properties: null,
     });
     expect(store.getState().nodes[0]?.name).toBe("Alice");
+    expect(result.current.history.snapshot).toMatchObject({
+      undoCount: 0,
+      redoCount: 1,
+    });
+  });
+
+  it("queues first-write EdgeState Undo behind the pending create and reuses version 1", async () => {
+    const first = deferred<EdgeStateResponse>();
+    const updateEdgeStatePersistence = vi
+      .fn<EditorPersistence["updateEdgeState"]>()
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValueOnce({
+        scopeId,
+        edgeId,
+        name: null,
+        description: null,
+        properties: null,
+        version: 2,
+        createdAt: now,
+        updatedAt: "2026-08-30T00:02:00.000Z",
+      });
+    const store = createScopedStore();
+    const persistence = createPersistence(vi.fn(), vi.fn(), updateEdgeStatePersistence);
+
+    const { result } = renderHook(() => {
+      const saveQueue = useEditorSaveQueue(store, persistence, boardId);
+      const history = useEditorHistory({
+        store,
+        boardId,
+        dispatchToSaveQueue: saveQueue.dispatch,
+        blocked: saveQueue.snapshot.saveState === "error",
+      });
+      return { saveQueue, history };
+    });
+
+    act(() => {
+      result.current.history.dispatch({
+        type: "update-edge-state",
+        boardId,
+        workspaceId,
+        scopeId,
+        edgeId,
+        version: null,
+        name: "rules",
+        description: null,
+        properties: null,
+      });
+    });
+    await act(flushMicrotasks);
+
+    expect(updateEdgeStatePersistence).toHaveBeenCalledTimes(1);
+    expect(updateEdgeStatePersistence.mock.calls[0]?.[0]).toMatchObject({
+      version: null,
+      name: "rules",
+    });
+    expect(store.getState().edgeStates[0]).toMatchObject({
+      name: "rules",
+      version: null,
+    });
+    expect(store.getState().edges[0]?.name).toBe("serves");
+
+    act(() => {
+      expect(result.current.history.undo()).toBe(true);
+    });
+    expect(store.getState().edgeStates[0]).toMatchObject({
+      name: null,
+      description: null,
+      properties: null,
+      version: null,
+    });
+    await act(flushMicrotasks);
+    expect(updateEdgeStatePersistence).toHaveBeenCalledTimes(1);
+
+    first.resolve({
+      scopeId,
+      edgeId,
+      name: "rules",
+      description: null,
+      properties: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: "2026-08-30T00:01:00.000Z",
+    });
+    await act(async () => {
+      await flushUntilCalls(updateEdgeStatePersistence, 2);
+    });
+
+    expect(updateEdgeStatePersistence).toHaveBeenCalledTimes(2);
+    expect(updateEdgeStatePersistence.mock.calls[1]?.[0]).toMatchObject({
+      version: 1,
+      name: null,
+      description: null,
+      properties: null,
+    });
+    expect(store.getState().edges[0]?.name).toBe("serves");
     expect(result.current.history.snapshot).toMatchObject({
       undoCount: 0,
       redoCount: 1,

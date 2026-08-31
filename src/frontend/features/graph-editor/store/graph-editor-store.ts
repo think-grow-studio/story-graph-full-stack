@@ -14,6 +14,7 @@ export function createGraphEditorStore(): GraphEditorStore {
     nodes: [],
     nodeStates: [],
     edges: [],
+    edgeStates: [],
     boardNodes: [],
     boardEdges: [],
     hydrate: (snapshot) =>
@@ -22,6 +23,7 @@ export function createGraphEditorStore(): GraphEditorStore {
         nodes: [...snapshot.nodes],
         nodeStates: [...(snapshot.nodeStates ?? [])],
         edges: [...snapshot.edges],
+        edgeStates: [...(snapshot.edgeStates ?? [])],
         boardNodes: [...snapshot.boardNodes],
         boardEdges: [...snapshot.boardEdges],
       }),
@@ -124,6 +126,17 @@ export function createGraphEditorStore(): GraphEditorStore {
         edges: state.edges.map((current) =>
           current.id === edge.id ? edge : current,
         ),
+      })),
+    replaceEdgeState: (edgeState) =>
+      set((state) => ({
+        edgeStates: [
+          ...state.edgeStates.filter(
+            (current) =>
+              current.scopeId !== edgeState.scopeId ||
+              current.edgeId !== edgeState.edgeId,
+          ),
+          edgeState,
+        ],
       })),
     removeEdge: (edgeId) =>
       set((state) => ({

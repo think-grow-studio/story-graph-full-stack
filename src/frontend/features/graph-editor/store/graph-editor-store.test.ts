@@ -270,4 +270,58 @@ describe("graph editor store", () => {
     expect(store.getState().boardNodes).toEqual(boardNodesBefore);
     expect(store.getState().boardEdges).toEqual(boardEdgesBefore);
   });
+
+  it("hydrates and replaces EdgeState without mutating the canonical Edge", () => {
+    const store = createGraphEditorStore();
+    const scopeId = "77777777-7777-4777-8777-777777777777";
+    const persistedEdgeState = {
+      scopeId,
+      edgeId: optimisticEdge.id,
+      name: "rules",
+      description: null,
+      properties: null,
+      version: 2,
+      createdAt: "2026-08-28T00:00:00.000Z",
+      updatedAt: "2026-08-28T00:01:00.000Z",
+    };
+
+    store.getState().hydrate({
+      ...snapshot,
+      board: { ...snapshot.board, scopeId },
+      scope: {
+        id: scopeId,
+        storyId: snapshot.story.id,
+        name: "Chapter 10",
+        description: "",
+        createdAt: "2026-08-28T00:00:00.000Z",
+        updatedAt: "2026-08-28T00:00:00.000Z",
+      },
+      nodes: [...snapshot.nodes, optimisticNode],
+      edges: [optimisticEdge],
+      boardNodes: [...snapshot.boardNodes, optimisticBoardNode],
+      boardEdges: [optimisticBoardEdge],
+      edgeStates: [persistedEdgeState],
+    });
+
+    const canonicalBefore = structuredClone(store.getState().edges[0]);
+    expect(store.getState().edgeStates).toEqual([persistedEdgeState]);
+
+    store.getState().replaceEdgeState({
+      ...persistedEdgeState,
+      name: "commands",
+      version: null,
+      createdAt: null,
+      updatedAt: null,
+    });
+
+    expect(store.getState().edgeStates).toEqual([
+      expect.objectContaining({
+        scopeId,
+        edgeId: optimisticEdge.id,
+        name: "commands",
+        version: null,
+      }),
+    ]);
+    expect(store.getState().edges[0]).toEqual(canonicalBefore);
+  });
 });

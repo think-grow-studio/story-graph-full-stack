@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { Board, GraphNode, NodeState, Scope } from "../domain/graph";
+import type { Board, EdgeState, GraphEdge, GraphNode, Scope } from "../domain/graph";
 import type { GraphRepository } from "../domain/graph.repository";
 import type { Story } from "@/backend/modules/story/domain/story";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
 import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
-import { putNodeState } from "./put-node-state/put-node-state";
+import { putEdgeState } from "./put-edge-state/put-edge-state";
 
-const nodeId = "00000000-0000-4000-8000-000000000001";
-const scopeId = "00000000-0000-4000-8000-000000000010";
+const edgeId = "00000000-0000-4000-8000-000000000101";
+const scopeId = "00000000-0000-4000-8000-000000000110";
 
 function storyFixture(overrides: Partial<Story> = {}): Story {
-  const now = new Date("2026-08-30T00:00:00.000Z");
+  const now = new Date("2026-08-31T00:00:00.000Z");
   return {
     id: "story-1",
     workspaceId: "workspace-1",
@@ -24,7 +24,7 @@ function storyFixture(overrides: Partial<Story> = {}): Story {
 }
 
 function scopeFixture(overrides: Partial<Scope> = {}): Scope {
-  const now = new Date("2026-08-30T00:00:00.000Z");
+  const now = new Date("2026-08-31T00:00:00.000Z");
   return {
     id: scopeId,
     storyId: "story-1",
@@ -36,15 +36,17 @@ function scopeFixture(overrides: Partial<Scope> = {}): Scope {
   };
 }
 
-function nodeFixture(overrides: Partial<GraphNode> = {}): GraphNode {
-  const now = new Date("2026-08-30T00:00:00.000Z");
+function edgeFixture(overrides: Partial<GraphEdge> = {}): GraphEdge {
+  const now = new Date("2026-08-31T00:00:00.000Z");
   return {
-    id: nodeId,
+    id: edgeId,
     storyId: "story-1",
-    name: "Alice",
-    description: "Knight",
+    sourceNodeId: "00000000-0000-4000-8000-000000000001",
+    targetNodeId: "00000000-0000-4000-8000-000000000002",
+    name: "serves",
+    description: "Alice serves the Crown",
     iconKey: null,
-    properties: { age: 24 },
+    properties: { trust: 4 },
     version: 1,
     createdAt: now,
     updatedAt: now,
@@ -52,12 +54,12 @@ function nodeFixture(overrides: Partial<GraphNode> = {}): GraphNode {
   };
 }
 
-function nodeStateFixture(overrides: Partial<NodeState> = {}): NodeState {
-  const now = new Date("2026-08-30T00:00:00.000Z");
+function edgeStateFixture(overrides: Partial<EdgeState> = {}): EdgeState {
+  const now = new Date("2026-08-31T00:00:00.000Z");
   return {
     scopeId,
-    nodeId,
-    name: "Queen Alice",
+    edgeId,
+    name: "rules",
     description: null,
     properties: null,
     version: 1,
@@ -77,13 +79,17 @@ function stories(story: Story): StoryRepository {
   };
 }
 
+type EdgeStateGraphRepository = GraphRepository & {
+  putEdgeState: ReturnType<typeof vi.fn>;
+};
+
 function graph(input?: {
   scope?: Scope;
-  node?: GraphNode;
-  putResult?: NodeState | "conflict" | null;
-}): GraphRepository {
-  const scope = input?.scope ?? scopeFixture();
-  const node = input?.node ?? nodeFixture();
+  edge?: GraphEdge;
+  putResult?: EdgeState | "conflict" | null;
+}): EdgeStateGraphRepository {
+  const foundScope = input?.scope ?? scopeFixture();
+  const foundEdge = input?.edge ?? edgeFixture();
   const board: Board = {
     id: "board-1",
     storyId: "story-1",
@@ -91,25 +97,26 @@ function graph(input?: {
     name: "Scoped",
     description: "",
     revision: 0,
-    createdAt: new Date("2026-08-30T00:00:00.000Z"),
-    updatedAt: new Date("2026-08-30T00:00:00.000Z"),
+    createdAt: new Date("2026-08-31T00:00:00.000Z"),
+    updatedAt: new Date("2026-08-31T00:00:00.000Z"),
   };
-  return {
+  const repository = {
     createScope: vi.fn(),
     listScopes: vi.fn(),
-    findScope: vi.fn(async (id) => (id === scope.id ? scope : null)),
+    findScope: vi.fn(async (id: string) => (id === foundScope.id ? foundScope : null)),
     createBoard: vi.fn(),
     listBoards: vi.fn(async () => [board]),
     findBoard: vi.fn(async () => board),
-    listNodes: vi.fn(async () => [node]),
-    findNode: vi.fn(async (id) => (id === node.id ? node : null)),
-    findEdge: vi.fn(),
+    listNodes: vi.fn(async () => [] as GraphNode[]),
+    findNode: vi.fn(),
+    findEdge: vi.fn(async (id: string) => (id === foundEdge.id ? foundEdge : null)),
     getBoardSnapshot: vi.fn(),
     createNodeOnBoard: vi.fn(),
     placeNodeOnBoard: vi.fn(),
-    putNodeState: vi.fn(async (request) =>
+    putNodeState: vi.fn(),
+    putEdgeState: vi.fn(async (request) =>
       input?.putResult === undefined
-        ? nodeStateFixture({
+        ? edgeStateFixture({
             name: request.name,
             description: request.description,
             properties: request.properties,
@@ -117,7 +124,6 @@ function graph(input?: {
           })
         : input.putResult,
     ),
-    putEdgeState: vi.fn(),
     updateNode: vi.fn(),
     updateBoardNode: vi.fn(),
     removeNodeFromBoard: vi.fn(),
@@ -127,6 +133,7 @@ function graph(input?: {
     removeEdgeFromBoard: vi.fn(),
     restoreEdgeToBoard: vi.fn(),
   };
+  return repository as unknown as EdgeStateGraphRepository;
 }
 
 function access(): WorkspaceAccessService {
@@ -136,39 +143,31 @@ function access(): WorkspaceAccessService {
   };
 }
 
-describe("NodeState use-case", () => {
-  it("creates first scoped state with version=null and preserves sparse null overrides", async () => {
+describe("EdgeState use-case", () => {
+  it("creates first scoped state with a complete sparse payload", async () => {
     const story = storyFixture();
     const graphRepository = graph();
-    const workspaceAccess = access();
 
-    const result = await putNodeState(
+    const result = await putEdgeState(
       {
         actorId: "user-1",
         workspaceId: "workspace-1",
         scopeId,
-        nodeId,
+        edgeId,
         version: null,
-        name: "Queen Alice",
+        name: "rules",
         description: null,
         properties: null,
       },
-      { stories: stories(story), graph: graphRepository, access: workspaceAccess },
+      { stories: stories(story), graph: graphRepository, access: access() },
     );
 
-    expect(result).toMatchObject({
+    expect(result).toMatchObject({ scopeId, edgeId, name: "rules", version: 1 });
+    expect(graphRepository.putEdgeState).toHaveBeenCalledWith({
       scopeId,
-      nodeId,
-      name: "Queen Alice",
-      description: null,
-      properties: null,
-      version: 1,
-    });
-    expect(graphRepository.putNodeState).toHaveBeenCalledWith({
-      scopeId,
-      nodeId,
+      edgeId,
       expectedVersion: null,
-      name: "Queen Alice",
+      name: "rules",
       description: null,
       properties: null,
     });
@@ -176,37 +175,36 @@ describe("NodeState use-case", () => {
 
   it("maps a stale compare-and-set write to HTTP 409 semantics", async () => {
     const story = storyFixture();
-    const graphRepository = graph({ putResult: "conflict" });
 
     await expect(
-      putNodeState(
+      putEdgeState(
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
           scopeId,
-          nodeId,
+          edgeId,
           version: 3,
           name: null,
           description: "Changed",
           properties: null,
         },
-        { stories: stories(story), graph: graphRepository, access: access() },
+        { stories: stories(story), graph: graph({ putResult: "conflict" }), access: access() },
       ),
     ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
   });
 
-  it("hides a Node from another Story before graph:update", async () => {
+  it("hides an Edge from another Story before graph:update", async () => {
     const story = storyFixture();
-    const graphRepository = graph({ node: nodeFixture({ storyId: "story-2" }) });
+    const graphRepository = graph({ edge: edgeFixture({ storyId: "story-2" }) });
     const workspaceAccess = access();
 
     await expect(
-      putNodeState(
+      putEdgeState(
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
           scopeId,
-          nodeId,
+          edgeId,
           version: null,
           name: "Invalid",
           description: null,
@@ -217,6 +215,6 @@ describe("NodeState use-case", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
 
     expect(workspaceAccess.requireCapability).not.toHaveBeenCalled();
-    expect(graphRepository.putNodeState).not.toHaveBeenCalled();
+    expect(graphRepository.putEdgeState).not.toHaveBeenCalled();
   });
 });

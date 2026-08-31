@@ -75,6 +75,26 @@ export function applyEditorCommand(
       });
       return true;
     }
+    case "update-edge-state": {
+      const state = store.getState();
+      const edge = state.edges.find((candidate) => candidate.id === command.edgeId);
+      if (!edge || state.scope?.id !== command.scopeId) return false;
+      const current = state.edgeStates.find(
+        (candidate) =>
+          candidate.scopeId === command.scopeId && candidate.edgeId === command.edgeId,
+      );
+      state.replaceEdgeState({
+        scopeId: command.scopeId,
+        edgeId: command.edgeId,
+        name: command.name,
+        description: command.description,
+        properties: command.properties,
+        version: current?.version ?? command.version,
+        createdAt: current?.createdAt ?? null,
+        updatedAt: current?.updatedAt ?? null,
+      });
+      return true;
+    }
     case "remove-board-node":
       return store.getState().detachNodeFromBoard(command.nodeId).boardNode !== null;
     case "restore-board-node": {
@@ -320,6 +340,24 @@ export async function persistAndReconcileEditorCommand(
       );
       return;
     }
+    case "update-edge-state": {
+      const persisted = await persistence.updateEdgeState(prepared);
+      const current = store.getState().edgeStates.find(
+        (candidate) =>
+          candidate.scopeId === prepared.scopeId && candidate.edgeId === prepared.edgeId,
+      );
+      store.getState().replaceEdgeState(
+        current
+          ? {
+              ...persisted,
+              name: current.name,
+              description: current.description,
+              properties: current.properties,
+            }
+          : persisted,
+      );
+      return;
+    }
     case "remove-board-node":
       await persistence.removeBoardNode(prepared);
       return;
@@ -400,6 +438,13 @@ function prepareEditorCommandForPersistence(
     const current = store
       .getState()
       .edges.find((edge) => edge.id === command.edgeId);
+    return current ? { ...command, version: current.version } : command;
+  }
+  if (command.type === "update-edge-state") {
+    const current = store.getState().edgeStates.find(
+      (candidate) =>
+        candidate.scopeId === command.scopeId && candidate.edgeId === command.edgeId,
+    );
     return current ? { ...command, version: current.version } : command;
   }
   return command;

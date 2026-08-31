@@ -74,6 +74,7 @@ function graph(scopeValue: Scope = scopeFixture()): GraphRepository {
     createNodeOnBoard: vi.fn(),
     placeNodeOnBoard: vi.fn(),
     putNodeState: vi.fn(),
+    putEdgeState: vi.fn(),
     updateNode: vi.fn(),
     updateBoardNode: vi.fn(),
     removeNodeFromBoard: vi.fn(),

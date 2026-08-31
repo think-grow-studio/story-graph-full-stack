@@ -109,6 +109,7 @@ function graph(input?: {
     createNodeOnBoard: vi.fn(),
     placeNodeOnBoard: vi.fn(async () => ({ node, boardNode })),
     putNodeState: vi.fn(),
+    putEdgeState: vi.fn(),
     updateNode: vi.fn(),
     updateBoardNode: vi.fn(),
     removeNodeFromBoard: vi.fn(),

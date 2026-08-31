@@ -56,6 +56,7 @@ function snapshotFixture(board: Board): BoardSnapshot {
     nodes: [],
     nodeStates: [],
     edges: [],
+    edgeStates: [],
     boardNodes: [],
     boardEdges: [],
   };
@@ -97,6 +98,7 @@ function createGraph(
     createNodeOnBoard: vi.fn(),
     placeNodeOnBoard: vi.fn(),
     putNodeState: vi.fn(),
+    putEdgeState: vi.fn(),
     updateNode: vi.fn(),
     updateBoardNode: vi.fn(),
     removeNodeFromBoard: vi.fn(),
