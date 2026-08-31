@@ -58,8 +58,8 @@ export function TextField({
   const id = providedId ?? generatedId;
 
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-[var(--sg-ink)]" htmlFor={id}>
-      <span>{label}</span>
+    <div className="grid gap-1.5 text-sm font-medium text-[var(--sg-ink)]">
+      <label htmlFor={id}>{label}</label>
       <input
         aria-describedby={describedBy(id, helpText, error)}
         aria-invalid={Boolean(error) || undefined}
@@ -68,7 +68,7 @@ export function TextField({
         {...props}
       />
       <FieldMeta error={error} helpText={helpText} id={id} />
-    </label>
+    </div>
   );
 }
 
@@ -84,8 +84,8 @@ export function TextAreaField({
   const id = providedId ?? generatedId;
 
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-[var(--sg-ink)]" htmlFor={id}>
-      <span>{label}</span>
+    <div className="grid gap-1.5 text-sm font-medium text-[var(--sg-ink)]">
+      <label htmlFor={id}>{label}</label>
       <textarea
         aria-describedby={describedBy(id, helpText, error)}
         aria-invalid={Boolean(error) || undefined}
@@ -94,7 +94,7 @@ export function TextAreaField({
         {...props}
       />
       <FieldMeta error={error} helpText={helpText} id={id} />
-    </label>
+    </div>
   );
 }
 
@@ -111,8 +111,8 @@ export function SelectField({
   const id = providedId ?? generatedId;
 
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-[var(--sg-ink)]" htmlFor={id}>
-      <span>{label}</span>
+    <div className="grid gap-1.5 text-sm font-medium text-[var(--sg-ink)]">
+      <label htmlFor={id}>{label}</label>
       <select
         aria-describedby={describedBy(id, helpText, error)}
         aria-invalid={Boolean(error) || undefined}
@@ -123,6 +123,6 @@ export function SelectField({
         {children}
       </select>
       <FieldMeta error={error} helpText={helpText} id={id} />
-    </label>
+    </div>
   );
 }
