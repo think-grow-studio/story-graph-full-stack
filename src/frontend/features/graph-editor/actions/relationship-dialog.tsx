@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import { Button } from "@/frontend/shared/ui/button";
 import { Dialog } from "@/frontend/shared/ui/dialog";
@@ -23,21 +23,27 @@ export function RelationshipDialog({
 }) {
   const [name, setName] = useState("");
 
-  useEffect(() => {
-    if (!open) setName("");
-  }, [open]);
+  function resetDraft() {
+    setName("");
+  }
+
+  function close() {
+    resetDraft();
+    onClose();
+  }
 
   function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed || busy) return;
     onCreate(trimmed);
+    resetDraft();
   }
 
   return (
     <Dialog
       description="두 노드를 어떤 관계로 연결할지 이름을 정하세요. 취소하면 관계는 생성되지 않습니다."
-      onClose={onClose}
+      onClose={close}
       open={open}
       title="관계 만들기"
     >
@@ -58,7 +64,7 @@ export function RelationshipDialog({
             disabled={busy}
             emphasis="ghost"
             intent="neutral"
-            onClick={onClose}
+            onClick={close}
           >
             취소
           </Button>
