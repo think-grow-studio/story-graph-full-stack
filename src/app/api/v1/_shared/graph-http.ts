@@ -3,6 +3,7 @@ import type {
   BoardEdge,
   BoardNode,
   BoardSnapshot,
+  EdgeState,
   GraphEdge,
   GraphNode,
   NodeState,
@@ -13,6 +14,7 @@ import {
   boardNodeResponseSchema,
   boardResponseSchema,
   boardSnapshotResponseSchema,
+  edgeStateResponseSchema,
   graphEdgeResponseSchema,
   graphNodeResponseSchema,
   nodeStateResponseSchema,
@@ -29,6 +31,14 @@ export function toScopeResponse(value: Scope) {
 
 export function toNodeStateResponse(value: NodeState) {
   return nodeStateResponseSchema.parse({
+    ...value,
+    createdAt: value.createdAt.toISOString(),
+    updatedAt: value.updatedAt.toISOString(),
+  });
+}
+
+export function toEdgeStateResponse(value: EdgeState) {
+  return edgeStateResponseSchema.parse({
     ...value,
     createdAt: value.createdAt.toISOString(),
     updatedAt: value.updatedAt.toISOString(),
@@ -86,6 +96,7 @@ export function toBoardSnapshotResponse(input: {
     nodes: input.snapshot.nodes.map(toGraphNodeResponse),
     nodeStates: input.snapshot.nodeStates.map(toNodeStateResponse),
     edges: input.snapshot.edges.map(toGraphEdgeResponse),
+    edgeStates: input.snapshot.edgeStates.map(toEdgeStateResponse),
     boardNodes: input.snapshot.boardNodes.map(toBoardNodeResponse),
     boardEdges: input.snapshot.boardEdges.map(toBoardEdgeResponse),
   });
