@@ -147,7 +147,11 @@ describe("StoryBoardsPage", () => {
   });
 
   it("creates a Board in the selected context", async () => {
-    mocks.createBoard.mockResolvedValue({ ...board, name: "Chapter Characters" });
+    mocks.createBoard.mockResolvedValue({
+      ...board,
+      id: "55555555-5555-4555-8555-555555555555",
+      name: "Chapter Characters",
+    });
     const user = userEvent.setup();
     renderPage();
 
