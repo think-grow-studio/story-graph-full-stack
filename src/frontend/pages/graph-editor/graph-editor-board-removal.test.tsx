@@ -212,7 +212,7 @@ describe("Graph Editor Board removal", () => {
     const { queryClient } = renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
-    await user.click(screen.getByRole("button", { name: "Remove from Board" }));
+    await user.click(screen.getByRole("button", { name: "보드에서 제거" }));
 
     await waitFor(() => expect(mocks.removeNodeFromBoard).toHaveBeenCalledTimes(1));
     expect(mocks.removeNodeFromBoard.mock.calls[0][0]).toEqual({
@@ -240,7 +240,7 @@ describe("Graph Editor Board removal", () => {
     const { queryClient } = renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
-    await user.click(screen.getByRole("button", { name: "Remove from Board" }));
+    await user.click(screen.getByRole("button", { name: "보드에서 제거" }));
     await waitFor(() => expect(mocks.removeNodeFromBoard).toHaveBeenCalledTimes(1));
 
     await user.click(screen.getByRole("button", { name: "Undo" }));
@@ -275,7 +275,7 @@ describe("Graph Editor Board removal", () => {
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select knows" }));
-    await user.click(screen.getByRole("button", { name: "Remove from Board" }));
+    await user.click(screen.getByRole("button", { name: "보드에서 제거" }));
 
     await waitFor(() => expect(mocks.removeEdgeFromBoard).toHaveBeenCalledTimes(1));
     expect(mocks.removeEdgeFromBoard.mock.calls[0][0]).toEqual({
@@ -293,7 +293,7 @@ describe("Graph Editor Board removal", () => {
     const { queryClient } = renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select knows" }));
-    await user.click(screen.getByRole("button", { name: "Remove from Board" }));
+    await user.click(screen.getByRole("button", { name: "보드에서 제거" }));
     await waitFor(() => expect(mocks.removeEdgeFromBoard).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("button", { name: "Select knows" })).not.toBeInTheDocument();
 
