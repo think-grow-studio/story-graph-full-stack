@@ -7,7 +7,7 @@
     "enabled": false
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "npm run db:up && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -20,6 +20,9 @@
     "e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:local": "node scripts/migrate-local.mjs",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down",
     "db:check": "drizzle-kit check",
     "auth:generate": "auth generate --config ./src/backend/infrastructure/auth/auth-schema.config.ts --output ./src/backend/infrastructure/database/schema/auth.schema.ts --adapter drizzle --dialect postgresql --yes",
     "check": "pnpm check:agents && pnpm check:boundaries && pnpm lint && pnpm typecheck && pnpm test",
