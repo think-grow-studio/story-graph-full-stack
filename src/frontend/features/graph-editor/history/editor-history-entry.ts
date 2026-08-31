@@ -6,6 +6,7 @@ import type {
   RestoreBoardEdgeCommand,
   RestoreBoardNodeCommand,
   UpdateEdgeCommand,
+  UpdateEdgeStateCommand,
   UpdateNodeCommand,
   UpdateNodeStateCommand,
 } from "../commands/editor-command";
@@ -16,6 +17,7 @@ export type UndoableEditorCommand =
   | UpdateNodeCommand
   | UpdateNodeStateCommand
   | UpdateEdgeCommand
+  | UpdateEdgeStateCommand
   | RemoveBoardNodeCommand
   | RestoreBoardNodeCommand
   | RemoveBoardEdgeCommand
@@ -37,6 +39,7 @@ export function isUndoableEditorCommand(
     command.type === "update-node" ||
     command.type === "update-node-state" ||
     command.type === "update-edge" ||
+    command.type === "update-edge-state" ||
     command.type === "remove-board-node" ||
     command.type === "restore-board-node" ||
     command.type === "remove-board-edge" ||
@@ -127,6 +130,28 @@ export function createEditorHistoryEntry({
         properties: current.properties,
       },
       `update-edge:${command.edgeId}`,
+      nowMs,
+    );
+  }
+
+  if (command.type === "update-edge-state") {
+    const state = store.getState();
+    if (!state.edges.some((edge) => edge.id === command.edgeId)) return null;
+    const current = state.edgeStates.find(
+      (candidate) =>
+        candidate.scopeId === command.scopeId && candidate.edgeId === command.edgeId,
+    );
+
+    return entry(
+      command,
+      {
+        ...command,
+        version: current?.version ?? null,
+        name: current?.name ?? null,
+        description: current?.description ?? null,
+        properties: current?.properties ?? null,
+      },
+      `update-edge-state:${command.scopeId}:${command.edgeId}`,
       nowMs,
     );
   }
