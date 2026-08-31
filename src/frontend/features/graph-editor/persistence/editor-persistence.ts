@@ -1,5 +1,6 @@
 import type {
   BoardNodeResponse,
+  EdgeStateResponse,
   GraphEdgeResponse,
   GraphNodeResponse,
   NodeStateResponse,
@@ -16,6 +17,7 @@ import type {
   RestoreBoardEdgeCommand,
   RestoreBoardNodeCommand,
   UpdateEdgeCommand,
+  UpdateEdgeStateCommand,
   UpdateNodeCommand,
   UpdateNodeStateCommand,
 } from "../commands/editor-command";
@@ -32,6 +34,7 @@ export type EditorPersistence = {
   updateNode: (command: UpdateNodeCommand) => Promise<GraphNodeResponse>;
   updateNodeState: (command: UpdateNodeStateCommand) => Promise<NodeStateResponse>;
   updateEdge: (command: UpdateEdgeCommand) => Promise<GraphEdgeResponse>;
+  updateEdgeState: (command: UpdateEdgeStateCommand) => Promise<EdgeStateResponse>;
   removeBoardNode: (command: RemoveBoardNodeCommand) => Promise<void>;
   restoreBoardNode: (
     command: RestoreBoardNodeCommand,
