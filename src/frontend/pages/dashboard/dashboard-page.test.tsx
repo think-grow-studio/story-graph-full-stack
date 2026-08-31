@@ -69,8 +69,8 @@ describe("DashboardPage", () => {
     renderDashboard();
 
     expect(await screen.findByRole("heading", { name: "내 이야기" })).toBeInTheDocument();
-    expect(screen.getByText("첫 번째 장편 이야기")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Existing Story" })).toHaveAttribute(
+    expect(await screen.findByText("첫 번째 장편 이야기")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Existing Story" })).toHaveAttribute(
       "href",
       "/stories/story-1",
     );
