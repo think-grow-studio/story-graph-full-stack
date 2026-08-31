@@ -88,7 +88,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Graph Editor failed Board removal", () => {
-  it("keeps the Node and incident Relationship detached and exposes Error/Retry", async () => {
+  it("keeps the Node and incident Relationship detached and exposes save retry", async () => {
     const user = userEvent.setup();
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -101,15 +101,15 @@ describe("Graph Editor failed Board removal", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
-    await user.click(screen.getByRole("button", { name: "Remove from Board" }));
+    await user.click(screen.getByRole("button", { name: "보드에서 제거" }));
 
     expect(
       await screen.findByText("Unable to remove Node from Board."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Select Alice" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("canvas-edge")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Node Inspector" })).not.toBeInTheDocument();
-    expect(screen.getByText("Error")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "노드" })).not.toBeInTheDocument();
+    expect(screen.getByText("저장 오류")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
   });
 });

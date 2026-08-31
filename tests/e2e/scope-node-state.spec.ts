@@ -100,9 +100,10 @@ test("one canonical Node resolves differently on scoped and unscoped Boards", as
       `/stories/${setup.story.id}/boards/${setup.scopedBoard.id}`,
     );
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
-    await expect(page.getByText("Scope: Chapter 10")).toBeVisible();
+    await expect(page.getByText("컨텍스트 · Chapter 10")).toBeVisible();
 
-    await page.getByLabel("Existing Node").selectOption({ label: "Alice" });
+    await page.getByRole("button", { name: "노드 추가" }).click();
+    await page.getByLabel("기존 노드").selectOption({ label: "Alice" });
     const placePromise = page.waitForResponse((response) => {
       return (
         response.request().method() === "PUT" &&
@@ -110,7 +111,7 @@ test("one canonical Node resolves differently on scoped and unscoped Boards", as
           `/api/v1/boards/${setup.scopedBoard.id}/nodes/${setup.nodeId}/presentation`
       );
     });
-    await page.getByRole("button", { name: "Add Existing Node" }).click();
+    await page.getByRole("button", { name: "보드에 추가" }).click();
     const placed = await placePromise;
     expect(placed.status()).toBe(200);
 
@@ -119,15 +120,15 @@ test("one canonical Node resolves differently on scoped and unscoped Boards", as
     );
     await expect(scopedNode).toContainText("Alice");
     await scopedNode.click();
-    await expect(page.getByRole("heading", { name: "Node Inspector" })).toBeVisible();
-    await expect(page.getByLabel("Name")).toHaveValue("Alice");
+    await expect(page.getByRole("heading", { name: "노드" })).toBeVisible();
+    await expect(page.getByLabel("이름")).toHaveValue("Alice");
 
     const forwardPromise = waitForNodeStatePut(
       page,
       setup.scope.id,
       setup.nodeId,
     );
-    await page.getByLabel("Name").fill("Queen Alice");
+    await page.getByLabel("이름").fill("Queen Alice");
     const forward = await forwardPromise;
     expect(forward.status()).toBe(200);
     expect(await forward.json()).toMatchObject({
@@ -138,7 +139,7 @@ test("one canonical Node resolves differently on scoped and unscoped Boards", as
       properties: null,
       version: 1,
     });
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
     await expect(scopedNode).toContainText("Queen Alice");
 
     const undoPromise = waitForNodeStatePut(
@@ -157,9 +158,9 @@ test("one canonical Node resolves differently on scoped and unscoped Boards", as
       properties: null,
       version: 2,
     });
-    await expect(page.getByLabel("Name")).toHaveValue("Alice");
+    await expect(page.getByLabel("이름")).toHaveValue("Alice");
     await expect(scopedNode).toContainText("Alice");
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const redoPromise = waitForNodeStatePut(
       page,
@@ -177,9 +178,9 @@ test("one canonical Node resolves differently on scoped and unscoped Boards", as
       properties: null,
       version: 3,
     });
-    await expect(page.getByLabel("Name")).toHaveValue("Queen Alice");
+    await expect(page.getByLabel("이름")).toHaveValue("Queen Alice");
     await expect(scopedNode).toContainText("Queen Alice");
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Graph canvas")).toBeVisible();

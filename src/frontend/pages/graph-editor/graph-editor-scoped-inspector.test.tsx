@@ -172,14 +172,14 @@ describe("Graph Editor scoped inspector", () => {
       await screen.findByRole("button", { name: "Select Queen Alice" }),
     );
 
-    expect(screen.getByLabelText("Name")).toHaveValue("Queen Alice");
-    expect(screen.getByLabelText("Description")).toHaveValue("Protagonist");
-    expect(screen.getByLabelText("Properties JSON")).toHaveValue(
+    expect(screen.getByLabelText("이름")).toHaveValue("Queen Alice");
+    expect(screen.getByLabelText("설명")).toHaveValue("Protagonist");
+    expect(screen.getByLabelText("속성 JSON")).toHaveValue(
       '{\n  "role": "queen"\n}',
     );
 
     vi.useFakeTimers();
-    fireEvent.change(screen.getByLabelText("Name"), {
+    fireEvent.change(screen.getByLabelText("이름"), {
       target: { value: "Empress Alice" },
     });
     await act(async () => {

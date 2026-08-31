@@ -8,7 +8,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
 } from "react";
 
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
@@ -16,6 +15,8 @@ import {
   useBoardSnapshotQuery,
   useStoryNodesQuery,
 } from "@/frontend/api/graph/graph.queries";
+import { AddNodeDialog } from "@/frontend/features/graph-editor/actions/add-node-dialog";
+import { RelationshipDialog } from "@/frontend/features/graph-editor/actions/relationship-dialog";
 import type { EditorCommand } from "@/frontend/features/graph-editor/commands/editor-command";
 import type { UndoableEditorCommand } from "@/frontend/features/graph-editor/history/editor-history-entry";
 import { useEditorHistory } from "@/frontend/features/graph-editor/history/use-editor-history";
@@ -45,6 +46,7 @@ import {
   useGraphEditorStore,
   useGraphEditorStoreApi,
 } from "@/frontend/features/graph-editor/store/graph-editor-store-provider";
+import { Button } from "@/frontend/shared/ui/button";
 import {
   GraphCanvas,
   type GraphCanvasHandle,
@@ -77,14 +79,11 @@ function GraphEditorContent({
 }) {
   const [selectedEntity, setSelectedEntity] =
     useState<SelectedGraphEntity | null>(null);
-  const [isNodeFormOpen, setNodeFormOpen] = useState(false);
-  const [nodeName, setNodeName] = useState("");
-  const [selectedExistingNodeId, setSelectedExistingNodeId] = useState("");
+  const [isNodeDialogOpen, setNodeDialogOpen] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<{
     sourceNodeId: string;
     targetNodeId: string;
   } | null>(null);
-  const [relationshipName, setRelationshipName] = useState("");
   const canvasRef = useRef<GraphCanvasHandle>(null);
   const hydratedBoardIdRef = useRef<string | null>(null);
   const dragStartPositionsRef = useRef(
@@ -296,12 +295,8 @@ function GraphEditorContent({
     setSelectedEntity(next);
   }
 
-  function handleCreateNode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function handleCreateNode(name: string) {
     if (!workspaceId || !snapshot.data) return;
-
-    const name = nodeName.trim();
-    if (!name) return;
 
     const position = canvasRef.current?.getCenterPosition() ?? { x: 0, y: 0 };
     const operationId = history.dispatch({
@@ -315,18 +310,13 @@ function GraphEditorContent({
       createdAt: new Date().toISOString(),
     });
 
-    if (operationId) {
-      setNodeName("");
-      setNodeFormOpen(false);
-    }
+    if (operationId) setNodeDialogOpen(false);
   }
 
-  function handleAddExistingNode() {
-    if (!workspaceId || !selectedExistingNodeId || !storyNodes.data) return;
+  function handleAddExistingNode(nodeId: string) {
+    if (!workspaceId || !storyNodes.data) return;
 
-    const node = storyNodes.data.find(
-      (candidate) => candidate.id === selectedExistingNodeId,
-    );
+    const node = storyNodes.data.find((candidate) => candidate.id === nodeId);
     if (!node) return;
 
     const isAlreadyRepresented = store
@@ -343,20 +333,15 @@ function GraphEditorContent({
       position,
       createdAt: new Date().toISOString(),
     });
-    if (operationId) setSelectedExistingNodeId("");
+    if (operationId) setNodeDialogOpen(false);
   }
 
   function handleConnectNodes(sourceNodeId: string, targetNodeId: string) {
     setPendingConnection({ sourceNodeId, targetNodeId });
-    setRelationshipName("");
   }
 
-  function handleCreateRelationship(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function handleCreateRelationship(name: string) {
     if (!workspaceId || !snapshot.data || !pendingConnection) return;
-
-    const name = relationshipName.trim();
-    if (!name) return;
 
     const operationId = history.dispatch({
       type: "create-edge",
@@ -370,10 +355,7 @@ function GraphEditorContent({
       createdAt: new Date().toISOString(),
     });
 
-    if (operationId) {
-      setRelationshipName("");
-      setPendingConnection(null);
-    }
+    if (operationId) setPendingConnection(null);
   }
 
   function handleNodeDragStart(nodeId: string) {
@@ -499,6 +481,13 @@ function GraphEditorContent({
       };
     });
 
+  const pendingSourceLabel = pendingConnection
+    ? canvasNodes.find((node) => node.id === pendingConnection.sourceNodeId)?.name ?? "출발 노드"
+    : "";
+  const pendingTargetLabel = pendingConnection
+    ? canvasNodes.find((node) => node.id === pendingConnection.targetNodeId)?.name ?? "도착 노드"
+    : "";
+
   const selectedLaneKey = selectedDraftKey;
   const selectedLaneState = selectedLaneKey
     ? saveQueue.getLaneState(selectedLaneKey)
@@ -528,180 +517,96 @@ function GraphEditorContent({
   );
 
   return (
-    <main className="grid min-h-screen grid-rows-[auto_auto_1fr] gap-4 p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <main className="grid min-h-screen grid-rows-[auto_1fr] bg-[var(--sg-canvas)] text-[var(--sg-ink)]">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--sg-line)] bg-[var(--sg-surface)] px-4 py-3 sm:px-6">
+        <div className="min-w-0">
           <Link
-            className="text-sm text-neutral-500"
+            className="text-sm font-medium text-[var(--sg-muted)] hover:text-[var(--sg-ink)]"
             href={`/stories/${storyId}`}
           >
-            ← Boards
+            ← 보드
           </Link>
-          <h1 className="text-2xl font-semibold">{snapshot.data.board.name}</h1>
-          <p className="text-sm text-neutral-500">{snapshot.data.story.name}</p>
-          {state.scope ? (
-            <p className="text-sm text-neutral-500">Scope: {state.scope.name}</p>
-          ) : null}
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h1 className="truncate text-xl font-semibold tracking-[-0.025em]">
+              {snapshot.data.board.name}
+            </h1>
+            <p className="text-sm text-[var(--sg-muted)]">{snapshot.data.story.name}</p>
+            {state.scope ? (
+              <span className="rounded-full bg-[color-mix(in_srgb,var(--sg-brand)_8%,white)] px-2 py-1 text-xs font-semibold text-[var(--sg-brand-strong)]">
+                컨텍스트 · {state.scope.name}
+              </span>
+            ) : null}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div aria-live="polite" className="text-sm text-neutral-500">
-            {editorSaveState === "saved" ? <span>Saved</span> : null}
-            {editorSaveState === "saving" ? <span>Saving…</span> : null}
-            {editorSaveState === "unsaved" ? <span>Unsaved</span> : null}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div aria-live="polite" className="min-w-24 text-right text-sm text-[var(--sg-muted)]">
+            {editorSaveState === "saved" ? <span>저장됨</span> : null}
+            {editorSaveState === "saving" ? <span>저장 중…</span> : null}
+            {editorSaveState === "unsaved" ? <span>저장되지 않음</span> : null}
             {editorSaveState === "error" ? (
               <span className="inline-flex items-center gap-2">
-                <span>Error</span>
+                <span>저장 오류</span>
                 <button
-                  className="rounded-md border border-neutral-300 px-2 py-1 text-xs font-medium"
+                  className="font-semibold text-[var(--sg-danger)] underline underline-offset-4"
                   onClick={saveQueue.retryFailed}
                   type="button"
                 >
-                  Retry
+                  다시 시도
                 </button>
               </span>
             ) : null}
           </div>
-          <div className="inline-flex items-center gap-1">
-            <button
-              className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium disabled:opacity-50"
-              disabled={historyBlocked || !history.snapshot.canUndo}
-              onClick={history.undo}
-              type="button"
-            >
-              Undo
-            </button>
-            <button
-              className="rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium disabled:opacity-50"
-              disabled={historyBlocked || !history.snapshot.canRedo}
-              onClick={history.redo}
-              type="button"
-            >
-              Redo
-            </button>
-          </div>
-          <button
-            className="rounded-md bg-neutral-900 px-4 py-2 font-medium text-white"
-            onClick={() => setNodeFormOpen(true)}
-            type="button"
+          <Button
+            disabled={historyBlocked || !history.snapshot.canUndo}
+            emphasis="outline"
+            intent="neutral"
+            onClick={history.undo}
           >
-            + Node
-          </button>
+            Undo
+          </Button>
+          <Button
+            disabled={historyBlocked || !history.snapshot.canRedo}
+            emphasis="outline"
+            intent="neutral"
+            onClick={history.redo}
+          >
+            Redo
+          </Button>
+          <Button onClick={() => setNodeDialogOpen(true)}>노드 추가</Button>
         </div>
       </header>
 
-      <div className="grid gap-2">
-        <div className="flex max-w-md gap-2 rounded-lg border border-neutral-200 bg-white p-3">
-          <label className="sr-only" htmlFor="existing-node">
-            Existing Node
-          </label>
-          <select
-            className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2"
-            disabled={storyNodes.isPending || availableExistingNodes.length === 0}
-            id="existing-node"
-            onChange={(event) => setSelectedExistingNodeId(event.target.value)}
-            value={selectedExistingNodeId}
-          >
-            <option value="">Select existing Node</option>
-            {availableExistingNodes.map((node) => (
-              <option key={node.id} value={node.id}>
-                {node.name}
-              </option>
-            ))}
-          </select>
-          <button
-            className="rounded-md border border-neutral-300 px-3 py-2 font-medium disabled:opacity-50"
-            disabled={!selectedExistingNodeId}
-            onClick={handleAddExistingNode}
-            type="button"
-          >
-            Add Existing Node
-          </button>
+      <div className="grid min-h-0 gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid min-h-0 gap-3">
+          {storyNodes.isError ? (
+            <p className="text-sm text-[var(--sg-danger)]">
+              기존 노드 목록을 불러오지 못했습니다. 새 노드는 계속 만들 수 있습니다.
+            </p>
+          ) : null}
+          {actionFailures.length ? (
+            <div className="grid gap-1" role="status">
+              {actionFailures.map((failure) => (
+                <p
+                  className="text-sm text-[var(--sg-danger)]"
+                  key={`${failure.operationId}:${failure.attempt}`}
+                >
+                  {getEditorFailureMessage(failure.command, failure.error)}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          <GraphCanvas
+            edges={canvasEdges}
+            nodes={canvasNodes}
+            onConnectNodes={handleConnectNodes}
+            onNodeDragStart={handleNodeDragStart}
+            onNodeDragStop={handleNodeDragStop}
+            onNodePositionChange={handleNodePositionChange}
+            onSelectEdge={(edgeId) => selectEntity({ kind: "edge", id: edgeId })}
+            onSelectNode={(nodeId) => selectEntity({ kind: "node", id: nodeId })}
+            ref={canvasRef}
+          />
         </div>
-        {storyNodes.isError ? (
-          <p className="text-sm text-red-600">Unable to load Story Nodes.</p>
-        ) : null}
-        {isNodeFormOpen ? (
-          <form
-            className="flex max-w-md gap-2 rounded-lg border border-neutral-200 bg-white p-3"
-            onSubmit={handleCreateNode}
-          >
-            <label className="sr-only" htmlFor="node-name">
-              Node name
-            </label>
-            <input
-              autoFocus
-              className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2"
-              id="node-name"
-              onChange={(event) => setNodeName(event.target.value)}
-              placeholder="Node name"
-              value={nodeName}
-            />
-            <button
-              className="rounded-md bg-neutral-900 px-3 py-2 font-medium text-white disabled:opacity-50"
-              disabled={!nodeName.trim()}
-              type="submit"
-            >
-              Create Node
-            </button>
-            <button
-              className="rounded-md border border-neutral-300 px-3 py-2"
-              onClick={() => {
-                setNodeName("");
-                setNodeFormOpen(false);
-              }}
-              type="button"
-            >
-              Cancel
-            </button>
-          </form>
-        ) : null}
-        {pendingConnection ? (
-          <form
-            className="flex max-w-md gap-2 rounded-lg border border-neutral-200 bg-white p-3"
-            onSubmit={handleCreateRelationship}
-          >
-            <label className="sr-only" htmlFor="relationship-name">
-              Relationship name
-            </label>
-            <input
-              autoFocus
-              className="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2"
-              id="relationship-name"
-              onChange={(event) => setRelationshipName(event.target.value)}
-              placeholder="Relationship name"
-              value={relationshipName}
-            />
-            <button
-              className="rounded-md bg-neutral-900 px-3 py-2 font-medium text-white disabled:opacity-50"
-              disabled={!relationshipName.trim()}
-              type="submit"
-            >
-              Create Relationship
-            </button>
-          </form>
-        ) : null}
-        {actionFailures.map((failure) => (
-          <p
-            className="text-sm text-red-600"
-            key={`${failure.operationId}:${failure.attempt}`}
-          >
-            {getEditorFailureMessage(failure.command, failure.error)}
-          </p>
-        ))}
-      </div>
-
-      <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <GraphCanvas
-          edges={canvasEdges}
-          nodes={canvasNodes}
-          onConnectNodes={handleConnectNodes}
-          onNodeDragStart={handleNodeDragStart}
-          onNodeDragStop={handleNodeDragStop}
-          onNodePositionChange={handleNodePositionChange}
-          onSelectEdge={(edgeId) => selectEntity({ kind: "edge", id: edgeId })}
-          onSelectNode={(nodeId) => selectEntity({ kind: "node", id: nodeId })}
-          ref={canvasRef}
-        />
         {inspectorSelection && selectedDraft && selectedDraftKey ? (
           <GraphInspector
             draft={selectedDraft}
@@ -716,8 +621,30 @@ function GraphEditorContent({
             selection={inspectorSelection}
             validationError={inspectorValidationError}
           />
-        ) : null}
+        ) : (
+          <aside className="hidden rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] p-5 text-sm text-[var(--sg-muted)] lg:block">
+            노드나 관계를 선택하면 여기에서 세부 정보를 편집할 수 있습니다.
+          </aside>
+        )}
       </div>
+
+      <AddNodeDialog
+        busy={false}
+        existingNodes={availableExistingNodes}
+        onClose={() => setNodeDialogOpen(false)}
+        onCreate={handleCreateNode}
+        onPlace={handleAddExistingNode}
+        open={isNodeDialogOpen}
+      />
+
+      <RelationshipDialog
+        busy={false}
+        onClose={() => setPendingConnection(null)}
+        onCreate={handleCreateRelationship}
+        open={Boolean(pendingConnection)}
+        sourceLabel={pendingSourceLabel}
+        targetLabel={pendingTargetLabel}
+      />
     </main>
   );
 }

@@ -4,6 +4,8 @@ import type {
   GraphEdgeResponse,
   GraphNodeResponse,
 } from "@/contracts/graph/graph.contract";
+import { Button } from "@/frontend/shared/ui/button";
+import { TextAreaField, TextField } from "@/frontend/shared/ui/form-field";
 import type {
   InspectorDraft,
   InspectorDraftPatch,
@@ -35,66 +37,67 @@ export function GraphInspector({
   const isNode = selection.kind === "node";
 
   return (
-    <aside className="rounded-xl border border-neutral-200 bg-white p-4">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold">
-          {isNode ? "Node Inspector" : "Relationship Inspector"}
-        </h2>
-        <p className="text-xs text-neutral-500">
-          Version {selection.entity.version}
-        </p>
+    <aside className="self-start rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] p-5 shadow-[0_1px_2px_rgba(23,25,29,0.03)]">
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-[var(--sg-brand-strong)]">
+            INSPECTOR
+          </p>
+          <h2 className="mt-1 text-lg font-semibold tracking-[-0.02em]">
+            {isNode ? "노드" : "관계"}
+          </h2>
+        </div>
+        <span className="rounded-full bg-[var(--sg-canvas)] px-2 py-1 text-xs font-medium text-[var(--sg-muted)]">
+          v{selection.entity.version}
+        </span>
       </div>
 
       <div className="grid gap-4">
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">Name</span>
-          <input
-            className="rounded-md border border-neutral-300 px-3 py-2"
-            onChange={(event) => onDraftChange({ name: event.target.value })}
-            value={draft.name}
-          />
-        </label>
+        <TextField
+          label="이름"
+          onChange={(event) => onDraftChange({ name: event.target.value })}
+          value={draft.name}
+        />
 
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">Description</span>
-          <textarea
-            className="min-h-28 rounded-md border border-neutral-300 px-3 py-2"
-            onChange={(event) =>
-              onDraftChange({ description: event.target.value })
-            }
-            value={draft.description}
-          />
-        </label>
+        <TextAreaField
+          label="설명"
+          onChange={(event) =>
+            onDraftChange({ description: event.target.value })
+          }
+          value={draft.description}
+        />
 
-        <label className="grid gap-1 text-sm">
-          <span className="font-medium">Properties JSON</span>
-          <textarea
-            className="min-h-40 rounded-md border border-neutral-300 px-3 py-2 font-mono text-xs"
-            onChange={(event) =>
-              onDraftChange({ propertiesText: event.target.value })
-            }
-            value={draft.propertiesText}
-          />
-        </label>
+        <TextAreaField
+          className="min-h-40 font-mono text-xs"
+          error={validationError}
+          label="속성 JSON"
+          onChange={(event) =>
+            onDraftChange({ propertiesText: event.target.value })
+          }
+          value={draft.propertiesText}
+        />
 
-        {validationError ? (
-          <p className="text-sm text-red-600">{validationError}</p>
+        {error ? (
+          <p className="text-sm leading-6 text-[var(--sg-danger)]" role="alert">
+            {error}
+          </p>
         ) : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
       </div>
 
-      <div className="mt-5 border-t border-neutral-200 pt-4">
-        <p className="mb-2 text-xs text-neutral-500">
-          Removes this item only from the current Board. Canonical Story graph data is kept.
+      <div className="mt-6 border-t border-[var(--sg-line)] pt-5">
+        <p className="mb-3 text-xs leading-5 text-[var(--sg-muted)]">
+          현재 보드에서만 제거합니다. 이야기의 원본 노드와 관계 데이터는 유지됩니다.
         </p>
-        <button
-          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-medium disabled:opacity-50"
-          disabled={isLaneBusy || isRemoving}
+        <Button
+          busy={isRemoving}
+          className="w-full"
+          disabled={isLaneBusy}
+          emphasis="outline"
+          intent="danger"
           onClick={onRemoveFromBoard}
-          type="button"
         >
-          {isRemoving ? "Removing..." : "Remove from Board"}
-        </button>
+          보드에서 제거
+        </Button>
       </div>
     </aside>
   );

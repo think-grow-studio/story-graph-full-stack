@@ -147,7 +147,7 @@ test("one canonical Edge resolves differently on scoped and unscoped Boards", as
       `/stories/${setup.story.id}/boards/${setup.scopedBoard.id}`,
     );
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
-    await expect(page.getByText("Scope: Chapter 10")).toBeVisible();
+    await expect(page.getByText("컨텍스트 · Chapter 10")).toBeVisible();
 
     let scopedEdge = page.locator(
       `.react-flow__edge[data-id="${setup.edgeId}"]`,
@@ -155,17 +155,15 @@ test("one canonical Edge resolves differently on scoped and unscoped Boards", as
     await expect(scopedEdge).toBeVisible();
     await expect(page.getByText("serves", { exact: true })).toBeVisible();
     await scopedEdge.locator(".react-flow__edge-path").click({ force: true });
-    await expect(
-      page.getByRole("heading", { name: "Relationship Inspector" }),
-    ).toBeVisible();
-    await expect(page.getByLabel("Name")).toHaveValue("serves");
+    await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
+    await expect(page.getByLabel("이름")).toHaveValue("serves");
 
     const forwardPromise = waitForEdgeStatePut(
       page,
       setup.scope.id,
       setup.edgeId,
     );
-    await page.getByLabel("Name").fill("rules");
+    await page.getByLabel("이름").fill("rules");
     const forward = await forwardPromise;
     expect(forward.status()).toBe(200);
     expect(await forward.json()).toMatchObject({
@@ -176,7 +174,7 @@ test("one canonical Edge resolves differently on scoped and unscoped Boards", as
       properties: null,
       version: 1,
     });
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
     await expect(page.getByText("rules", { exact: true })).toBeVisible();
 
     const undoPromise = waitForEdgeStatePut(
@@ -195,9 +193,9 @@ test("one canonical Edge resolves differently on scoped and unscoped Boards", as
       properties: null,
       version: 2,
     });
-    await expect(page.getByLabel("Name")).toHaveValue("serves");
+    await expect(page.getByLabel("이름")).toHaveValue("serves");
     await expect(page.getByText("serves", { exact: true })).toBeVisible();
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const redoPromise = waitForEdgeStatePut(
       page,
@@ -215,9 +213,9 @@ test("one canonical Edge resolves differently on scoped and unscoped Boards", as
       properties: null,
       version: 3,
     });
-    await expect(page.getByLabel("Name")).toHaveValue("rules");
+    await expect(page.getByLabel("이름")).toHaveValue("rules");
     await expect(page.getByText("rules", { exact: true })).toBeVisible();
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Graph canvas")).toBeVisible();

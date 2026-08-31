@@ -13,7 +13,7 @@ vi.mock("@xyflow/react", () => ({
   MiniMap: () => null,
   ReactFlow: (props: Record<string, (...args: unknown[]) => unknown>) => {
     flowMocks.props = props;
-    return <div aria-label="Graph canvas" />;
+    return <div aria-label="Flow renderer" />;
   },
   useReactFlow: () => ({
     screenToFlowPosition: (position: { x: number; y: number }) => position,
@@ -22,7 +22,23 @@ vi.mock("@xyflow/react", () => ({
 
 import { GraphCanvas } from "./graph-canvas";
 
-describe("GraphCanvas drag lifecycle", () => {
+describe("GraphCanvas", () => {
+  it("uses the available editor height with a sensible minimum", () => {
+    const view = render(
+      <GraphCanvas
+        edges={[]}
+        nodes={[]}
+        onConnectNodes={vi.fn()}
+        onNodeDragStop={vi.fn()}
+        onNodePositionChange={vi.fn()}
+      />,
+    );
+
+    const canvas = view.getByLabelText("Graph canvas");
+    expect(canvas).toHaveClass("h-full", "min-h-[420px]");
+    expect(canvas).not.toHaveClass("h-[560px]");
+  });
+
   it("forwards drag start once while drag frames remain working-state only", () => {
     const onNodeDragStart = vi.fn();
     const onNodePositionChange = vi.fn();

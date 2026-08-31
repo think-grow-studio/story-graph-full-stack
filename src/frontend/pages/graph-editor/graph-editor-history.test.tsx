@@ -137,7 +137,7 @@ describe("Graph Editor history", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Select Alice" }));
     vi.useFakeTimers();
-    fireEvent.change(screen.getByLabelText("Name"), {
+    fireEvent.change(screen.getByLabelText("이름"), {
       target: { value: "Alicia" },
     });
     await advance(500);
@@ -151,7 +151,7 @@ describe("Graph Editor history", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(screen.getByLabelText("Name")).toHaveValue("Alice");
+    expect(screen.getByLabelText("이름")).toHaveValue("Alice");
     expect(mocks.updateNode).toHaveBeenCalledTimes(2);
     expect(mocks.updateNode.mock.calls[1]?.[0]).toMatchObject({
       nodeId,
@@ -169,7 +169,7 @@ describe("Graph Editor history", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByLabelText("Name")).toHaveValue("Alicia");
+    expect(screen.getByLabelText("이름")).toHaveValue("Alicia");
     expect(mocks.updateNode).toHaveBeenCalledTimes(3);
     expect(mocks.updateNode.mock.calls[2]?.[0]).toMatchObject({
       nodeId,

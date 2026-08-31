@@ -262,10 +262,10 @@ describe("Graph Editor inspector", () => {
     const { queryClient } = renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
-    expect(screen.getByRole("heading", { name: "Node Inspector" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toHaveValue("Alice");
-    expect(screen.getByLabelText("Description")).toHaveValue("Protagonist");
-    expect(screen.getByLabelText("Properties JSON")).toHaveValue(
+    expect(screen.getByRole("heading", { name: "노드" })).toBeInTheDocument();
+    expect(screen.getByLabelText("이름")).toHaveValue("Alice");
+    expect(screen.getByLabelText("설명")).toHaveValue("Protagonist");
+    expect(screen.getByLabelText("속성 JSON")).toHaveValue(
       '{\n  "role": "lead"\n}',
     );
     expect(screen.queryByRole("button", { name: "Save Node" })).not.toBeInTheDocument();
@@ -274,13 +274,13 @@ describe("Graph Editor inspector", () => {
     expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent("999,888");
 
     vi.useFakeTimers();
-    fireEvent.change(screen.getByLabelText("Name"), {
+    fireEvent.change(screen.getByLabelText("이름"), {
       target: { value: "Alicia" },
     });
-    fireEvent.change(screen.getByLabelText("Description"), {
+    fireEvent.change(screen.getByLabelText("설명"), {
       target: { value: "Main protagonist" },
     });
-    fireEvent.change(screen.getByLabelText("Properties JSON"), {
+    fireEvent.change(screen.getByLabelText("속성 JSON"), {
       target: { value: '{"role":"lead","age":31}' },
     });
 
@@ -298,7 +298,7 @@ describe("Graph Editor inspector", () => {
       description: "Main protagonist",
       properties: { role: "lead", age: 31 },
     });
-    expect(screen.getByLabelText("Name")).toHaveValue("Alicia");
+    expect(screen.getByLabelText("이름")).toHaveValue("Alicia");
     expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent("999,888");
 
     await waitFor(() => {
@@ -319,21 +319,19 @@ describe("Graph Editor inspector", () => {
     const { queryClient } = renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select knows" }));
-    expect(
-      screen.getByRole("heading", { name: "Relationship Inspector" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "관계" })).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Save Relationship" }),
     ).not.toBeInTheDocument();
 
     vi.useFakeTimers();
-    fireEvent.change(screen.getByLabelText("Name"), {
+    fireEvent.change(screen.getByLabelText("이름"), {
       target: { value: "best friend" },
     });
-    fireEvent.change(screen.getByLabelText("Description"), {
+    fireEvent.change(screen.getByLabelText("설명"), {
       target: { value: "Childhood friends" },
     });
-    fireEvent.change(screen.getByLabelText("Properties JSON"), {
+    fireEvent.change(screen.getByLabelText("속성 JSON"), {
       target: { value: '{"since":2012}' },
     });
 
@@ -374,10 +372,8 @@ describe("Graph Editor inspector", () => {
     expect(screen.queryByRole("button", { name: "Select serves" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Select rules" }));
-    expect(
-      screen.getByRole("heading", { name: "Relationship Inspector" }),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toHaveValue("rules");
+    expect(screen.getByRole("heading", { name: "관계" })).toBeInTheDocument();
+    expect(screen.getByLabelText("이름")).toHaveValue("rules");
 
     const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof scopedSnapshot>>([
       "graph",
@@ -395,7 +391,7 @@ describe("Graph Editor inspector", () => {
 
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
     vi.useFakeTimers();
-    fireEvent.change(screen.getByLabelText("Properties JSON"), {
+    fireEvent.change(screen.getByLabelText("속성 JSON"), {
       target: { value: '{"job":' },
     });
 
@@ -405,10 +401,10 @@ describe("Graph Editor inspector", () => {
     vi.useRealTimers();
 
     await user.click(screen.getByRole("button", { name: "Select Bob" }));
-    expect(screen.getByLabelText("Name")).toHaveValue("Bob");
+    expect(screen.getByLabelText("이름")).toHaveValue("Bob");
     await user.click(screen.getByRole("button", { name: "Select Alice" }));
 
-    expect(screen.getByLabelText("Properties JSON")).toHaveValue('{"job":');
+    expect(screen.getByLabelText("속성 JSON")).toHaveValue('{"job":');
     expect(screen.getByText("Properties must be valid JSON.")).toBeInTheDocument();
     expect(mocks.updateNode).not.toHaveBeenCalled();
   });
@@ -427,13 +423,13 @@ describe("Graph Editor inspector", () => {
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
 
     vi.useFakeTimers();
-    fireEvent.change(screen.getByLabelText("Name"), {
+    fireEvent.change(screen.getByLabelText("이름"), {
       target: { value: "Alicia" },
     });
     await advanceAutosave(500);
     expect(mocks.updateNode).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText("Name"), {
+    fireEvent.change(screen.getByLabelText("이름"), {
       target: { value: "Alicia newest raw draft" },
     });
 
@@ -447,7 +443,7 @@ describe("Graph Editor inspector", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByLabelText("Name")).toHaveValue("Alicia newest raw draft");
+    expect(screen.getByLabelText("이름")).toHaveValue("Alicia newest raw draft");
   });
 
   it("preserves the editable raw draft after a 409 conflict", async () => {
@@ -460,7 +456,7 @@ describe("Graph Editor inspector", () => {
 
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
     vi.useFakeTimers();
-    fireEvent.change(screen.getByLabelText("Name"), {
+    fireEvent.change(screen.getByLabelText("이름"), {
       target: { value: "Alicia local draft" },
     });
     await advanceAutosave(500);
@@ -469,13 +465,13 @@ describe("Graph Editor inspector", () => {
     expect(
       await screen.findByText("This Node changed elsewhere. Reload before saving again."),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toHaveValue("Alicia local draft");
+    expect(screen.getByLabelText("이름")).toHaveValue("Alicia local draft");
     expect(mocks.updateNode.mock.calls[0][0]).toMatchObject({ version: 3 });
 
-    fireEvent.change(screen.getByLabelText("Name"), {
+    fireEvent.change(screen.getByLabelText("이름"), {
       target: { value: "Alicia revised after conflict" },
     });
-    expect(screen.getByLabelText("Name")).toHaveValue(
+    expect(screen.getByLabelText("이름")).toHaveValue(
       "Alicia revised after conflict",
     );
   });

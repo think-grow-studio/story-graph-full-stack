@@ -110,9 +110,7 @@ test("Graph Editor persists Relationship Board removal Undo and Redo across relo
     const edge = page.locator(`.react-flow__edge[data-id="${setup.edgeId}"]`);
     await expect(edge).toBeVisible();
     await edge.locator(".react-flow__edge-path").click({ force: true });
-    await expect(
-      page.getByRole("heading", { name: "Relationship Inspector" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
 
     const removePromise = waitForBoardEdgeRequest(
       page,
@@ -120,10 +118,10 @@ test("Graph Editor persists Relationship Board removal Undo and Redo across relo
       setup.board.id,
       setup.edgeId,
     );
-    await page.getByRole("button", { name: "Remove from Board" }).click();
+    await page.getByRole("button", { name: "보드에서 제거" }).click();
     expect((await removePromise).status()).toBe(204);
     await expect(edge).toHaveCount(0);
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const undoPromise = waitForBoardEdgeRequest(
       page,
@@ -134,7 +132,7 @@ test("Graph Editor persists Relationship Board removal Undo and Redo across relo
     await page.getByRole("button", { name: "Undo" }).click();
     expect((await undoPromise).status()).toBe(200);
     await expect(edge).toBeVisible();
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const redoPromise = waitForBoardEdgeRequest(
       page,
@@ -145,7 +143,7 @@ test("Graph Editor persists Relationship Board removal Undo and Redo across relo
     await page.getByRole("button", { name: "Redo" }).click();
     expect((await redoPromise).status()).toBe(204);
     await expect(edge).toHaveCount(0);
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const finalUndoPromise = waitForBoardEdgeRequest(
       page,
@@ -156,7 +154,7 @@ test("Graph Editor persists Relationship Board removal Undo and Redo across relo
     await page.getByRole("button", { name: "Undo" }).click();
     expect((await finalUndoPromise).status()).toBe(200);
     await expect(edge).toBeVisible();
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Graph canvas")).toBeVisible();

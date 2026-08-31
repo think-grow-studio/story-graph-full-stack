@@ -18,17 +18,15 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-afterEach(() => {
-  cleanup();
-});
+afterEach(cleanup);
 
 describe("GoogleAuthButton", () => {
-  it("starts the Google OAuth flow with the dashboard callback", async () => {
+  it("starts Google OAuth with the dashboard callback", async () => {
     mocks.signInSocial.mockResolvedValue({ data: {}, error: null });
     const user = userEvent.setup();
     render(<GoogleAuthButton />);
 
-    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await user.click(screen.getByRole("button", { name: "Google로 계속하기" }));
 
     await waitFor(() =>
       expect(mocks.signInSocial).toHaveBeenCalledWith({
@@ -38,16 +36,18 @@ describe("GoogleAuthButton", () => {
     );
   });
 
-  it("shows an auth error returned by Better Auth", async () => {
+  it("shows a stable actionable error instead of provider internals", async () => {
     mocks.signInSocial.mockResolvedValue({
       data: null,
-      error: { message: "Google sign-in failed" },
+      error: { message: "provider detail" },
     });
     const user = userEvent.setup();
     render(<GoogleAuthButton />);
 
-    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await user.click(screen.getByRole("button", { name: "Google로 계속하기" }));
 
-    expect(await screen.findByText("Google sign-in failed")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Google 로그인을 시작하지 못했습니다. 다시 시도해 주세요."),
+    ).toBeInTheDocument();
   });
 });
