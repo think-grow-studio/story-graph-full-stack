@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   updateBoardNode: vi.fn(),
   createEdgeOnBoard: vi.fn(),
   updateNode: vi.fn(),
+  updateNodeState: vi.fn(),
   updateEdge: vi.fn(),
+  updateEdgeState: vi.fn(),
   removeNodeFromBoard: vi.fn(),
   restoreNodeToBoard: vi.fn(),
   removeEdgeFromBoard: vi.fn(),
@@ -29,7 +31,9 @@ vi.mock("@/frontend/api/graph/graph.api", () => ({
   updateBoardNode: mocks.updateBoardNode,
   createEdgeOnBoard: mocks.createEdgeOnBoard,
   updateNode: mocks.updateNode,
+  updateNodeState: mocks.updateNodeState,
   updateEdge: mocks.updateEdge,
+  updateEdgeState: mocks.updateEdgeState,
   removeNodeFromBoard: mocks.removeNodeFromBoard,
   restoreNodeToBoard: mocks.restoreNodeToBoard,
   removeEdgeFromBoard: mocks.removeEdgeFromBoard,
@@ -126,6 +130,7 @@ function snapshot() {
         updatedAt: now,
       },
     ],
+    edgeStates: [],
     boardNodes: [
       {
         boardId,
