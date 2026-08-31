@@ -45,20 +45,6 @@ export function HomePage() {
             인물, 관계, 사건과 설정을 한 화면에서 연결하세요. 흩어진 메모 대신
             이야기 세계의 구조를 보면서 쓰는 데 필요한 맥락을 오래 유지할 수 있습니다.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              className={`${entryLinkClass} bg-[var(--sg-brand)] px-5 text-white hover:bg-[var(--sg-brand-strong)]`}
-              href="/signup"
-            >
-              시작하기
-            </Link>
-            <Link
-              className={`${entryLinkClass} border border-[var(--sg-line)] bg-[var(--sg-surface)] px-5 text-[var(--sg-ink)] hover:bg-white`}
-              href="/login"
-            >
-              로그인
-            </Link>
-          </div>
         </div>
 
         <div
