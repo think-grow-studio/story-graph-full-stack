@@ -1,6 +1,6 @@
 # Product UI V1 Design
 
-Status: Approved design for implementation planning
+Status: Chat-approved; awaiting written-spec review before implementation planning
 Date: 2026-08-31
 
 ## 1. Goal
@@ -93,7 +93,7 @@ The route structure stays unchanged unless an implementation detail requires a n
 
 The current placeholder home becomes a real entry point.
 
-### Logged-out state
+### Public landing state
 
 Header:
 - Story Graph identity
@@ -102,16 +102,12 @@ Header:
 
 Hero:
 - concise product thesis explaining that story worlds are built from connected people, places, events, ideas, and relationships
-- primary CTA to signup/login flow
+- primary CTA to signup flow
 - graph signature visual
 
 Secondary content is intentionally minimal. V1 does not need pricing, testimonials, feature grids, or marketing-heavy sections.
 
-### Logged-in state
-
-If session/bootstrap information is cheaply available through the existing client boundary, replace the primary auth CTA with `Story Graph 열기` linking to `/dashboard`.
-
-If session lookup would introduce avoidable loading/layout instability on the marketing page, keep deterministic logged-out CTAs and rely on auth-route/dashboard redirection behavior. This is a low-risk implementation choice and should prefer the simpler stable version.
+The landing page remains deterministic and does not perform bootstrap/session loading. `로그인` links to `/login`, `시작하기` links to `/signup`; authenticated users are handled by the auth-route redirect described below. This prevents loading flicker and keeps the marketing route independent of authenticated application state.
 
 ## 6. Authentication screens
 
@@ -132,7 +128,7 @@ No email/password fields are introduced.
 
 ### Authenticated auth-route behavior
 
-An already authenticated user visiting `/login` or `/signup` should be redirected to `/dashboard` if the existing bootstrap/session boundary supports this without duplicating backend auth logic in the UI.
+An already authenticated user visiting `/login` or `/signup` is redirected to `/dashboard` through the existing bootstrap/session boundary. Frontend UI must not duplicate backend auth/session logic.
 
 ## 7. Authenticated app shell
 
@@ -157,6 +153,15 @@ Mobile:
 - primary page action remains easy to find
 
 V1 navigation only exposes real implemented destinations. Do not add dead links for AI, settings, templates, billing, collaboration, or search.
+
+### Account area
+
+Use bootstrap actor data already available to the frontend:
+- display actor name, falling back to email where needed
+- optional email in the expanded account surface
+- `로그아웃` action
+
+Logout uses the existing Better Auth client, clears/invalidate relevant authenticated query state, and navigates to `/`. Logout must remain reachable on narrow viewports.
 
 ## 8. Dashboard
 
@@ -185,14 +190,9 @@ Use an app-owned create flow, preferably a compact dialog or clearly bounded for
 
 Fields:
 - name: required
-- description: optional if existing contract supports it
+- description: optional
 
-Success behavior:
-- create the Story
-- navigate directly to `/stories/:storyId` if the current mutation response contains the created ID
-- if the existing mutation contract does not return a usable ID, keep the user on the dashboard, refresh the list, and clearly surface the new Story
-
-The implementation plan must inspect the mutation contract before choosing the success destination.
+Success behavior is fixed: the existing create mutation returns the created `StoryResponse`, including its ID, so successful creation immediately navigates to `/stories/:storyId`.
 
 ### States
 
@@ -235,9 +235,11 @@ Fields:
 - Board name: required
 - Context/Scope: optional
 
+The existing create mutation returns the created `BoardResponse`, including its ID. Successful Board creation immediately navigates to `/stories/:storyId/boards/:boardId` so the user lands in the working surface without another selection step.
+
 User-facing terminology:
 - canonical code/domain remains `Scope`
-- UI copy uses a plain-language label such as `컨텍스트` where it improves comprehension
+- UI copy uses `컨텍스트` where it improves comprehension
 
 ### Scope management
 
@@ -268,7 +270,7 @@ Desktop target:
 
 The Graph canvas is the dominant visual surface.
 
-A persistent left Node library is **not required for Product UI V1**. Existing-node placement can be exposed through the Add Node action/dialog, avoiding a broader editor-navigation redesign.
+A persistent left Node library is **not required for Product UI V1**. Existing-node placement is exposed through the Add Node action surface, avoiding a broader editor-navigation redesign.
 
 ### Top bar
 
@@ -320,7 +322,7 @@ Expected primitives/patterns:
 - EmptyState
 - InlineError / StatusMessage
 - Loading treatment
-- Dialog if a maintained accessible dialog can be implemented without introducing a large unrelated dependency
+- shared app-owned modal Dialog using the platform dialog primitive with explicit accessible title/description, Escape behavior, modal focus containment, and focus restoration
 - AppShell / PageHeader
 
 Avoid a large general-purpose component library migration in V1.
@@ -366,7 +368,7 @@ Every empty state explains the object and exposes the next useful action.
 
 - native `button`/`a` semantics
 - visible `:focus-visible`
-- modal/dialog focus handling when dialogs are introduced
+- dialog focus containment and restoration
 - Escape closes dismissible dialogs
 - Graph drag remains supplemented by existing non-drag editing where relevant; Product UI V1 does not redesign keyboard graph movement
 
@@ -414,9 +416,11 @@ UI refactoring must not mutate canonical graph semantics for convenience.
 
 Add or update tests for:
 - landing CTA navigation
-- auth pending/error states
-- dashboard empty/list/create states
+- auth pending/error/redirect states
+- logout behavior
+- dashboard empty/list/create-and-navigate states
 - Story Board/Scope empty/create states
+- Board create-and-open behavior
 - Add Node action surface
 - Relationship naming/cancel flow
 - accessible labels and disabled/busy states for shared controls
@@ -433,8 +437,9 @@ Add or update a critical Product UI E2E path that verifies, using the existing a
 entry/authenticated start
 → dashboard
 → create Story
+→ auto-open Story
 → create Board
-→ open editor
+→ auto-open editor
 → create Node A
 → create Node B
 → connect A → B
@@ -485,11 +490,12 @@ Product UI V1 does not include:
 Product UI V1 is complete only when:
 
 1. `/` is a meaningful product entry point.
-2. Login/signup screens are usable and visually coherent.
-3. Dashboard makes Story creation/opening obvious.
-4. Story page makes Board creation/opening the primary workflow and Scope secondary.
-5. Editor removes development-style persistent creation forms and makes the canvas the dominant surface.
-6. A shared visual system and `DESIGN.md` prevent screen-by-screen styling drift.
-7. The end-to-end authoring path can be completed without manually typing hidden routes.
-8. Existing Graph Editor persistence/state invariants remain passing.
-9. CI and critical E2E are green before merge.
+2. Login/signup screens are usable, visually coherent, and redirect authenticated users appropriately.
+3. Dashboard makes Story creation/opening obvious and newly created Stories open immediately.
+4. Story page makes Board creation/opening the primary workflow, newly created Boards open immediately, and Scope remains secondary.
+5. The app shell exposes the current user and a working logout action.
+6. Editor removes development-style persistent creation forms and makes the canvas the dominant surface.
+7. A shared visual system and `DESIGN.md` prevent screen-by-screen styling drift.
+8. The end-to-end authoring path can be completed without manually typing hidden routes.
+9. Existing Graph Editor persistence/state invariants remain passing.
+10. CI and critical E2E are green before merge.
