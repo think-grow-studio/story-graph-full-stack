@@ -149,6 +149,7 @@ export function DashboardPage() {
           {stories.data.map((story) => (
             <li key={story.id}>
               <Link
+                aria-label={story.name}
                 className="group block min-h-40 rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] p-5 transition-[border-color,box-shadow] duration-150 hover:border-[color-mix(in_srgb,var(--sg-brand)_35%,var(--sg-line))] hover:shadow-[0_10px_28px_rgba(23,25,29,0.05)]"
                 href={`/stories/${story.id}`}
               >
