@@ -275,7 +275,7 @@ Snapshot assembly must remain read-consistent and continue returning canonical `
 
 ## 8. API design
 
-Add one intent-oriented write endpoint:
+Add one intent-oriented state write endpoint:
 
 ```http
 PUT /api/v1/scopes/:scopeId/edges/:edgeId/state
@@ -309,6 +309,27 @@ Isolation/authorization order:
 No canonical `PATCH /edges/:edgeId` occurs in this use-case.
 
 The existing canonical Edge PATCH endpoint remains unchanged for unscoped Boards.
+
+### 8.1 Reuse existing BoardEdge materialization
+
+EdgeState acceptance requires the same canonical Edge to be represented on more than one Board. Do **not** add another “place existing Edge” endpoint in this slice.
+
+The existing idempotent BoardEdge PUT flow already supports this safely:
+
+```http
+PUT /api/v1/boards/:boardId/edges/:edgeId
+```
+
+Its current backend behavior already:
+
+- resolves the target Board and canonical Edge in the same Story,
+- requires both canonical Edge endpoints to be represented as BoardNodes on the target Board,
+- inserts BoardEdge presentation only,
+- increments Board revision only on first insertion,
+- returns the existing BoardEdge without revision increment on retry,
+- never creates or mutates canonical Edge.
+
+Although the application use-case is named `restoreEdgeToBoard` because it originated from Undo/Redo, the operation is already a valid idempotent BoardEdge materialization primitive. EdgeState V1 reuses it rather than adding a duplicate API.
 
 ---
 
@@ -399,6 +420,8 @@ Node labels continue to use effective Node resolution independently.
 
 ### 11.2 Relationship Inspector
 
+The current Inspector draft model exposes only `name`, `description`, and `properties`, so EdgeState V1 exactly covers every editable Relationship content field currently shown in the Inspector. `iconKey` is not accidentally editable through this scoped path.
+
 Unscoped Board remains unchanged:
 
 ```text
@@ -421,8 +444,6 @@ canonical Edge + EdgeState
 ```
 
 Invalid drafts remain isolated from the durable queue just like current Inspector behavior.
-
-`iconKey` remains the canonical value and must not accidentally be written through the EdgeState endpoint.
 
 ---
 
@@ -565,7 +586,8 @@ Prove:
 - stale version returns conflict,
 - scoped Board snapshot contains only represented EdgeState rows,
 - unscoped snapshot returns `edgeStates: []`,
-- removing BoardEdge does not remove EdgeState.
+- removing BoardEdge does not remove EdgeState,
+- existing BoardEdge PUT can materialize the same canonical Edge on another Board when both endpoints are represented.
 
 ### Application/API
 
@@ -599,7 +621,7 @@ Acceptance flow:
 1. create canonical Nodes + Edge on an unscoped Board,
 2. create a Scope and scoped Board,
 3. place the same canonical endpoint Nodes on the scoped Board,
-4. represent the same canonical Edge on the scoped Board,
+4. use the existing idempotent BoardEdge PUT to represent the same canonical Edge on the scoped Board,
 5. edit scoped relationship name to `rules`,
 6. wait for Saved,
 7. verify unscoped Board still shows canonical `serves`,
