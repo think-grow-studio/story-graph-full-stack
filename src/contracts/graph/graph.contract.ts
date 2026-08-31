@@ -58,6 +58,14 @@ export const putNodeStateRequestSchema = z.object({
   properties: jsonObjectSchema.nullable(),
 });
 
+export const putEdgeStateRequestSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  version: z.number().int().min(1).nullable(),
+  name: nameSchema.nullable(),
+  description: descriptionSchema.nullable(),
+  properties: jsonObjectSchema.nullable(),
+});
+
 export const updateNodeRequestSchema = z
   .object({
     workspaceId: workspaceIdSchema,
@@ -176,6 +184,17 @@ export const nodeStateResponseSchema = z.object({
   updatedAt: dateTimeSchema,
 });
 
+export const edgeStateResponseSchema = z.object({
+  scopeId: graphIdSchema,
+  edgeId: graphIdSchema,
+  name: z.string().nullable(),
+  description: z.string().nullable(),
+  properties: jsonObjectSchema.nullable(),
+  version: z.number().int().min(1),
+  createdAt: dateTimeSchema,
+  updatedAt: dateTimeSchema,
+});
+
 export const boardResponseSchema = z.object({
   id: graphIdSchema,
   storyId: graphIdSchema,
@@ -277,6 +296,7 @@ export const boardSnapshotResponseSchema = z.object({
 
 export type ScopeResponse = z.infer<typeof scopeResponseSchema>;
 export type NodeStateResponse = z.infer<typeof nodeStateResponseSchema>;
+export type EdgeStateResponse = z.infer<typeof edgeStateResponseSchema>;
 export type BoardResponse = z.infer<typeof boardResponseSchema>;
 export type GraphNodeResponse = z.infer<typeof graphNodeResponseSchema>;
 export type GraphEdgeResponse = z.infer<typeof graphEdgeResponseSchema>;
@@ -288,6 +308,7 @@ export type CreateBoardRequest = z.infer<typeof createBoardRequestSchema>;
 export type CreateNodeRequest = z.infer<typeof createNodeRequestSchema>;
 export type PlaceBoardNodeRequest = z.infer<typeof placeBoardNodeRequestSchema>;
 export type PutNodeStateRequest = z.infer<typeof putNodeStateRequestSchema>;
+export type PutEdgeStateRequest = z.infer<typeof putEdgeStateRequestSchema>;
 export type UpdateBoardNodeRequest = z.infer<typeof updateBoardNodeRequestSchema>;
 export type RestoreBoardEdgeRequest = z.infer<typeof restoreBoardEdgeRequestSchema>;
 export type RestoreBoardNodeRequest = z.infer<typeof restoreBoardNodeRequestSchema>;
