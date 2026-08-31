@@ -539,19 +539,19 @@ function GraphEditorContent({
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <div aria-live="polite" className="min-w-20 text-right text-sm text-[var(--sg-muted)]">
-            {editorSaveState === "saved" ? <span>Saved</span> : null}
-            {editorSaveState === "saving" ? <span>Saving…</span> : null}
-            {editorSaveState === "unsaved" ? <span>Unsaved</span> : null}
+          <div aria-live="polite" className="min-w-24 text-right text-sm text-[var(--sg-muted)]">
+            {editorSaveState === "saved" ? <span>저장됨</span> : null}
+            {editorSaveState === "saving" ? <span>저장 중…</span> : null}
+            {editorSaveState === "unsaved" ? <span>저장되지 않음</span> : null}
             {editorSaveState === "error" ? (
               <span className="inline-flex items-center gap-2">
-                <span>Error</span>
+                <span>저장 오류</span>
                 <button
                   className="font-semibold text-[var(--sg-danger)] underline underline-offset-4"
                   onClick={saveQueue.retryFailed}
                   type="button"
                 >
-                  Retry
+                  다시 시도
                 </button>
               </span>
             ) : null}
