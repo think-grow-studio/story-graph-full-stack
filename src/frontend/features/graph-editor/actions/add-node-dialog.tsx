@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import { Button } from "@/frontend/shared/ui/button";
 import { Dialog } from "@/frontend/shared/ui/dialog";
@@ -24,24 +24,34 @@ export function AddNodeDialog({
   const [name, setName] = useState("");
   const [existingNodeId, setExistingNodeId] = useState("");
 
-  useEffect(() => {
-    if (!open) {
-      setName("");
-      setExistingNodeId("");
-    }
-  }, [open]);
+  function resetDraft() {
+    setName("");
+    setExistingNodeId("");
+  }
+
+  function close() {
+    resetDraft();
+    onClose();
+  }
 
   function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed || busy) return;
     onCreate(trimmed);
+    resetDraft();
+  }
+
+  function handlePlace() {
+    if (!existingNodeId || busy) return;
+    onPlace(existingNodeId);
+    resetDraft();
   }
 
   return (
     <Dialog
       description="새 노드를 만들거나, 이 이야기의 기존 노드를 현재 보드에 배치하세요."
-      onClose={onClose}
+      onClose={close}
       open={open}
       title="노드 추가"
     >
@@ -59,7 +69,7 @@ export function AddNodeDialog({
             disabled={busy}
             emphasis="ghost"
             intent="neutral"
-            onClick={onClose}
+            onClick={close}
           >
             취소
           </Button>
@@ -96,9 +106,7 @@ export function AddNodeDialog({
             <Button
               disabled={busy || !existingNodeId}
               emphasis="outline"
-              onClick={() => {
-                if (existingNodeId) onPlace(existingNodeId);
-              }}
+              onClick={handlePlace}
             >
               보드에 추가
             </Button>
