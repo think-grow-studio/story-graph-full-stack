@@ -3,6 +3,7 @@ import type {
   BoardEdge,
   BoardNode,
   BoardSnapshot,
+  EdgeState,
   GraphEdge,
   GraphNode,
   JsonObject,
@@ -54,6 +55,14 @@ export interface GraphRepository {
     description: string | null;
     properties: JsonObject | null;
   }): Promise<NodeState | "conflict" | null>;
+  putEdgeState(input: {
+    scopeId: string;
+    edgeId: string;
+    expectedVersion: number | null;
+    name: string | null;
+    description: string | null;
+    properties: JsonObject | null;
+  }): Promise<EdgeState | "conflict" | null>;
   updateNode(input: {
     id: string;
     expectedVersion: number;
