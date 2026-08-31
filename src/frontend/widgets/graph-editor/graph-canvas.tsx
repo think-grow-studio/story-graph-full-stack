@@ -125,7 +125,7 @@ export function GraphCanvas({
   return (
     <div
       aria-label="Graph canvas"
-      className="h-[560px] overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50"
+      className="h-full min-h-[420px] overflow-hidden rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] shadow-[0_1px_2px_rgba(23,25,29,0.03)]"
       ref={containerRef}
     >
       <ReactFlow<FlowNode, Edge>
