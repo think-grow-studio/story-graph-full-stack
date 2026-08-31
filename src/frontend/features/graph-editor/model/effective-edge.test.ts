@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { GraphEdgeResponse } from "@/contracts/graph/graph.contract";
-import { resolveEffectiveEdge } from "./effective-edge";
+import {
+  normalizeEdgeStateOverrides,
+  resolveEffectiveEdge,
+} from "./effective-edge";
 
 const now = "2026-08-31T00:00:00.000Z";
 
@@ -44,6 +47,34 @@ describe("effective Edge resolution", () => {
       targetNodeId: canonical.targetNodeId,
       iconKey: "bond",
       version: 4,
+    });
+  });
+
+  it("normalizes canonical-equal fields to null and keeps properties as a whole-object override", () => {
+    const canonical = canonicalEdge();
+
+    expect(
+      normalizeEdgeStateOverrides(canonical, {
+        name: canonical.name,
+        description: "scoped relationship",
+        properties: {},
+      }),
+    ).toEqual({
+      name: null,
+      description: "scoped relationship",
+      properties: {},
+    });
+
+    expect(
+      normalizeEdgeStateOverrides(canonical, {
+        name: canonical.name,
+        description: canonical.description,
+        properties: { nested: { canonical: true }, strength: 2 },
+      }),
+    ).toEqual({
+      name: null,
+      description: null,
+      properties: null,
     });
   });
 });
