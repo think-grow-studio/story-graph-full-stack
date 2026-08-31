@@ -54,14 +54,12 @@ export function GraphInspector({
 
       <div className="grid gap-4">
         <TextField
-          disabled={isLaneBusy}
           label="이름"
           onChange={(event) => onDraftChange({ name: event.target.value })}
           value={draft.name}
         />
 
         <TextAreaField
-          disabled={isLaneBusy}
           label="설명"
           onChange={(event) =>
             onDraftChange({ description: event.target.value })
@@ -71,7 +69,6 @@ export function GraphInspector({
 
         <TextAreaField
           className="min-h-40 font-mono text-xs"
-          disabled={isLaneBusy}
           error={validationError}
           label="속성 JSON"
           onChange={(event) =>
