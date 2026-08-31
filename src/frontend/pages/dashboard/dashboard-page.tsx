@@ -130,7 +130,7 @@ export function DashboardPage() {
 
       {stories.data?.length === 0 ? (
         <EmptyState
-          action={<Button onClick={openCreateDialog}>첫 이야기 만들기</Button>}
+          action={<Button onClick={openCreateDialog}>첫 이야기 시작하기</Button>}
           description="인물, 장소, 사건과 관계를 담을 첫 이야기 공간을 만들어 보세요."
           title="아직 이야기가 없습니다"
           visual={
