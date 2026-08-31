@@ -3,11 +3,105 @@
 
 :root {
   color-scheme: light;
+  --sg-canvas: #f6f7f9;
+  --sg-surface: #ffffff;
+  --sg-ink: #17191d;
+  --sg-muted: #69717d;
+  --sg-line: #e3e6ea;
+  --sg-brand: #595bd4;
+  --sg-brand-strong: #484ac2;
+  --sg-danger: #b42318;
+  --sg-danger-soft: #fff1f0;
+  --sg-success: #18794e;
+  --sg-focus: #7778e8;
+  --sg-radius-sm: 8px;
+  --sg-radius-md: 12px;
+  --sg-radius-lg: 18px;
+  --sg-scrollbar-track: transparent;
+  --sg-scrollbar-thumb: #c7cbd2;
+  --sg-scrollbar-thumb-hover: #aeb4bd;
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-color: var(--sg-scrollbar-thumb) var(--sg-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--sg-scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--sg-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--sg-scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+html {
+  background: var(--sg-canvas);
 }
 
 body {
   margin: 0;
-  background: #ffffff;
-  color: #171717;
-  font-family: Arial, Helvetica, sans-serif;
+  min-width: 320px;
+  background: var(--sg-canvas);
+  color: var(--sg-ink);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+    "Noto Sans KR", "Malgun Gothic", sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a,
+select,
+summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--sg-focus) 58%, transparent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--sg-brand) 20%, white);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: CanvasText Canvas;
+  }
 }
