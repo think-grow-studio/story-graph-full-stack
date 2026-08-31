@@ -116,7 +116,7 @@ describe("StoryBoardsPage", () => {
     renderPage();
 
     expect(await screen.findByText("아직 보드가 없습니다")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "첫 보드 만들기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "첫 보드 시작하기" })).toBeInTheDocument();
   });
 
   it("creates an unscoped Board and opens the returned editor", async () => {
