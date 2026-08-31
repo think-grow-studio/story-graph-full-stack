@@ -146,7 +146,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("GraphEditorPage save state", () => {
-  it("shows Saved, Unsaved, Saving, Error/Retry, then Saved after retry", async () => {
+  it("shows 저장됨, 저장되지 않음, 저장 중, 저장 오류/다시 시도, then 저장됨", async () => {
     const first = deferred<ReturnType<typeof boardNode>>();
     const retry = deferred<ReturnType<typeof boardNode>>();
     mocks.updateBoardNode
@@ -162,28 +162,28 @@ describe("GraphEditorPage save state", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(await screen.findByText("저장됨")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Drag Alice" }));
     expect(screen.getByText("250,300")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Stop Alice" }));
-    expect(screen.getByText("Unsaved")).toBeInTheDocument();
+    expect(screen.getByText("저장되지 않음")).toBeInTheDocument();
 
-    expect(await screen.findByText("Saving…")).toBeInTheDocument();
+    expect(await screen.findByText("저장 중…")).toBeInTheDocument();
     first.reject(new Error("offline"));
 
-    expect(await screen.findByText("Error")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(await screen.findByText("저장 오류")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
     expect(screen.getByText("250,300")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     await waitFor(() => expect(mocks.updateBoardNode).toHaveBeenCalledTimes(2));
     retry.resolve(boardNode());
 
-    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(await screen.findByText("저장됨")).toBeInTheDocument();
     expect(screen.getByText("250,300")).toBeInTheDocument();
   });
 
-  it("stays Unsaved when an unselected Inspector draft is dirty and invalid", async () => {
+  it("stays 저장되지 않음 when an unselected Inspector draft is dirty and invalid", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -194,18 +194,18 @@ describe("GraphEditorPage save state", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(await screen.findByText("저장됨")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Select Alice" }));
-    fireEvent.change(await screen.findByLabelText("Properties JSON"), {
+    fireEvent.change(await screen.findByLabelText("속성 JSON"), {
       target: { value: '{"job":' },
     });
 
     expect(screen.getByText("Properties must be valid JSON.")).toBeInTheDocument();
-    expect(screen.getByText("Unsaved")).toBeInTheDocument();
+    expect(screen.getByText("저장되지 않음")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Select Bob" }));
-    expect(await screen.findByLabelText("Name")).toHaveValue("Bob");
-    expect(screen.getByText("Unsaved")).toBeInTheDocument();
+    expect(await screen.findByLabelText("이름")).toHaveValue("Bob");
+    expect(screen.getByText("저장되지 않음")).toBeInTheDocument();
     expect(mocks.updateNode).not.toHaveBeenCalled();
   });
 });
