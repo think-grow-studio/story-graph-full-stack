@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { GraphEdgeResponse } from "@/contracts/graph/graph.contract";
 import {
+  findEdgeState,
   normalizeEdgeStateOverrides,
   resolveEffectiveEdge,
 } from "./effective-edge";
@@ -25,6 +26,28 @@ function canonicalEdge(): GraphEdgeResponse {
 }
 
 describe("effective Edge resolution", () => {
+  it("finds EdgeState only by matching scope and edge identity", () => {
+    const canonical = canonicalEdge();
+    const target = {
+      scopeId: "66666666-6666-4666-8666-666666666666",
+      edgeId: canonical.id,
+      name: "betrays",
+      description: null,
+      properties: null,
+      version: 2,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    expect(
+      findEdgeState(target.scopeId, canonical.id, [
+        { ...target, scopeId: "77777777-7777-4777-8777-777777777777" },
+        { ...target, edgeId: "88888888-8888-4888-8888-888888888888" },
+        target,
+      ]),
+    ).toEqual(target);
+  });
+
   it("applies sparse scoped fields without changing canonical topology or icon", () => {
     const canonical = canonicalEdge();
 
