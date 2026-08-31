@@ -96,6 +96,7 @@ export interface BoardSnapshot {
   nodes: GraphNode[];
   nodeStates: NodeState[];
   edges: GraphEdge[];
+  edgeStates: EdgeState[];
   boardNodes: BoardNode[];
   boardEdges: BoardEdge[];
 }
