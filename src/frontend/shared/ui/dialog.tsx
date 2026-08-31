@@ -8,6 +8,15 @@ import {
   type ReactNode,
 } from "react";
 
+const focusableSelector = [
+  "button:not([disabled])",
+  "[href]",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
 export function Dialog({
   open,
   title,
@@ -39,6 +48,7 @@ export function Dialog({
         if (typeof dialog.showModal === "function") dialog.showModal();
         else dialog.setAttribute("open", "");
       }
+      dialog?.querySelector<HTMLElement>(focusableSelector)?.focus();
       return;
     }
 
