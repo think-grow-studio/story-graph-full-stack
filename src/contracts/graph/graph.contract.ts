@@ -290,6 +290,7 @@ export const boardSnapshotResponseSchema = z.object({
   nodes: z.array(graphNodeResponseSchema),
   nodeStates: z.array(nodeStateResponseSchema),
   edges: z.array(graphEdgeResponseSchema),
+  edgeStates: z.array(edgeStateResponseSchema),
   boardNodes: z.array(boardNodeResponseSchema),
   boardEdges: z.array(boardEdgeResponseSchema),
 });
