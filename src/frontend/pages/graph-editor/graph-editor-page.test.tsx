@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getBootstrap: vi.fn(),
   getBoardSnapshot: vi.fn(),
+  listStoryNodes: vi.fn(),
   createNodeOnBoard: vi.fn(),
+  placeNodeOnBoard: vi.fn(),
   updateBoardNode: vi.fn(),
   createEdgeOnBoard: vi.fn(),
 }));
@@ -18,7 +20,9 @@ vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
 
 vi.mock("@/frontend/api/graph/graph.api", () => ({
   getBoardSnapshot: mocks.getBoardSnapshot,
+  listStoryNodes: mocks.listStoryNodes,
   createNodeOnBoard: mocks.createNodeOnBoard,
+  placeNodeOnBoard: mocks.placeNodeOnBoard,
   updateBoardNode: mocks.updateBoardNode,
   createEdgeOnBoard: mocks.createEdgeOnBoard,
 }));
@@ -87,6 +91,21 @@ const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
 const nodeId = "33333333-3333-4333-8333-333333333333";
 const secondNodeId = "44444444-4444-4444-8444-444444444444";
+const thirdNodeId = "55555555-5555-4555-8555-555555555555";
+
+function graphNode(id: string, name: string) {
+  return {
+    id,
+    storyId,
+    name,
+    description: "",
+    iconKey: null,
+    properties: {},
+    version: 1,
+    createdAt: "2026-08-28T00:00:00.000Z",
+    updatedAt: "2026-08-28T00:00:00.000Z",
+  };
+}
 
 function snapshot() {
   return {
@@ -94,36 +113,16 @@ function snapshot() {
     board: {
       id: boardId,
       storyId,
+      scopeId: null,
       name: "Characters",
       description: "",
       revision: 1,
       createdAt: "2026-08-28T00:00:00.000Z",
       updatedAt: "2026-08-28T00:00:00.000Z",
     },
-    nodes: [
-      {
-        id: nodeId,
-        storyId,
-        name: "Alice",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: "2026-08-28T00:00:00.000Z",
-        updatedAt: "2026-08-28T00:00:00.000Z",
-      },
-      {
-        id: secondNodeId,
-        storyId,
-        name: "Bob",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: "2026-08-28T00:00:00.000Z",
-        updatedAt: "2026-08-28T00:00:00.000Z",
-      },
-    ],
+    scope: null,
+    nodes: [graphNode(nodeId, "Alice"), graphNode(secondNodeId, "Bob")],
+    nodeStates: [],
     edges: [],
     boardNodes: [
       {
@@ -173,21 +172,31 @@ beforeEach(() => {
     workspace: { id: "workspace-1", name: "Writer's Workspace", slug: "personal-user-1" },
   });
   mocks.getBoardSnapshot.mockResolvedValue(snapshot());
+  mocks.listStoryNodes.mockResolvedValue([
+    graphNode(nodeId, "Alice"),
+    graphNode(secondNodeId, "Bob"),
+    graphNode(thirdNodeId, "Carol"),
+  ]);
   mocks.createNodeOnBoard.mockImplementation(async (input) => ({
-    node: {
-      id: input.id,
-      storyId,
-      name: input.name,
-      description: "",
-      iconKey: null,
-      properties: {},
-      version: 1,
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
-    },
+    node: graphNode(input.id, input.name),
     boardNode: {
       boardId,
       nodeId: input.id,
+      x: input.position.x,
+      y: input.position.y,
+      width: null,
+      height: null,
+      zIndex: 0,
+      style: {},
+      createdAt: "2026-08-28T00:00:00.000Z",
+      updatedAt: "2026-08-28T00:00:00.000Z",
+    },
+  }));
+  mocks.placeNodeOnBoard.mockImplementation(async (input) => ({
+    node: graphNode(input.nodeId, "Carol"),
+    boardNode: {
+      boardId,
+      nodeId: input.nodeId,
       x: input.position.x,
       y: input.position.y,
       width: null,
@@ -260,6 +269,29 @@ describe("GraphEditorPage", () => {
     expect(input.id).toMatch(/^[0-9a-f-]{36}$/i);
     expect(await screen.findByText("Charlie")).toBeInTheDocument();
     expect(screen.queryByLabelText("Node name")).not.toBeInTheDocument();
+  });
+
+  it("offers only unrepresented canonical Nodes and places one at the canvas center", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Alice");
+
+    const picker = await screen.findByLabelText("Existing Node");
+    expect(screen.queryByRole("option", { name: "Alice" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Bob" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Carol" })).toBeInTheDocument();
+
+    await user.selectOptions(picker, thirdNodeId);
+    await user.click(screen.getByRole("button", { name: "Add Existing Node" }));
+
+    await waitFor(() => expect(mocks.placeNodeOnBoard).toHaveBeenCalledTimes(1));
+    expect(mocks.placeNodeOnBoard).toHaveBeenCalledWith({
+      boardId,
+      nodeId: thirdNodeId,
+      workspaceId: "workspace-1",
+      position: { x: 320, y: 240 },
+    });
+    expect(await screen.findByText("Carol")).toBeInTheDocument();
   });
 
   it("keeps drag movement local and persists only when drag stops", async () => {

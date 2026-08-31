@@ -27,6 +27,7 @@ function boardFixture(overrides: Partial<Board> = {}): Board {
   return {
     id: "board-1",
     storyId: "story-1",
+    scopeId: null,
     name: "Main",
     description: "",
     revision: 0,
@@ -101,9 +102,13 @@ function createGraph(): GraphRepository {
   const board = boardFixture();
   const edge = edgeFixture();
   return {
+    createScope: vi.fn(),
+    listScopes: vi.fn(),
+    findScope: vi.fn(),
     createBoard: vi.fn(),
     listBoards: vi.fn(),
     findBoard: vi.fn(async (id) => (id === board.id ? board : null)),
+    listNodes: vi.fn(async () => [source, target]),
     findNode: vi.fn(async (id) => {
       if (id === source.id) return source;
       if (id === target.id) return target;
@@ -112,6 +117,8 @@ function createGraph(): GraphRepository {
     findEdge: vi.fn(async (id) => (id === edge.id ? edge : null)),
     getBoardSnapshot: vi.fn(),
     createNodeOnBoard: vi.fn(),
+    placeNodeOnBoard: vi.fn(),
+    putNodeState: vi.fn(),
     updateNode: vi.fn(),
     updateBoardNode: vi.fn(),
     removeNodeFromBoard: vi.fn(),

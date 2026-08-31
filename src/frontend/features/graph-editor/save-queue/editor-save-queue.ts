@@ -59,9 +59,12 @@ export function getEditorCommandLaneKey(command: EditorCommand): string {
     case "create-node":
     case "move-node":
     case "update-node":
+    case "update-node-state":
     case "remove-board-node":
     case "restore-board-node":
       return `node:${command.nodeId}`;
+    case "place-board-node":
+      return `node:${command.node.id}`;
     case "create-edge":
     case "update-edge":
     case "remove-board-edge":

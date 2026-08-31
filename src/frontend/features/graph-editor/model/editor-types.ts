@@ -1,12 +1,23 @@
 import type {
   BoardEdgeResponse,
   BoardNodeResponse,
+  BoardResponse,
   BoardSnapshotResponse,
   GraphEdgeResponse,
   GraphNodeResponse,
+  NodeStateResponse,
+  ScopeResponse,
 } from "@/contracts/graph/graph.contract";
+import type { EditorNodeState } from "./effective-node";
 
-export type GraphEditorSnapshot = BoardSnapshotResponse;
+export type GraphEditorSnapshot = Omit<
+  BoardSnapshotResponse,
+  "board" | "scope" | "nodeStates"
+> & {
+  board: Omit<BoardResponse, "scopeId"> & { scopeId?: string | null };
+  scope?: ScopeResponse | null;
+  nodeStates?: NodeStateResponse[];
+};
 export type GraphEditorNodePair = {
   node: GraphNodeResponse;
   boardNode: BoardNodeResponse;
@@ -21,7 +32,9 @@ export type DetachedGraphEditorNodePresentation = {
 };
 
 export type GraphEditorState = {
+  scope: ScopeResponse | null;
   nodes: GraphNodeResponse[];
+  nodeStates: EditorNodeState[];
   edges: GraphEdgeResponse[];
   boardNodes: BoardNodeResponse[];
   boardEdges: BoardEdgeResponse[];
@@ -29,6 +42,7 @@ export type GraphEditorState = {
   addOptimisticNode: (input: GraphEditorNodePair) => void;
   reconcileNode: (input: GraphEditorNodePair) => void;
   replaceNode: (node: GraphNodeResponse) => void;
+  replaceNodeState: (nodeState: EditorNodeState) => void;
   removeNode: (nodeId: string) => void;
   detachNodeFromBoard: (nodeId: string) => DetachedGraphEditorNodePresentation;
   restoreNodeToBoard: (input: DetachedGraphEditorNodePresentation) => void;

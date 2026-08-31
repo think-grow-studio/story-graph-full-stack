@@ -1,8 +1,29 @@
 export type JsonObject = Record<string, unknown>;
 
+export interface Scope {
+  id: string;
+  storyId: string;
+  name: string;
+  description: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NodeState {
+  scopeId: string;
+  nodeId: string;
+  name: string | null;
+  description: string | null;
+  properties: JsonObject | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Board {
   id: string;
   storyId: string;
+  scopeId: string | null;
   name: string;
   description: string;
   revision: number;
@@ -60,7 +81,9 @@ export interface BoardEdge {
 
 export interface BoardSnapshot {
   board: Board;
+  scope: Scope | null;
   nodes: GraphNode[];
+  nodeStates: NodeState[];
   edges: GraphEdge[];
   boardNodes: BoardNode[];
   boardEdges: BoardEdge[];

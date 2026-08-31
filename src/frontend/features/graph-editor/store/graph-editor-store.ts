@@ -10,13 +10,17 @@ export type GraphEditorStore = StoreApi<GraphEditorState>;
 
 export function createGraphEditorStore(): GraphEditorStore {
   return createStore<GraphEditorState>()((set, get) => ({
+    scope: null,
     nodes: [],
+    nodeStates: [],
     edges: [],
     boardNodes: [],
     boardEdges: [],
     hydrate: (snapshot) =>
       set({
+        scope: snapshot.scope ?? null,
         nodes: [...snapshot.nodes],
+        nodeStates: [...(snapshot.nodeStates ?? [])],
         edges: [...snapshot.edges],
         boardNodes: [...snapshot.boardNodes],
         boardEdges: [...snapshot.boardEdges],
@@ -29,9 +33,23 @@ export function createGraphEditorStore(): GraphEditorStore {
           current.id === node.id ? node : current,
         ),
       })),
+    replaceNodeState: (nodeState) =>
+      set((state) => ({
+        nodeStates: [
+          ...state.nodeStates.filter(
+            (current) =>
+              current.scopeId !== nodeState.scopeId ||
+              current.nodeId !== nodeState.nodeId,
+          ),
+          nodeState,
+        ],
+      })),
     removeNode: (nodeId) =>
       set((state) => ({
         nodes: state.nodes.filter((node) => node.id !== nodeId),
+        nodeStates: state.nodeStates.filter(
+          (nodeState) => nodeState.nodeId !== nodeId,
+        ),
         boardNodes: state.boardNodes.filter(
           (boardNode) => boardNode.nodeId !== nodeId,
         ),

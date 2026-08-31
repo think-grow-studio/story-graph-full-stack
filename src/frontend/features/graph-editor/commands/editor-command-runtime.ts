@@ -4,6 +4,7 @@ import type {
   CreateEdgeCommand,
   CreateNodeCommand,
   EditorCommand,
+  PlaceBoardNodeCommand,
 } from "./editor-command";
 
 export function applyEditorCommand(
@@ -14,6 +15,14 @@ export function applyEditorCommand(
     case "create-node":
       store.getState().addOptimisticNode(toOptimisticNodePair(command));
       return true;
+    case "place-board-node": {
+      const state = store.getState();
+      if (state.boardNodes.some((boardNode) => boardNode.nodeId === command.node.id)) {
+        return false;
+      }
+      state.addOptimisticNode(toPlacedNodePair(command));
+      return true;
+    }
     case "move-node":
       store.getState().setNodePosition(command.nodeId, command.position);
       return true;
@@ -30,6 +39,26 @@ export function applyEditorCommand(
         name: command.name,
         description: command.description,
         properties: command.properties,
+      });
+      return true;
+    }
+    case "update-node-state": {
+      const state = store.getState();
+      const node = state.nodes.find((candidate) => candidate.id === command.nodeId);
+      if (!node || state.scope?.id !== command.scopeId) return false;
+      const current = state.nodeStates.find(
+        (candidate) =>
+          candidate.scopeId === command.scopeId && candidate.nodeId === command.nodeId,
+      );
+      state.replaceNodeState({
+        scopeId: command.scopeId,
+        nodeId: command.nodeId,
+        name: command.name,
+        description: command.description,
+        properties: command.properties,
+        version: current?.version ?? command.version,
+        createdAt: current?.createdAt ?? null,
+        updatedAt: current?.updatedAt ?? null,
       });
       return true;
     }
@@ -155,6 +184,40 @@ export async function persistAndReconcileEditorCommand(
       }
       return;
     }
+    case "place-board-node": {
+      const persisted = await persistence.placeBoardNode(prepared);
+      const currentNode = store
+        .getState()
+        .nodes.find((node) => node.id === prepared.node.id);
+      const currentBoardNode = store
+        .getState()
+        .boardNodes.find((node) => node.nodeId === prepared.node.id);
+
+      store.getState().replaceNode(
+        currentNode
+          ? {
+              ...persisted.node,
+              name: currentNode.name,
+              description: currentNode.description,
+              iconKey: currentNode.iconKey,
+              properties: currentNode.properties,
+            }
+          : persisted.node,
+      );
+
+      if (currentBoardNode) {
+        store.getState().replaceBoardNode({
+          ...persisted.boardNode,
+          x: currentBoardNode.x,
+          y: currentBoardNode.y,
+          width: currentBoardNode.width,
+          height: currentBoardNode.height,
+          zIndex: currentBoardNode.zIndex,
+          style: currentBoardNode.style,
+        });
+      }
+      return;
+    }
     case "move-node": {
       const persisted = await persistence.moveNode(prepared);
       const current = store
@@ -215,6 +278,24 @@ export async function persistAndReconcileEditorCommand(
               name: current.name,
               description: current.description,
               iconKey: current.iconKey,
+              properties: current.properties,
+            }
+          : persisted,
+      );
+      return;
+    }
+    case "update-node-state": {
+      const persisted = await persistence.updateNodeState(prepared);
+      const current = store.getState().nodeStates.find(
+        (candidate) =>
+          candidate.scopeId === prepared.scopeId && candidate.nodeId === prepared.nodeId,
+      );
+      store.getState().replaceNodeState(
+        current
+          ? {
+              ...persisted,
+              name: current.name,
+              description: current.description,
               properties: current.properties,
             }
           : persisted,
@@ -308,6 +389,13 @@ function prepareEditorCommandForPersistence(
       .nodes.find((node) => node.id === command.nodeId);
     return current ? { ...command, version: current.version } : command;
   }
+  if (command.type === "update-node-state") {
+    const current = store.getState().nodeStates.find(
+      (candidate) =>
+        candidate.scopeId === command.scopeId && candidate.nodeId === command.nodeId,
+    );
+    return current ? { ...command, version: current.version } : command;
+  }
   if (command.type === "update-edge") {
     const current = store
       .getState()
@@ -333,6 +421,24 @@ function toOptimisticNodePair(command: CreateNodeCommand) {
     boardNode: {
       boardId: command.boardId,
       nodeId: command.nodeId,
+      x: command.position.x,
+      y: command.position.y,
+      width: null,
+      height: null,
+      zIndex: 0,
+      style: {},
+      createdAt: command.createdAt,
+      updatedAt: command.createdAt,
+    },
+  };
+}
+
+function toPlacedNodePair(command: PlaceBoardNodeCommand) {
+  return {
+    node: command.node,
+    boardNode: {
+      boardId: command.boardId,
+      nodeId: command.node.id,
       x: command.position.x,
       y: command.position.y,
       width: null,

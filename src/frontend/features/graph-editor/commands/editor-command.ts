@@ -7,16 +7,20 @@ import type {
 import type {
   CreateNodeCommand,
   MoveNodeCommand,
+  PlaceBoardNodeCommand,
   RemoveBoardNodeCommand,
   RestoreBoardNodeCommand,
   UpdateNodeCommand,
+  UpdateNodeStateCommand,
 } from "./node-commands";
 
 export type EditorCommand =
   | CreateNodeCommand
+  | PlaceBoardNodeCommand
   | MoveNodeCommand
   | CreateEdgeCommand
   | UpdateNodeCommand
+  | UpdateNodeStateCommand
   | UpdateEdgeCommand
   | RemoveBoardNodeCommand
   | RestoreBoardNodeCommand
@@ -27,10 +31,12 @@ export type {
   CreateEdgeCommand,
   CreateNodeCommand,
   MoveNodeCommand,
+  PlaceBoardNodeCommand,
   RemoveBoardEdgeCommand,
   RemoveBoardNodeCommand,
   RestoreBoardEdgeCommand,
   RestoreBoardNodeCommand,
   UpdateEdgeCommand,
   UpdateNodeCommand,
+  UpdateNodeStateCommand,
 };

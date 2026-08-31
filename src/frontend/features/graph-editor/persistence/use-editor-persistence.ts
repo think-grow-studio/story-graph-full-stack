@@ -1,6 +1,7 @@
 import {
   useCreateEdgeOnBoardMutation,
   useCreateNodeOnBoardMutation,
+  usePlaceNodeOnBoardMutation,
   useRemoveEdgeFromBoardMutation,
   useRemoveNodeFromBoardMutation,
   useRestoreEdgeToBoardMutation,
@@ -8,6 +9,7 @@ import {
   useUpdateBoardNodeMutation,
   useUpdateEdgeMutation,
   useUpdateNodeMutation,
+  useUpdateNodeStateMutation,
 } from "@/frontend/api/graph/graph.queries";
 
 import type { EditorPersistence } from "./editor-persistence";
@@ -17,8 +19,10 @@ export function useEditorPersistence(
   boardId: string,
 ) {
   const createNode = useCreateNodeOnBoardMutation();
+  const placeNode = usePlaceNodeOnBoardMutation(workspaceId, boardId);
   const createEdge = useCreateEdgeOnBoardMutation();
   const updateNode = useUpdateNodeMutation(workspaceId, boardId);
+  const updateNodeState = useUpdateNodeStateMutation(workspaceId, boardId);
   const updateEdge = useUpdateEdgeMutation(workspaceId, boardId);
   const moveNode = useUpdateBoardNodeMutation();
   const removeNode = useRemoveNodeFromBoardMutation(workspaceId, boardId);
@@ -33,6 +37,13 @@ export function useEditorPersistence(
         workspaceId: command.workspaceId,
         id: command.nodeId,
         name: command.name,
+        position: command.position,
+      }),
+    placeBoardNode: (command) =>
+      placeNode.mutateAsync({
+        boardId: command.boardId,
+        nodeId: command.node.id,
+        workspaceId: command.workspaceId,
         position: command.position,
       }),
     moveNode: (command) =>
@@ -54,6 +65,16 @@ export function useEditorPersistence(
       }),
     updateNode: (command) =>
       updateNode.mutateAsync({
+        nodeId: command.nodeId,
+        workspaceId: command.workspaceId,
+        version: command.version,
+        name: command.name,
+        description: command.description,
+        properties: command.properties,
+      }),
+    updateNodeState: (command) =>
+      updateNodeState.mutateAsync({
+        scopeId: command.scopeId,
         nodeId: command.nodeId,
         workspaceId: command.workspaceId,
         version: command.version,

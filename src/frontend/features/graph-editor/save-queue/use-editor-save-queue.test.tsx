@@ -169,9 +169,11 @@ function storeWithRelationship() {
 function persistence(moveNode: EditorPersistence["moveNode"]): EditorPersistence {
   return {
     createNode: vi.fn(),
+    placeBoardNode: vi.fn(),
     moveNode,
     createEdge: vi.fn(),
     updateNode: vi.fn(),
+    updateNodeState: vi.fn(),
     updateEdge: vi.fn(),
     removeBoardNode: vi.fn(),
     restoreBoardNode: vi.fn(),
@@ -310,9 +312,11 @@ describe("useEditorSaveQueue", () => {
     const restoreBoardEdge = vi.fn(() => restoreGate.promise);
     const durable: EditorPersistence = {
       createNode: vi.fn(),
+      placeBoardNode: vi.fn(),
       moveNode: vi.fn(),
       createEdge: vi.fn(),
       updateNode: vi.fn(),
+      updateNodeState: vi.fn(),
       updateEdge: vi.fn(),
       removeBoardNode,
       restoreBoardNode: vi.fn(),

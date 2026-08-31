@@ -11,6 +11,7 @@ const boardId = "22222222-2222-4222-8222-222222222222";
 const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
+const scopeId = "77777777-7777-4777-8777-777777777777";
 const workspaceId = "workspace-1";
 const now = "2026-08-30T00:00:00.000Z";
 
@@ -137,6 +138,90 @@ describe("editor history entry", () => {
       coalescingKey: `update-node:${aliceId}`,
       createdAtMs: 1_000,
       updatedAtMs: 1_000,
+    });
+  });
+
+  it("derives a scoped NodeState inverse without touching the canonical Node", () => {
+    const store = hydratedStore();
+    store.getState().replaceNodeState({
+      scopeId,
+      nodeId: aliceId,
+      name: "Queen Alice",
+      description: null,
+      properties: { role: "queen" },
+      version: 2,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const forward = {
+      type: "update-node-state" as const,
+      boardId,
+      workspaceId,
+      scopeId,
+      nodeId: aliceId,
+      version: 2,
+      name: "Empress Alice",
+      description: null,
+      properties: { role: "queen" },
+    };
+
+    expect(isUndoableEditorCommand(forward)).toBe(true);
+    expect(
+      createEditorHistoryEntry({ store, command: forward, nowMs: 1_500 }),
+    ).toEqual({
+      forward,
+      inverse: {
+        type: "update-node-state",
+        boardId,
+        workspaceId,
+        scopeId,
+        nodeId: aliceId,
+        version: 2,
+        name: "Queen Alice",
+        description: null,
+        properties: { role: "queen" },
+      },
+      coalescingKey: `update-node-state:${scopeId}:${aliceId}`,
+      createdAtMs: 1_500,
+      updatedAtMs: 1_500,
+    });
+    expect(store.getState().nodes.find((node) => node.id === aliceId)?.name).toBe(
+      "Alice",
+    );
+  });
+
+  it("uses all-null sparse state as the inverse for the first scoped edit", () => {
+    const store = hydratedStore();
+    const forward = {
+      type: "update-node-state" as const,
+      boardId,
+      workspaceId,
+      scopeId,
+      nodeId: aliceId,
+      version: null,
+      name: "Queen Alice",
+      description: null,
+      properties: { role: "queen" },
+    };
+
+    expect(
+      createEditorHistoryEntry({ store, command: forward, nowMs: 1_750 }),
+    ).toEqual({
+      forward,
+      inverse: {
+        type: "update-node-state",
+        boardId,
+        workspaceId,
+        scopeId,
+        nodeId: aliceId,
+        version: null,
+        name: null,
+        description: null,
+        properties: null,
+      },
+      coalescingKey: `update-node-state:${scopeId}:${aliceId}`,
+      createdAtMs: 1_750,
+      updatedAtMs: 1_750,
     });
   });
 

@@ -70,6 +70,57 @@ export const graphEdge = pgTable(
   ],
 );
 
+export const scope = pgTable(
+  "scope",
+  {
+    id: text("id").primaryKey(),
+    storyId: text("story_id")
+      .notNull()
+      .references(() => story.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description").default("").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    unique("scope_id_story_id_unique").on(table.id, table.storyId),
+    index("scope_story_id_idx").on(table.storyId),
+  ],
+);
+
+export const nodeState = pgTable(
+  "node_state",
+  {
+    scopeId: text("scope_id").notNull(),
+    nodeId: text("node_id").notNull(),
+    storyId: text("story_id").notNull(),
+    name: text("name"),
+    description: text("description"),
+    properties: jsonb("properties").$type<JsonObject>(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "node_state_pk",
+      columns: [table.scopeId, table.nodeId],
+    }),
+    index("node_state_story_id_idx").on(table.storyId),
+    index("node_state_node_id_idx").on(table.nodeId),
+    foreignKey({
+      name: "node_state_scope_story_fk",
+      columns: [table.scopeId, table.storyId],
+      foreignColumns: [scope.id, scope.storyId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "node_state_node_story_fk",
+      columns: [table.nodeId, table.storyId],
+      foreignColumns: [graphNode.id, graphNode.storyId],
+    }).onDelete("cascade"),
+  ],
+);
+
 export const board = pgTable(
   "board",
   {
@@ -77,6 +128,7 @@ export const board = pgTable(
     storyId: text("story_id")
       .notNull()
       .references(() => story.id, { onDelete: "cascade" }),
+    scopeId: text("scope_id"),
     name: text("name").notNull(),
     description: text("description").default("").notNull(),
     revision: integer("revision").default(0).notNull(),
@@ -86,6 +138,12 @@ export const board = pgTable(
   (table) => [
     unique("board_id_story_id_unique").on(table.id, table.storyId),
     index("board_story_id_idx").on(table.storyId),
+    index("board_scope_id_idx").on(table.scopeId),
+    foreignKey({
+      name: "board_scope_story_fk",
+      columns: [table.scopeId, table.storyId],
+      foreignColumns: [scope.id, scope.storyId],
+    }),
   ],
 );
 
