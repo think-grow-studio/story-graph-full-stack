@@ -121,7 +121,7 @@ test("Graph Editor persists Node Board removal Undo and Redo with incident Relat
     await expect(edge).toBeVisible();
 
     await sourceNode.click();
-    await expect(page.getByRole("heading", { name: "Node Inspector" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "노드" })).toBeVisible();
 
     const removePromise = waitForBoardNodeRequest(
       page,
@@ -129,12 +129,12 @@ test("Graph Editor persists Node Board removal Undo and Redo with incident Relat
       setup.board.id,
       setup.sourceNodeId,
     );
-    await page.getByRole("button", { name: "Remove from Board" }).click();
+    await page.getByRole("button", { name: "보드에서 제거" }).click();
     expect((await removePromise).status()).toBe(204);
     await expect(sourceNode).toHaveCount(0);
     await expect(edge).toHaveCount(0);
     await expect(targetNode).toBeVisible();
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const undoPromise = waitForBoardNodeRequest(
       page,
@@ -146,7 +146,7 @@ test("Graph Editor persists Node Board removal Undo and Redo with incident Relat
     expect((await undoPromise).status()).toBe(200);
     await expect(sourceNode).toBeVisible();
     await expect(edge).toBeVisible();
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const redoPromise = waitForBoardNodeRequest(
       page,
@@ -159,7 +159,7 @@ test("Graph Editor persists Node Board removal Undo and Redo with incident Relat
     await expect(sourceNode).toHaveCount(0);
     await expect(edge).toHaveCount(0);
     await expect(targetNode).toBeVisible();
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     const finalUndoPromise = waitForBoardNodeRequest(
       page,
@@ -171,7 +171,7 @@ test("Graph Editor persists Node Board removal Undo and Redo with incident Relat
     expect((await finalUndoPromise).status()).toBe(200);
     await expect(sourceNode).toBeVisible();
     await expect(edge).toBeVisible();
-    await expect(page.getByText("Saved")).toBeVisible();
+    await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
