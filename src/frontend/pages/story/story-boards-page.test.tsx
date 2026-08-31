@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -103,9 +103,9 @@ describe("StoryBoardsPage", () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "My Novel" })).toBeInTheDocument();
-    expect(screen.getByText("World notes")).toBeInTheDocument();
-    expect(screen.getByText("컨텍스트: Chapter 10")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Characters" })).toHaveAttribute(
+    expect(await screen.findByText("World notes")).toBeInTheDocument();
+    expect(await screen.findByText("컨텍스트: Chapter 10")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Characters" })).toHaveAttribute(
       "href",
       `/stories/${storyId}/boards/${boardId}`,
     );
@@ -127,9 +127,10 @@ describe("StoryBoardsPage", () => {
 
     await screen.findByRole("heading", { name: "My Novel" });
     await user.click(screen.getByRole("button", { name: "새 보드" }));
-    expect(screen.getByLabelText("컨텍스트")).toHaveValue("");
-    await user.type(screen.getByLabelText("보드 이름"), "Plot");
-    await user.click(screen.getByRole("button", { name: "보드 만들기" }));
+    const dialog = screen.getByRole("dialog", { name: "새 보드" });
+    expect(within(dialog).getByLabelText("컨텍스트")).toHaveValue("");
+    await user.type(within(dialog).getByLabelText("보드 이름"), "Plot");
+    await user.click(within(dialog).getByRole("button", { name: "보드 만들기" }));
 
     await waitFor(() =>
       expect(mocks.createBoard).toHaveBeenCalledWith({
@@ -151,10 +152,14 @@ describe("StoryBoardsPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "My Novel" });
+    await screen.findByText("Chapter 10");
     await user.click(screen.getByRole("button", { name: "새 보드" }));
-    await user.selectOptions(screen.getByLabelText("컨텍스트"), scopeId);
-    await user.type(screen.getByLabelText("보드 이름"), "Chapter Characters");
-    await user.click(screen.getByRole("button", { name: "보드 만들기" }));
+    const dialog = screen.getByRole("dialog", { name: "새 보드" });
+    const contextSelect = within(dialog).getByLabelText("컨텍스트");
+    expect(within(dialog).getByRole("option", { name: "Chapter 10" })).toBeInTheDocument();
+    await user.selectOptions(contextSelect, scopeId);
+    await user.type(within(dialog).getByLabelText("보드 이름"), "Chapter Characters");
+    await user.click(within(dialog).getByRole("button", { name: "보드 만들기" }));
 
     await waitFor(() =>
       expect(mocks.createBoard).toHaveBeenCalledWith({
@@ -174,8 +179,9 @@ describe("StoryBoardsPage", () => {
 
     await screen.findByRole("heading", { name: "My Novel" });
     await user.click(screen.getByRole("button", { name: "컨텍스트 관리" }));
-    await user.type(screen.getByLabelText("컨텍스트 이름"), "Chapter 20");
-    await user.click(screen.getByRole("button", { name: "컨텍스트 만들기" }));
+    const dialog = screen.getByRole("dialog", { name: "컨텍스트 관리" });
+    await user.type(within(dialog).getByLabelText("컨텍스트 이름"), "Chapter 20");
+    await user.click(within(dialog).getByRole("button", { name: "컨텍스트 만들기" }));
 
     await waitFor(() =>
       expect(mocks.createScope).toHaveBeenCalledWith({
