@@ -132,7 +132,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("GraphEditorPage failed relationship creation", () => {
-  it("keeps the optimistic Edge and exposes Error/Retry", async () => {
+  it("keeps the optimistic Edge and exposes save retry", async () => {
     const user = userEvent.setup();
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -146,15 +146,15 @@ describe("GraphEditorPage failed relationship creation", () => {
 
     await screen.findByRole("heading", { name: "Characters" });
     await user.click(screen.getByRole("button", { name: "Connect Nodes" }));
-    await user.type(screen.getByLabelText("Relationship name"), "knows");
-    await user.click(screen.getByRole("button", { name: "Create Relationship" }));
+    await user.type(screen.getByLabelText("관계 이름"), "knows");
+    await user.click(screen.getByRole("button", { name: "관계 만들기" }));
 
     expect(
       await screen.findByText("Unable to create Relationship."),
     ).toBeInTheDocument();
     expect(screen.getByTestId("canvas-edge")).toHaveTextContent("knows");
-    expect(screen.queryByLabelText("Relationship name")).not.toBeInTheDocument();
-    expect(screen.getByText("Error")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("관계 이름")).not.toBeInTheDocument();
+    expect(screen.getByText("저장 오류")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
   });
 });
