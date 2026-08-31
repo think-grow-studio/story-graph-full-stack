@@ -173,7 +173,7 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
 
         {boards.data?.length === 0 ? (
           <EmptyState
-            action={<Button onClick={openBoardDialog}>첫 보드 만들기</Button>}
+            action={<Button onClick={openBoardDialog}>첫 보드 시작하기</Button>}
             description="보드는 인물과 사건을 배치하고 관계를 연결하는 작업 화면입니다."
             title="아직 보드가 없습니다"
           />
