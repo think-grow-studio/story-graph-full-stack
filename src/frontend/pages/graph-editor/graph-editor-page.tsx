@@ -8,7 +8,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
 } from "react";
 
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
@@ -16,6 +15,8 @@ import {
   useBoardSnapshotQuery,
   useStoryNodesQuery,
 } from "@/frontend/api/graph/graph.queries";
+import { AddNodeDialog } from "@/frontend/features/graph-editor/actions/add-node-dialog";
+import { RelationshipDialog } from "@/frontend/features/graph-editor/actions/relationship-dialog";
 import type { EditorCommand } from "@/frontend/features/graph-editor/commands/editor-command";
 import type { UndoableEditorCommand } from "@/frontend/features/graph-editor/history/editor-history-entry";
 import { useEditorHistory } from "@/frontend/features/graph-editor/history/use-editor-history";
@@ -46,8 +47,6 @@ import {
   useGraphEditorStoreApi,
 } from "@/frontend/features/graph-editor/store/graph-editor-store-provider";
 import { Button } from "@/frontend/shared/ui/button";
-import { Dialog } from "@/frontend/shared/ui/dialog";
-import { SelectField, TextField } from "@/frontend/shared/ui/form-field";
 import {
   GraphCanvas,
   type GraphCanvasHandle,
@@ -80,14 +79,11 @@ function GraphEditorContent({
 }) {
   const [selectedEntity, setSelectedEntity] =
     useState<SelectedGraphEntity | null>(null);
-  const [isNodeFormOpen, setNodeFormOpen] = useState(false);
-  const [nodeName, setNodeName] = useState("");
-  const [selectedExistingNodeId, setSelectedExistingNodeId] = useState("");
+  const [isNodeDialogOpen, setNodeDialogOpen] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<{
     sourceNodeId: string;
     targetNodeId: string;
   } | null>(null);
-  const [relationshipName, setRelationshipName] = useState("");
   const canvasRef = useRef<GraphCanvasHandle>(null);
   const hydratedBoardIdRef = useRef<string | null>(null);
   const dragStartPositionsRef = useRef(
@@ -299,18 +295,8 @@ function GraphEditorContent({
     setSelectedEntity(next);
   }
 
-  function closeNodeDialog() {
-    setNodeName("");
-    setSelectedExistingNodeId("");
-    setNodeFormOpen(false);
-  }
-
-  function handleCreateNode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function handleCreateNode(name: string) {
     if (!workspaceId || !snapshot.data) return;
-
-    const name = nodeName.trim();
-    if (!name) return;
 
     const position = canvasRef.current?.getCenterPosition() ?? { x: 0, y: 0 };
     const operationId = history.dispatch({
@@ -324,15 +310,13 @@ function GraphEditorContent({
       createdAt: new Date().toISOString(),
     });
 
-    if (operationId) closeNodeDialog();
+    if (operationId) setNodeDialogOpen(false);
   }
 
-  function handleAddExistingNode() {
-    if (!workspaceId || !selectedExistingNodeId || !storyNodes.data) return;
+  function handleAddExistingNode(nodeId: string) {
+    if (!workspaceId || !storyNodes.data) return;
 
-    const node = storyNodes.data.find(
-      (candidate) => candidate.id === selectedExistingNodeId,
-    );
+    const node = storyNodes.data.find((candidate) => candidate.id === nodeId);
     if (!node) return;
 
     const isAlreadyRepresented = store
@@ -349,25 +333,15 @@ function GraphEditorContent({
       position,
       createdAt: new Date().toISOString(),
     });
-    if (operationId) closeNodeDialog();
+    if (operationId) setNodeDialogOpen(false);
   }
 
   function handleConnectNodes(sourceNodeId: string, targetNodeId: string) {
     setPendingConnection({ sourceNodeId, targetNodeId });
-    setRelationshipName("");
   }
 
-  function closeRelationshipDialog() {
-    setRelationshipName("");
-    setPendingConnection(null);
-  }
-
-  function handleCreateRelationship(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function handleCreateRelationship(name: string) {
     if (!workspaceId || !snapshot.data || !pendingConnection) return;
-
-    const name = relationshipName.trim();
-    if (!name) return;
 
     const operationId = history.dispatch({
       type: "create-edge",
@@ -381,7 +355,7 @@ function GraphEditorContent({
       createdAt: new Date().toISOString(),
     });
 
-    if (operationId) closeRelationshipDialog();
+    if (operationId) setPendingConnection(null);
   }
 
   function handleNodeDragStart(nodeId: string) {
@@ -507,6 +481,13 @@ function GraphEditorContent({
       };
     });
 
+  const pendingSourceLabel = pendingConnection
+    ? canvasNodes.find((node) => node.id === pendingConnection.sourceNodeId)?.name ?? "출발 노드"
+    : "";
+  const pendingTargetLabel = pendingConnection
+    ? canvasNodes.find((node) => node.id === pendingConnection.targetNodeId)?.name ?? "도착 노드"
+    : "";
+
   const selectedLaneKey = selectedDraftKey;
   const selectedLaneState = selectedLaneKey
     ? saveQueue.getLaneState(selectedLaneKey)
@@ -591,12 +572,17 @@ function GraphEditorContent({
           >
             Redo
           </Button>
-          <Button onClick={() => setNodeFormOpen(true)}>노드 추가</Button>
+          <Button onClick={() => setNodeDialogOpen(true)}>노드 추가</Button>
         </div>
       </header>
 
       <div className="grid min-h-0 gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="grid min-h-0 gap-3">
+          {storyNodes.isError ? (
+            <p className="text-sm text-[var(--sg-danger)]">
+              기존 노드 목록을 불러오지 못했습니다. 새 노드는 계속 만들 수 있습니다.
+            </p>
+          ) : null}
           {actionFailures.length ? (
             <div className="grid gap-1" role="status">
               {actionFailures.map((failure) => (
@@ -642,99 +628,23 @@ function GraphEditorContent({
         )}
       </div>
 
-      <Dialog
-        description="새 노드를 만들거나, 이 이야기의 기존 노드를 현재 보드에 배치하세요."
-        onClose={closeNodeDialog}
-        open={isNodeFormOpen}
-        title="노드 추가"
-      >
-        <form className="grid gap-4" onSubmit={handleCreateNode}>
-          <TextField
-            autoFocus
-            label="노드 이름"
-            onChange={(event) => setNodeName(event.target.value)}
-            placeholder="예: 주인공, 왕국, 사건"
-            value={nodeName}
-          />
-          <div className="flex justify-end gap-2">
-            <Button emphasis="ghost" intent="neutral" onClick={closeNodeDialog}>
-              취소
-            </Button>
-            <Button disabled={!nodeName.trim()} type="submit">
-              새 노드 만들기
-            </Button>
-          </div>
-        </form>
+      <AddNodeDialog
+        busy={false}
+        existingNodes={availableExistingNodes}
+        onClose={() => setNodeDialogOpen(false)}
+        onCreate={handleCreateNode}
+        onPlace={handleAddExistingNode}
+        open={isNodeDialogOpen}
+      />
 
-        <div className="border-t border-[var(--sg-line)] pt-5">
-          <div className="grid gap-3">
-            <div>
-              <p className="text-sm font-semibold">기존 노드 배치</p>
-              <p className="mt-1 text-xs leading-5 text-[var(--sg-muted)]">
-                다른 보드에서 이미 만든 노드를 같은 정체성으로 가져옵니다.
-              </p>
-            </div>
-            <SelectField
-              disabled={storyNodes.isPending || availableExistingNodes.length === 0}
-              label="기존 노드"
-              onChange={(event) => setSelectedExistingNodeId(event.target.value)}
-              value={selectedExistingNodeId}
-            >
-              <option value="">
-                {availableExistingNodes.length ? "노드를 선택하세요" : "추가할 기존 노드가 없습니다"}
-              </option>
-              {availableExistingNodes.map((node) => (
-                <option key={node.id} value={node.id}>
-                  {node.name}
-                </option>
-              ))}
-            </SelectField>
-            {storyNodes.isError ? (
-              <p className="text-sm text-[var(--sg-danger)]">
-                기존 노드를 불러오지 못했습니다.
-              </p>
-            ) : null}
-            <div className="flex justify-end">
-              <Button
-                disabled={!selectedExistingNodeId}
-                emphasis="outline"
-                onClick={handleAddExistingNode}
-              >
-                보드에 추가
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Dialog>
-
-      <Dialog
-        description="두 노드를 어떤 관계로 연결할지 이름을 정하세요. 취소하면 관계는 생성되지 않습니다."
-        onClose={closeRelationshipDialog}
+      <RelationshipDialog
+        busy={false}
+        onClose={() => setPendingConnection(null)}
+        onCreate={handleCreateRelationship}
         open={Boolean(pendingConnection)}
-        title="관계 만들기"
-      >
-        <form className="grid gap-4" onSubmit={handleCreateRelationship}>
-          <TextField
-            autoFocus
-            label="관계 이름"
-            onChange={(event) => setRelationshipName(event.target.value)}
-            placeholder="예: 친구, 보호한다, 소속된다"
-            value={relationshipName}
-          />
-          <div className="flex justify-end gap-2">
-            <Button
-              emphasis="ghost"
-              intent="neutral"
-              onClick={closeRelationshipDialog}
-            >
-              취소
-            </Button>
-            <Button disabled={!relationshipName.trim()} type="submit">
-              관계 만들기
-            </Button>
-          </div>
-        </form>
-      </Dialog>
+        sourceLabel={pendingSourceLabel}
+        targetLabel={pendingTargetLabel}
+      />
     </main>
   );
 }
