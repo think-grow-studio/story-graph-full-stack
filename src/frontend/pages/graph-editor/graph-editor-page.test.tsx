@@ -123,6 +123,7 @@ function snapshot() {
     scope: null,
     nodes: [graphNode(nodeId, "Alice"), graphNode(secondNodeId, "Bob")],
     nodeStates: [],
+    edgeStates: [],
     edges: [],
     boardNodes: [
       {
@@ -249,14 +250,15 @@ describe("GraphEditorPage", () => {
     expect(mocks.getBoardSnapshot).toHaveBeenCalledWith(boardId, "workspace-1");
   });
 
-  it("opens a name form and optimistically creates a Node at the canvas center", async () => {
+  it("creates a new Node from the single add-node dialog", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Alice");
 
-    await user.click(screen.getByRole("button", { name: "+ Node" }));
-    await user.type(screen.getByLabelText("Node name"), "Charlie");
-    await user.click(screen.getByRole("button", { name: "Create Node" }));
+    await user.click(screen.getByRole("button", { name: "노드 추가" }));
+    expect(await screen.findByRole("dialog", { name: "노드 추가" })).toBeInTheDocument();
+    await user.type(screen.getByLabelText("노드 이름"), "Charlie");
+    await user.click(screen.getByRole("button", { name: "새 노드 만들기" }));
 
     await waitFor(() => expect(mocks.createNodeOnBoard).toHaveBeenCalledTimes(1));
     const input = mocks.createNodeOnBoard.mock.calls[0][0];
@@ -268,21 +270,22 @@ describe("GraphEditorPage", () => {
     });
     expect(input.id).toMatch(/^[0-9a-f-]{36}$/i);
     expect(await screen.findByText("Charlie")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Node name")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("노드 이름")).not.toBeInTheDocument();
   });
 
-  it("offers only unrepresented canonical Nodes and places one at the canvas center", async () => {
+  it("offers only unrepresented canonical Nodes in the same add-node dialog", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Alice");
 
-    const picker = await screen.findByLabelText("Existing Node");
+    await user.click(screen.getByRole("button", { name: "노드 추가" }));
+    const picker = await screen.findByLabelText("기존 노드");
     expect(screen.queryByRole("option", { name: "Alice" })).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Bob" })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Carol" })).toBeInTheDocument();
 
     await user.selectOptions(picker, thirdNodeId);
-    await user.click(screen.getByRole("button", { name: "Add Existing Node" }));
+    await user.click(screen.getByRole("button", { name: "보드에 추가" }));
 
     await waitFor(() => expect(mocks.placeNodeOnBoard).toHaveBeenCalledTimes(1));
     expect(mocks.placeNodeOnBoard).toHaveBeenCalledWith({
@@ -292,6 +295,7 @@ describe("GraphEditorPage", () => {
       position: { x: 320, y: 240 },
     });
     expect(await screen.findByText("Carol")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "노드 추가" })).not.toBeInTheDocument();
   });
 
   it("keeps drag movement local and persists only when drag stops", async () => {
@@ -328,14 +332,15 @@ describe("GraphEditorPage", () => {
     expect(screen.getByText("240,160")).toBeInTheDocument();
   });
 
-  it("opens a Relationship name form after connecting Nodes and creates the Edge", async () => {
+  it("names a Relationship in a focused dialog after connecting Nodes", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Alice");
 
     await user.click(screen.getByRole("button", { name: "Connect Alice to Bob" }));
-    await user.type(screen.getByLabelText("Relationship name"), "sister");
-    await user.click(screen.getByRole("button", { name: "Create Relationship" }));
+    expect(await screen.findByRole("dialog", { name: "관계 만들기" })).toBeInTheDocument();
+    await user.type(screen.getByLabelText("관계 이름"), "sister");
+    await user.click(screen.getByRole("button", { name: "관계 만들기" }));
 
     await waitFor(() => expect(mocks.createEdgeOnBoard).toHaveBeenCalledTimes(1));
     const input = mocks.createEdgeOnBoard.mock.calls[0][0];
@@ -348,6 +353,19 @@ describe("GraphEditorPage", () => {
     });
     expect(input.id).toMatch(/^[0-9a-f-]{36}$/i);
     expect(await screen.findByText("sister")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Relationship name")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("관계 이름")).not.toBeInTheDocument();
+  });
+
+  it("cancels Relationship naming without writing durable state", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Alice");
+
+    await user.click(screen.getByRole("button", { name: "Connect Alice to Bob" }));
+    expect(await screen.findByRole("dialog", { name: "관계 만들기" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "취소" }));
+
+    expect(screen.queryByRole("dialog", { name: "관계 만들기" })).not.toBeInTheDocument();
+    expect(mocks.createEdgeOnBoard).not.toHaveBeenCalled();
   });
 });
