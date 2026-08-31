@@ -6,6 +6,7 @@ vi.mock("server-only", () => ({}));
 import { db } from "@/backend/infrastructure/database/client";
 import {
   board,
+  boardEdge,
   boardNode,
   edgeState,
   graphEdge,
@@ -64,7 +65,7 @@ afterEach(async () => {
   }
 });
 
-describe("Scope and NodeState database invariants", () => {
+describe("Scope state database invariants", () => {
   it("stores NodeState only when Scope and Node belong to the same Story", async () => {
     const workspace = await createWorkspace("Scope State Owner");
     const firstStory = await createStory(workspace.id, "First Story");
@@ -169,6 +170,71 @@ describe("Scope and NodeState database invariants", () => {
     ).rejects.toBeTruthy();
   });
 
+  it("uses create-if-absent and numeric compare-and-set for EdgeState", async () => {
+    const workspace = await createWorkspace("Edge CAS Owner");
+    const story = await createStory(workspace.id, "Edge CAS Story");
+    const scopeId = crypto.randomUUID();
+    const sourceNodeId = crypto.randomUUID();
+    const targetNodeId = crypto.randomUUID();
+    const edgeId = crypto.randomUUID();
+    const repository = new DrizzleGraphRepository();
+
+    await db.insert(scope).values({ id: scopeId, storyId: story.id, name: "Chapter 10" });
+    await db.insert(graphNode).values([
+      { id: sourceNodeId, storyId: story.id, name: "Alice" },
+      { id: targetNodeId, storyId: story.id, name: "Crown" },
+    ]);
+    await db.insert(graphEdge).values({
+      id: edgeId,
+      storyId: story.id,
+      sourceNodeId,
+      targetNodeId,
+      name: "serves",
+    });
+
+    const created = await repository.putEdgeState({
+      scopeId,
+      edgeId,
+      expectedVersion: null,
+      name: "rules",
+      description: null,
+      properties: null,
+    });
+    expect(created).toMatchObject({ scopeId, edgeId, name: "rules", version: 1 });
+
+    await expect(
+      repository.putEdgeState({
+        scopeId,
+        edgeId,
+        expectedVersion: null,
+        name: "commands",
+        description: null,
+        properties: null,
+      }),
+    ).resolves.toBe("conflict");
+
+    const updated = await repository.putEdgeState({
+      scopeId,
+      edgeId,
+      expectedVersion: 1,
+      name: "commands",
+      description: null,
+      properties: { trust: 9 },
+    });
+    expect(updated).toMatchObject({ name: "commands", properties: { trust: 9 }, version: 2 });
+
+    await expect(
+      repository.putEdgeState({
+        scopeId,
+        edgeId,
+        expectedVersion: 1,
+        name: "stale",
+        description: null,
+        properties: null,
+      }),
+    ).resolves.toBe("conflict");
+  });
+
   it("rejects a Board scoped to a Scope from another Story", async () => {
     const workspace = await createWorkspace("Board Scope Owner");
     const boardStory = await createStory(workspace.id, "Board Story");
@@ -191,13 +257,16 @@ describe("Scope and NodeState database invariants", () => {
     ).rejects.toBeTruthy();
   });
 
-  it("returns only represented NodeState rows for a scoped Board snapshot", async () => {
+  it("returns only represented NodeState and EdgeState rows for a scoped Board snapshot", async () => {
     const workspace = await createWorkspace("Scoped Snapshot Owner");
     const story = await createStory(workspace.id, "Snapshot Story");
     const scopeId = crypto.randomUUID();
     const boardId = crypto.randomUUID();
     const representedNodeId = crypto.randomUUID();
+    const secondRepresentedNodeId = crypto.randomUUID();
     const hiddenNodeId = crypto.randomUUID();
+    const representedEdgeId = crypto.randomUUID();
+    const hiddenEdgeId = crypto.randomUUID();
 
     await db.insert(scope).values({ id: scopeId, storyId: story.id, name: "Chapter 10" });
     await db.insert(board).values({
@@ -208,15 +277,25 @@ describe("Scope and NodeState database invariants", () => {
     });
     await db.insert(graphNode).values([
       { id: representedNodeId, storyId: story.id, name: "Alice" },
+      { id: secondRepresentedNodeId, storyId: story.id, name: "Crown" },
       { id: hiddenNodeId, storyId: story.id, name: "Bob" },
     ]);
-    await db.insert(boardNode).values({
-      boardId,
-      nodeId: representedNodeId,
-      storyId: story.id,
-      x: 10,
-      y: 20,
-    });
+    await db.insert(boardNode).values([
+      {
+        boardId,
+        nodeId: representedNodeId,
+        storyId: story.id,
+        x: 10,
+        y: 20,
+      },
+      {
+        boardId,
+        nodeId: secondRepresentedNodeId,
+        storyId: story.id,
+        x: 30,
+        y: 40,
+      },
+    ]);
     await db.insert(nodeState).values([
       {
         scopeId,
@@ -231,16 +310,61 @@ describe("Scope and NodeState database invariants", () => {
         name: "Hidden Bob",
       },
     ]);
+    await db.insert(graphEdge).values([
+      {
+        id: representedEdgeId,
+        storyId: story.id,
+        sourceNodeId: representedNodeId,
+        targetNodeId: secondRepresentedNodeId,
+        name: "serves",
+      },
+      {
+        id: hiddenEdgeId,
+        storyId: story.id,
+        sourceNodeId: hiddenNodeId,
+        targetNodeId: secondRepresentedNodeId,
+        name: "advises",
+      },
+    ]);
+    await db.insert(boardEdge).values({
+      boardId,
+      edgeId: representedEdgeId,
+      storyId: story.id,
+    });
+    await db.insert(edgeState).values([
+      {
+        scopeId,
+        edgeId: representedEdgeId,
+        storyId: story.id,
+        name: "rules",
+      },
+      {
+        scopeId,
+        edgeId: hiddenEdgeId,
+        storyId: story.id,
+        name: "secretly advises",
+      },
+    ]);
 
     const snapshot = await new DrizzleGraphRepository().getBoardSnapshot(boardId);
 
     expect(snapshot?.scope).toMatchObject({ id: scopeId, name: "Chapter 10" });
-    expect(snapshot?.nodes.map((node) => node.id)).toEqual([representedNodeId]);
+    expect(snapshot?.nodes.map((node) => node.id).sort()).toEqual(
+      [representedNodeId, secondRepresentedNodeId].sort(),
+    );
     expect(snapshot?.nodeStates).toEqual([
       expect.objectContaining({
         scopeId,
         nodeId: representedNodeId,
         name: "Queen Alice",
+      }),
+    ]);
+    expect(snapshot?.edges.map((edge) => edge.id)).toEqual([representedEdgeId]);
+    expect(snapshot?.edgeStates).toEqual([
+      expect.objectContaining({
+        scopeId,
+        edgeId: representedEdgeId,
+        name: "rules",
       }),
     ]);
   });
@@ -261,5 +385,6 @@ describe("Scope and NodeState database invariants", () => {
 
     expect(snapshot?.scope).toBeNull();
     expect(snapshot?.nodeStates).toEqual([]);
+    expect(snapshot?.edgeStates).toEqual([]);
   });
 });
