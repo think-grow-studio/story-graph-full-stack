@@ -117,6 +117,7 @@ function graph(input?: {
           })
         : input.putResult,
     ),
+    putEdgeState: vi.fn(),
     updateNode: vi.fn(),
     updateBoardNode: vi.fn(),
     removeNodeFromBoard: vi.fn(),
