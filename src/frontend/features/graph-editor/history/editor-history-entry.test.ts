@@ -254,6 +254,87 @@ describe("editor history entry", () => {
     });
   });
 
+  it("derives a scoped EdgeState inverse from the prior sparse override", () => {
+    const store = hydratedStore();
+    store.getState().replaceEdgeState({
+      scopeId,
+      edgeId,
+      name: "rules",
+      description: null,
+      properties: null,
+      version: 3,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const forward = {
+      type: "update-edge-state" as const,
+      boardId,
+      workspaceId,
+      scopeId,
+      edgeId,
+      version: 3,
+      name: "commands",
+      description: null,
+      properties: null,
+    };
+
+    expect(isUndoableEditorCommand(forward)).toBe(true);
+    expect(
+      createEditorHistoryEntry({ store, command: forward, nowMs: 2_250 }),
+    ).toEqual({
+      forward,
+      inverse: {
+        type: "update-edge-state",
+        boardId,
+        workspaceId,
+        scopeId,
+        edgeId,
+        version: 3,
+        name: "rules",
+        description: null,
+        properties: null,
+      },
+      coalescingKey: `update-edge-state:${scopeId}:${edgeId}`,
+      createdAtMs: 2_250,
+      updatedAtMs: 2_250,
+    });
+  });
+
+  it("uses all-null sparse EdgeState as the inverse for a first scoped Relationship edit", () => {
+    const store = hydratedStore();
+    const forward = {
+      type: "update-edge-state" as const,
+      boardId,
+      workspaceId,
+      scopeId,
+      edgeId,
+      version: null,
+      name: "rules",
+      description: null,
+      properties: null,
+    };
+
+    expect(
+      createEditorHistoryEntry({ store, command: forward, nowMs: 2_500 }),
+    ).toEqual({
+      forward,
+      inverse: {
+        type: "update-edge-state",
+        boardId,
+        workspaceId,
+        scopeId,
+        edgeId,
+        version: null,
+        name: null,
+        description: null,
+        properties: null,
+      },
+      coalescingKey: `update-edge-state:${scopeId}:${edgeId}`,
+      createdAtMs: 2_500,
+      updatedAtMs: 2_500,
+    });
+  });
+
   it("uses the explicit drag-start position for a Move inverse", () => {
     const store = hydratedStore();
     const forward = {
