@@ -175,6 +175,18 @@ function setupScoped() {
       },
     ],
     edges: [relationship()],
+    edgeStates: [
+      {
+        scopeId,
+        edgeId,
+        name: "rules",
+        description: null,
+        properties: null,
+        version: 2,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
     boardNodes: [
       {
         boardId,
@@ -218,6 +230,10 @@ function setupScoped() {
     ...alice(),
     name: "Queen Alice",
     properties: { role: "queen" },
+  });
+  draftStore.getState().ensureDraft(toInspectorEntityKey("edge", edgeId), {
+    ...relationship(),
+    name: "rules",
   });
 
   const dispatch = vi.fn((command: EditorCommand) => {
@@ -292,6 +308,29 @@ describe("inspector autosave controller", () => {
       name: "Empress Alice",
       description: null,
       properties: { role: "queen" },
+    });
+
+    controller.dispose();
+  });
+
+  it("dispatches scoped Relationship edits as sparse EdgeState updates", async () => {
+    const { draftStore, dispatch, controller } = setupScoped();
+    const key = toInspectorEntityKey("edge", edgeId);
+
+    draftStore.getState().updateDraft(key, { name: "commands" });
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "update-edge-state",
+      boardId,
+      workspaceId,
+      scopeId,
+      edgeId,
+      version: 2,
+      name: "commands",
+      description: null,
+      properties: null,
     });
 
     controller.dispose();
