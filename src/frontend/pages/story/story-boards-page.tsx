@@ -186,6 +186,7 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
               return (
                 <li key={board.id}>
                   <Link
+                    aria-label={board.name}
                     className="group block min-h-32 rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] p-5 transition-[border-color,box-shadow] duration-150 hover:border-[color-mix(in_srgb,var(--sg-brand)_35%,var(--sg-line))] hover:shadow-[0_10px_28px_rgba(23,25,29,0.05)]"
                     href={`/stories/${storyId}/boards/${board.id}`}
                   >
