@@ -103,6 +103,7 @@ function createGraph(): GraphRepository {
     })),
     placeNodeOnBoard: vi.fn(),
     putNodeState: vi.fn(),
+    putEdgeState: vi.fn(),
     updateNode: vi.fn(async (input) => ({ ...node, ...input, version: node.version + 1 })),
     updateBoardNode: vi.fn(async (input) => ({ ...boardNode, ...input })),
     removeNodeFromBoard: vi.fn(async () => true),
