@@ -151,6 +151,7 @@ describe("Board use-cases", () => {
       scopeId: null,
       name: "Main",
       description: "View",
+      tags: [],
     });
   });
 
@@ -174,6 +175,7 @@ describe("Board use-cases", () => {
       scopeId: "scope-1",
       name: "Chapter Board",
       description: "",
+      tags: [],
     });
   });
 
