@@ -77,15 +77,17 @@ export async function listBoards(
 export async function createBoard(input: {
   storyId: string;
   workspaceId: string;
-  scopeId: string | null;
+  scopeId?: string | null;
   name: string;
   description: string;
+  tags?: string[];
 }): Promise<BoardResponse> {
   const payload = createBoardRequestSchema.parse({
     workspaceId: input.workspaceId,
-    scopeId: input.scopeId,
+    scopeId: input.scopeId ?? null,
     name: input.name,
     description: input.description,
+    tags: input.tags ?? [],
   });
   const response = await apiClient.post(`/stories/${input.storyId}/boards`, payload);
   return boardResponseSchema.parse(response.data);
