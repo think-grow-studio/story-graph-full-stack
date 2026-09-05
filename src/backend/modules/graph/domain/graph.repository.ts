@@ -24,6 +24,7 @@ export interface GraphRepository {
     scopeId?: string | null;
     name: string;
     description: string;
+    tags?: string[];
   }): Promise<Board>;
   listBoards(storyId: string): Promise<Board[]>;
   findBoard(id: string): Promise<Board | null>;

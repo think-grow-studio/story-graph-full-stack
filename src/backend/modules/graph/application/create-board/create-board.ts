@@ -12,6 +12,7 @@ export async function createBoard(
     scopeId?: string | null;
     name: string;
     description: string;
+    tags?: string[];
   },
   dependencies: {
     stories: StoryRepository;
@@ -43,5 +44,6 @@ export async function createBoard(
     scopeId,
     name: input.name,
     description: input.description,
+    tags: input.tags ?? [],
   });
 }

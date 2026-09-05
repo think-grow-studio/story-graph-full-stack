@@ -36,6 +36,13 @@
       "when": 1788144500000,
       "tag": "0004_edge_state_v1",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788624300000,
+      "tag": "0005_board_tags",
+      "breakpoints": true
     }
   ]
 }
