@@ -50,12 +50,13 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
       ),
     [boards.data],
   );
+  const activeTag = selectedTag && allTags.includes(selectedTag) ? selectedTag : null;
   const visibleBoards = useMemo(
     () =>
-      selectedTag
-        ? (boards.data ?? []).filter((board) => (board.tags ?? []).includes(selectedTag))
+      activeTag
+        ? (boards.data ?? []).filter((board) => (board.tags ?? []).includes(activeTag))
         : (boards.data ?? []),
-    [boards.data, selectedTag],
+    [activeTag, boards.data],
   );
 
   useEffect(() => {
@@ -67,10 +68,6 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
       router.replace("/login");
     }
   }, [bootstrap.error, router]);
-
-  useEffect(() => {
-    if (selectedTag && !allTags.includes(selectedTag)) setSelectedTag(null);
-  }, [allTags, selectedTag]);
 
   function openBoardDialog() {
     setBoardName("");
@@ -170,7 +167,7 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
         {allTags.length ? (
           <div className="flex flex-wrap gap-2" aria-label="보드 태그 필터">
             <button
-              aria-pressed={selectedTag === null}
+              aria-pressed={activeTag === null}
               className="rounded-full border border-[var(--sg-line)] bg-[var(--sg-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--sg-muted)] aria-pressed:border-[var(--sg-brand)] aria-pressed:text-[var(--sg-brand-strong)]"
               onClick={() => setSelectedTag(null)}
               type="button"
@@ -180,7 +177,7 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
             {allTags.map((tag) => (
               <button
                 aria-label={`#${tag}`}
-                aria-pressed={selectedTag === tag}
+                aria-pressed={activeTag === tag}
                 className="rounded-full border border-[var(--sg-line)] bg-[var(--sg-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--sg-muted)] aria-pressed:border-[var(--sg-brand)] aria-pressed:text-[var(--sg-brand-strong)]"
                 key={tag}
                 onClick={() => setSelectedTag(tag)}
