@@ -3,7 +3,13 @@ import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/backend/infrastructure/database/client";
-import { board, boardNode, graphEdge, graphNode } from "@/backend/infrastructure/database/schema";
+import {
+  board,
+  boardEdge,
+  boardNode,
+  graphEdge,
+  graphNode,
+} from "@/backend/infrastructure/database/schema";
 import type { BoardEdge, BoardNode, GraphEdge, GraphNode } from "../domain/graph";
 import { DrizzleTaggedGraphRepository } from "./drizzle-tagged-graph.repository";
 
