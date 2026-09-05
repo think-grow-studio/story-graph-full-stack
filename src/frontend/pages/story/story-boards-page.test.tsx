@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
-const scopeId = "44444444-4444-4444-8444-444444444444";
 
 const mocks = vi.hoisted(() => ({
   getBootstrap: vi.fn(),
@@ -68,22 +67,12 @@ const story = {
   updatedAt: "2026-08-28T00:00:00.000Z",
 };
 
-const scope = {
-  id: scopeId,
-  storyId,
-  name: "Chapter 10",
-  description: "",
-  createdAt: "2026-08-28T00:00:00.000Z",
-  updatedAt: "2026-08-28T00:00:00.000Z",
-};
-
 const board = {
   id: boardId,
   storyId,
-  scopeId,
   name: "Characters",
   description: "",
-  revision: 0,
+  tags: ["인물", "전체"],
   createdAt: "2026-08-28T00:00:00.000Z",
   updatedAt: "2026-08-28T00:00:00.000Z",
 };
@@ -92,23 +81,49 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getBootstrap.mockResolvedValue(bootstrap);
   mocks.getStory.mockResolvedValue(story);
-  mocks.listScopes.mockResolvedValue([scope]);
+  mocks.listScopes.mockResolvedValue([]);
   mocks.listBoards.mockResolvedValue([board]);
 });
 
 afterEach(cleanup);
 
 describe("StoryBoardsPage", () => {
-  it("makes Boards primary and shows attached context", async () => {
+  it("shows independent Boards with their tags and no Context management", async () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "My Novel" })).toBeInTheDocument();
     expect(await screen.findByText("World notes")).toBeInTheDocument();
-    expect(await screen.findByText("컨텍스트: Chapter 10")).toBeInTheDocument();
+    expect(await screen.findByText("#인물")).toBeInTheDocument();
+    expect(screen.getByText("#전체")).toBeInTheDocument();
+    expect(screen.queryByText("컨텍스트")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "컨텍스트 관리" })).not.toBeInTheDocument();
     expect(await screen.findByRole("link", { name: "Characters" })).toHaveAttribute(
       "href",
       `/stories/${storyId}/boards/${boardId}`,
     );
+  });
+
+  it("filters Boards by attached tag", async () => {
+    mocks.listBoards.mockResolvedValue([
+      board,
+      {
+        ...board,
+        id: "33333333-3333-4333-8333-333333333333",
+        name: "Plot Flow",
+        tags: ["사건"],
+      },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "Characters" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Plot Flow" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "#인물" }));
+
+    expect(screen.getByRole("link", { name: "Characters" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Plot Flow" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "전체 보기" }));
+    expect(screen.getByRole("link", { name: "Plot Flow" })).toBeInTheDocument();
   });
 
   it("explains the first Board when none exist", async () => {
@@ -119,8 +134,13 @@ describe("StoryBoardsPage", () => {
     expect(screen.getByRole("button", { name: "첫 보드 시작하기" })).toBeInTheDocument();
   });
 
-  it("creates an unscoped Board and opens the returned editor", async () => {
-    const createdBoard = { ...board, id: "33333333-3333-4333-8333-333333333333", scopeId: null, name: "Plot" };
+  it("creates a Board with simple comma-separated tags and opens the editor", async () => {
+    const createdBoard = {
+      ...board,
+      id: "44444444-4444-4444-8444-444444444444",
+      name: "Plot",
+      tags: ["사건", "1부"],
+    };
     mocks.createBoard.mockResolvedValue(createdBoard);
     const user = userEvent.setup();
     renderPage();
@@ -128,17 +148,18 @@ describe("StoryBoardsPage", () => {
     await screen.findByRole("heading", { name: "My Novel" });
     await user.click(screen.getByRole("button", { name: "새 보드" }));
     const dialog = screen.getByRole("dialog", { name: "새 보드" });
-    expect(within(dialog).getByLabelText("컨텍스트")).toHaveValue("");
+    expect(within(dialog).queryByLabelText("컨텍스트")).not.toBeInTheDocument();
     await user.type(within(dialog).getByLabelText("보드 이름"), "Plot");
+    await user.type(within(dialog).getByLabelText("태그"), "사건, #1부");
     await user.click(within(dialog).getByRole("button", { name: "보드 만들기" }));
 
     await waitFor(() =>
       expect(mocks.createBoard).toHaveBeenCalledWith({
         storyId,
         workspaceId: "workspace-1",
-        scopeId: null,
         name: "Plot",
         description: "",
+        tags: ["사건", "1부"],
       }),
     );
     expect(mocks.push).toHaveBeenCalledWith(
@@ -146,55 +167,19 @@ describe("StoryBoardsPage", () => {
     );
   });
 
-  it("creates a Board in the selected context", async () => {
-    mocks.createBoard.mockResolvedValue({
-      ...board,
-      id: "55555555-5555-4555-8555-555555555555",
-      name: "Chapter Characters",
-    });
+  it("rejects duplicate tags before creating a Board", async () => {
     const user = userEvent.setup();
     renderPage();
 
     await screen.findByRole("heading", { name: "My Novel" });
-    await screen.findByText("Chapter 10");
     await user.click(screen.getByRole("button", { name: "새 보드" }));
     const dialog = screen.getByRole("dialog", { name: "새 보드" });
-    const contextSelect = within(dialog).getByLabelText("컨텍스트");
-    expect(within(dialog).getByRole("option", { name: "Chapter 10" })).toBeInTheDocument();
-    await user.selectOptions(contextSelect, scopeId);
-    await user.type(within(dialog).getByLabelText("보드 이름"), "Chapter Characters");
+    await user.type(within(dialog).getByLabelText("보드 이름"), "People");
+    await user.type(within(dialog).getByLabelText("태그"), "인물, #인물");
     await user.click(within(dialog).getByRole("button", { name: "보드 만들기" }));
 
-    await waitFor(() =>
-      expect(mocks.createBoard).toHaveBeenCalledWith({
-        storyId,
-        workspaceId: "workspace-1",
-        scopeId,
-        name: "Chapter Characters",
-        description: "",
-      }),
-    );
-  });
-
-  it("keeps context management secondary but usable", async () => {
-    mocks.createScope.mockResolvedValue({ ...scope, id: "scope-2", name: "Chapter 20" });
-    const user = userEvent.setup();
-    renderPage();
-
-    await screen.findByRole("heading", { name: "My Novel" });
-    await user.click(screen.getByRole("button", { name: "컨텍스트 관리" }));
-    const dialog = screen.getByRole("dialog", { name: "컨텍스트 관리" });
-    await user.type(within(dialog).getByLabelText("컨텍스트 이름"), "Chapter 20");
-    await user.click(within(dialog).getByRole("button", { name: "컨텍스트 만들기" }));
-
-    await waitFor(() =>
-      expect(mocks.createScope).toHaveBeenCalledWith({
-        storyId,
-        workspaceId: "workspace-1",
-        name: "Chapter 20",
-        description: "",
-      }),
-    );
+    expect(await within(dialog).findByText("같은 태그를 두 번 붙일 수 없습니다.")).toBeInTheDocument();
+    expect(mocks.createBoard).not.toHaveBeenCalled();
   });
 
   it("redirects an expired session to login", async () => {

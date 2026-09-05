@@ -10,6 +10,17 @@ const nameSchema = z.string().trim().min(1).max(200);
 const descriptionSchema = z.string().max(10_000);
 const iconKeySchema = z.string().min(1).max(200).nullable();
 const dateTimeSchema = z.iso.datetime();
+const boardTagSchema = z.string().trim().min(1).max(50);
+const boardTagsSchema = z.array(boardTagSchema).superRefine((tags, context) => {
+  const seen = new Set<string>();
+  for (const [index, tag] of tags.entries()) {
+    if (seen.has(tag)) {
+      context.addIssue({ code: "custom", message: "Board tags must be unique", path: [index] });
+      continue;
+    }
+    seen.add(tag);
+  }
+});
 
 export const workspaceQuerySchema = z.object({ workspaceId: workspaceIdSchema });
 
@@ -23,7 +34,8 @@ export const createBoardRequestSchema = z.object({
   workspaceId: workspaceIdSchema,
   name: nameSchema,
   description: descriptionSchema.default(""),
-  scopeId: graphIdSchema.nullable().default(null),
+  tags: boardTagsSchema.default([]),
+  scopeId: graphIdSchema.nullable().optional(),
 });
 
 export const createNodeRequestSchema = z.object({
@@ -69,18 +81,28 @@ export const putEdgeStateRequestSchema = z.object({
 export const updateNodeRequestSchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    version: z.number().int().min(1),
+    expectedVersion: z.number().int().min(1).optional(),
+    version: z.number().int().min(1).optional(),
     name: nameSchema.optional(),
     description: descriptionSchema.optional(),
     iconKey: iconKeySchema.optional(),
     properties: jsonObjectSchema.optional(),
+    x: finiteNumberSchema.optional(),
+    y: finiteNumberSchema.optional(),
+    width: positiveNullableNumberSchema.optional(),
+    height: positiveNullableNumberSchema.optional(),
+    zIndex: z.number().int().optional(),
+    style: jsonObjectSchema.optional(),
+  })
+  .refine((value) => value.expectedVersion !== undefined || value.version !== undefined, {
+    message: "A Node version must be provided",
   })
   .refine(
     (value) =>
-      value.name !== undefined ||
-      value.description !== undefined ||
-      value.iconKey !== undefined ||
-      value.properties !== undefined,
+      value.name !== undefined || value.description !== undefined ||
+      value.iconKey !== undefined || value.properties !== undefined ||
+      value.x !== undefined || value.y !== undefined || value.width !== undefined ||
+      value.height !== undefined || value.zIndex !== undefined || value.style !== undefined,
     { message: "At least one Node field must be provided" },
   );
 
@@ -95,13 +117,8 @@ export const updateBoardNodeRequestSchema = z
     style: jsonObjectSchema.optional(),
   })
   .refine(
-    (value) =>
-      value.x !== undefined ||
-      value.y !== undefined ||
-      value.width !== undefined ||
-      value.height !== undefined ||
-      value.zIndex !== undefined ||
-      value.style !== undefined,
+    (value) => value.x !== undefined || value.y !== undefined || value.width !== undefined ||
+      value.height !== undefined || value.zIndex !== undefined || value.style !== undefined,
     { message: "At least one BoardNode field must be provided" },
   );
 
@@ -114,23 +131,29 @@ export const createEdgeRequestSchema = z.object({
   description: descriptionSchema.default(""),
   iconKey: iconKeySchema.default(null),
   properties: jsonObjectSchema.default({}),
+  style: jsonObjectSchema.optional(),
+  labelPresentation: jsonObjectSchema.optional(),
 });
 
 export const updateEdgeRequestSchema = z
   .object({
     workspaceId: workspaceIdSchema,
-    version: z.number().int().min(1),
+    expectedVersion: z.number().int().min(1).optional(),
+    version: z.number().int().min(1).optional(),
     name: nameSchema.optional(),
     description: descriptionSchema.optional(),
     iconKey: iconKeySchema.optional(),
     properties: jsonObjectSchema.optional(),
+    style: jsonObjectSchema.optional(),
+    labelPresentation: jsonObjectSchema.optional(),
+  })
+  .refine((value) => value.expectedVersion !== undefined || value.version !== undefined, {
+    message: "An Edge version must be provided",
   })
   .refine(
-    (value) =>
-      value.name !== undefined ||
-      value.description !== undefined ||
-      value.iconKey !== undefined ||
-      value.properties !== undefined,
+    (value) => value.name !== undefined || value.description !== undefined ||
+      value.iconKey !== undefined || value.properties !== undefined ||
+      value.style !== undefined || value.labelPresentation !== undefined,
     { message: "At least one Edge field must be provided" },
   );
 
@@ -158,9 +181,7 @@ export const restoreBoardNodeRequestSchema = z
     boardEdges: z.array(restoreBoardNodeEdgePresentationSchema).default([]),
   })
   .refine(
-    (value) =>
-      new Set(value.boardEdges.map((boardEdge) => boardEdge.edgeId)).size ===
-      value.boardEdges.length,
+    (value) => new Set(value.boardEdges.map((boardEdge) => boardEdge.edgeId)).size === value.boardEdges.length,
     { message: "BoardEdge ids must be unique", path: ["boardEdges"] },
   );
 
@@ -198,47 +219,51 @@ export const edgeStateResponseSchema = z.object({
 export const boardResponseSchema = z.object({
   id: graphIdSchema,
   storyId: graphIdSchema,
-  scopeId: graphIdSchema.nullable(),
+  scopeId: graphIdSchema.nullable().optional(),
   name: z.string(),
   description: z.string(),
-  revision: z.number().int().min(0),
+  tags: boardTagsSchema.optional(),
+  revision: z.number().int().min(0).optional(),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
 });
 
-export const listScopesResponseSchema = z.object({
-  scopes: z.array(scopeResponseSchema),
-});
-
-export const listBoardsResponseSchema = z.object({
-  boards: z.array(boardResponseSchema),
-});
+export const listScopesResponseSchema = z.object({ scopes: z.array(scopeResponseSchema) });
+export const listBoardsResponseSchema = z.object({ boards: z.array(boardResponseSchema) });
 
 export const graphNodeResponseSchema = z.object({
   id: graphIdSchema,
-  storyId: graphIdSchema,
+  boardId: graphIdSchema.optional(),
+  storyId: graphIdSchema.optional(),
   name: z.string(),
   description: z.string(),
   iconKey: z.string().nullable(),
   properties: jsonObjectSchema,
+  x: finiteNumberSchema.optional(),
+  y: finiteNumberSchema.optional(),
+  width: positiveNullableNumberSchema.optional(),
+  height: positiveNullableNumberSchema.optional(),
+  zIndex: z.number().int().optional(),
+  style: jsonObjectSchema.optional(),
   version: z.number().int().min(1),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
 });
 
-export const listStoryNodesResponseSchema = z.object({
-  nodes: z.array(graphNodeResponseSchema),
-});
+export const listStoryNodesResponseSchema = z.object({ nodes: z.array(graphNodeResponseSchema) });
 
 export const graphEdgeResponseSchema = z.object({
   id: graphIdSchema,
-  storyId: graphIdSchema,
+  boardId: graphIdSchema.optional(),
+  storyId: graphIdSchema.optional(),
   sourceNodeId: graphIdSchema,
   targetNodeId: graphIdSchema,
   name: z.string(),
   description: z.string(),
   iconKey: z.string().nullable(),
   properties: jsonObjectSchema,
+  style: jsonObjectSchema.optional(),
+  labelPresentation: jsonObjectSchema.optional(),
   version: z.number().int().min(1),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
@@ -266,16 +291,8 @@ export const boardEdgeResponseSchema = z.object({
   updatedAt: dateTimeSchema,
 });
 
-export const createNodeResponseSchema = z.object({
-  node: graphNodeResponseSchema,
-  boardNode: boardNodeResponseSchema,
-});
-
-export const createEdgeResponseSchema = z.object({
-  edge: graphEdgeResponseSchema,
-  boardEdge: boardEdgeResponseSchema,
-});
-
+export const createNodeResponseSchema = z.object({ node: graphNodeResponseSchema, boardNode: boardNodeResponseSchema });
+export const createEdgeResponseSchema = z.object({ edge: graphEdgeResponseSchema, boardEdge: boardEdgeResponseSchema });
 export const restoreBoardNodeResponseSchema = z.object({
   node: graphNodeResponseSchema,
   boardNode: boardNodeResponseSchema,

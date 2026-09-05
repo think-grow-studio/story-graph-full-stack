@@ -26,7 +26,7 @@ export async function PATCH(
         actorId: actor.id,
         workspaceId: body.workspaceId,
         nodeId: validatedNodeId,
-        version: body.version,
+        version: body.expectedVersion ?? body.version!,
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.description !== undefined ? { description: body.description } : {}),
         ...(body.iconKey !== undefined ? { iconKey: body.iconKey } : {}),
