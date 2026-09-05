@@ -27,64 +27,47 @@ Workspace
 
 현재 구현은 한 Node/Edge 원본을 Story가 소유하고 여러 Board가 `board_node`/`board_edge`로 표현하며, Scope에 따라 `node_state`/`edge_state`를 덮어쓰는 모델이다.
 
-이 모델은 같은 엔티티를 여러 시점/Board에서 재사용하기에는 강력하지만, 사용자가 다음 개념을 구분해야 한다.
+현재 제품 목표에는 이 추상화 비용이 필요하지 않다. 사용자가 Story 원본, Board 표현, Scope, NodeState, EdgeState를 구분하는 대신 Board 한 장 안에서 직접 Node/Edge를 만들고 수정하면 된다.
 
-- Story의 원본 Node/Edge
-- Board에 놓인 Node/Edge 표현
-- Scope
-- NodeState / EdgeState
-
-현재 제품 목표에는 이 추상화 비용이 필요하지 않다. Board끼리 독립적이어도 충분하며, 같은 이름의 Node가 여러 Board에 중복되는 것을 허용하는 편이 사용자와 구현 모두 단순하다.
+같은 이름의 Node가 여러 Board에 중복되는 것은 허용한다. 두 Node는 서로 다른 엔티티이며 어느 한 Board의 변경도 다른 Board에 영향을 주지 않는다.
 
 ## 3. Considered Approaches
 
 ### A. 기존 모델을 유지하고 UI만 단순화
 
-기존 Scope/State/Board presentation을 숨기고 내부적으로 유지한다.
-
 - 장점: 현재 코드 변경량이 작다.
-- 단점: 사용하지 않는 복잡성이 DB/API/Undo/Redo에 계속 남고, 이후 기능 개발이 계속 옛 소유권 모델에 묶인다.
+- 단점: 쓰지 않는 Scope/State/presentation 복잡성이 DB/API/Undo/Redo에 계속 남는다.
 
 **Reject.** 배포 전 리셋 기회를 낭비한다.
 
 ### B. Legacy 모델과 Board-owned 모델을 병행
 
-신규 Board부터 Board-owned로 만들고 기존 데이터는 legacy로 유지한다.
+- 장점: 배포 후 데이터 호환이 필요하다면 안전하다.
+- 단점: repository, contract, editor가 두 모델을 동시에 알아야 한다.
 
-- 장점: 배포 후 마이그레이션이라면 안전하다.
-- 단점: 저장소, contract, editor가 두 모델을 동시에 알아야 한다.
-
-**Reject.** 현재는 배포 전이고 호환할 실사용 데이터가 없다.
+**Reject.** 현재는 배포 전이고 보존할 실사용 Graph 데이터가 없다.
 
 ### C. Board-owned 모델로 clean reset — Selected
 
 Scope/State/presentation join 모델을 제거하고 Node/Edge의 내용과 표현을 Board child row 하나에 합친다.
 
-- 장점: 제품 개념과 DB/API가 1:1로 맞는다.
-- 장점: Board 격리가 구조적으로 보장된다.
-- 장점: 이후 기능과 테스트가 크게 단순해진다.
-- 비용: 기존 Graph 개발 DB 데이터는 버린다.
+- 제품 개념과 DB/API가 1:1로 맞는다.
+- Board 격리가 구조적으로 보장된다.
+- 저장/테스트 경로가 단순해진다.
+- 기존 개발 DB의 Graph 데이터는 버린다.
 
 **Selected.**
 
 ## 4. Domain Invariants
 
-### 4.1 Hierarchy
-
 1. Workspace owns Story.
 2. Story owns Board.
 3. Board owns Node and Edge.
-4. Board owns its tag labels.
-
-### 4.2 Board isolation
-
-- Node는 정확히 하나의 `boardId`를 가진다.
-- Edge는 정확히 하나의 `boardId`를 가진다.
-- Edge의 source/target Node는 반드시 Edge와 같은 Board에 속해야 한다.
-- Board A의 Node/Edge 수정/삭제는 Board B에 영향을 주지 않는다.
-- 같은 Story의 서로 다른 Board에 이름이 같은 Node가 있어도 서로 다른 엔티티다.
-
-### 4.3 No Scope/State
+4. Board owns its Tag labels.
+5. Node와 Edge는 정확히 하나의 Board에만 속한다.
+6. Edge의 source/target Node는 반드시 Edge와 같은 Board에 속한다.
+7. Board A의 Node/Edge 수정/삭제는 Board B에 영향을 주지 않는다.
+8. 같은 Story의 서로 다른 Board에 이름이 같은 Node가 있어도 서로 다른 엔티티다.
 
 다음을 완전히 제거한다.
 
@@ -120,14 +103,13 @@ board
 - story_id FK -> story ON DELETE CASCADE
 - name
 - description
-- revision
 - created_at
 - updated_at
 ```
 
-`revision`은 사용자 개념이 아니라 editor concurrency/save-queue 안정성을 위한 내부 필드로 유지한다.
+기존 `scope_id`와 `revision`은 제거한다.
 
-`scope_id`는 제거한다.
+`revision`은 현재 구조에서 Board membership/presentation 변경 횟수로 사용되지만 request CAS에 사용되지 않는다. 새 모델에서는 membership/presentation이 Node/Edge 자체로 합쳐지고 Node/Edge `version`이 실제 write conflict를 담당하므로 Board revision을 유지하지 않는다.
 
 ### `board_tag`
 
@@ -144,10 +126,12 @@ INDEX (name)
 
 규칙:
 
-- 이름은 trim 후 1~50자.
-- UI에서 `#`를 붙여 표시하지만 DB에는 `#` 없이 저장한다.
-- 한 Board 안의 동일 문자열 Tag는 하나만 존재한다.
-- 대소문자는 그대로 보존하며 V1에서는 별도 전역 canonicalization을 하지 않는다.
+- API 값은 `#` 없는 이름이다.
+- 이름은 trim 후 1~50자다.
+- 한 Board 요청 안에서 trim 후 중복된 Tag 이름은 validation error다.
+- UI는 입력 시 선행 `#` 하나를 제거하고 API에는 이름만 전송한다.
+- 표시할 때 UI가 `#`를 붙인다.
+- 대소문자는 그대로 보존한다.
 - 같은 문자열 Tag가 여러 Board에 있어도 공유 객체가 아니라 각각의 Board label이다.
 
 ### `graph_node`
@@ -168,7 +152,7 @@ graph_node
 - height nullable
 - z_index
 - style jsonb
-- version
+- version default 1
 - created_at
 - updated_at
 UNIQUE (id, board_id)
@@ -176,6 +160,8 @@ INDEX (board_id)
 ```
 
 `story_id`는 제거한다. Story는 `node -> board -> story`로 결정한다.
+
+Node의 semantic field와 position/presentation field를 PATCH할 때마다 같은 `version`을 CAS로 사용하고 성공 시 1 증가시킨다.
 
 ### `graph_edge`
 
@@ -193,7 +179,7 @@ graph_edge
 - properties jsonb
 - style jsonb
 - label_presentation jsonb
-- version
+- version default 1
 - created_at
 - updated_at
 UNIQUE (id, board_id)
@@ -203,11 +189,11 @@ INDEX (board_id)
 DB composite FK로 다음을 보장한다.
 
 ```text
-(source_node_id, board_id) -> graph_node(id, board_id)
-(target_node_id, board_id) -> graph_node(id, board_id)
+(source_node_id, board_id) -> graph_node(id, board_id) ON DELETE CASCADE
+(target_node_id, board_id) -> graph_node(id, board_id) ON DELETE CASCADE
 ```
 
-따라서 cross-board Edge는 application validation뿐 아니라 DB에서도 불가능하다.
+따라서 cross-board Edge는 application validation뿐 아니라 DB에서도 불가능하다. Edge의 semantic/presentation PATCH도 같은 `version` CAS를 사용한다.
 
 Node 삭제 시 incident Edge는 함께 삭제한다.
 
@@ -218,13 +204,13 @@ Node 삭제 시 incident Edge는 함께 삭제한다.
 ### Story / Board
 
 ```text
-GET  /api/v1/stories/:storyId/boards
-POST /api/v1/stories/:storyId/boards
+GET   /api/v1/stories/:storyId/boards
+POST  /api/v1/stories/:storyId/boards
 PATCH /api/v1/boards/:boardId
-GET  /api/v1/boards/:boardId/snapshot
+GET   /api/v1/boards/:boardId/snapshot
 ```
 
-`BoardResponse`는 `scopeId` 대신 `tags: string[]`를 포함한다.
+`BoardResponse`는 `scopeId`/`revision` 대신 `tags: string[]`를 포함한다.
 
 Board 생성 입력:
 
@@ -237,7 +223,7 @@ Board 생성 입력:
 }
 ```
 
-Board 수정은 V1에서 `name`, `description`, `tags`를 갱신할 수 있다. Tag 전용 global API는 만들지 않는다.
+`PATCH /boards/:boardId`는 `name`, `description`, `tags` 중 하나 이상을 받는다. `tags`가 있으면 해당 Board의 Tag 전체 집합을 transaction 안에서 교체한다. Tag 전용 global API는 만들지 않는다.
 
 ### Nodes
 
@@ -245,9 +231,14 @@ Board 수정은 V1에서 `name`, `description`, `tags`를 갱신할 수 있다. 
 POST   /api/v1/boards/:boardId/nodes
 PATCH  /api/v1/boards/:boardId/nodes/:nodeId
 DELETE /api/v1/boards/:boardId/nodes/:nodeId
+POST   /api/v1/boards/:boardId/nodes/:nodeId/restore
 ```
 
-Create/Update payload에 semantic fields와 presentation fields가 함께 존재한다. `placeBoardNode`, `updateBoardNode`, Story-level Node API는 제거한다.
+- Create/Update payload에 semantic fields와 presentation fields가 함께 존재한다.
+- Create는 client-generated UUID를 받는다. 기존 command idempotency와 Undo restore에서 같은 identity를 유지하기 위함이다.
+- PATCH는 `expectedVersion`을 요구한다.
+- restore는 삭제 직전 Node와 incident Edge snapshot을 받아 하나의 transaction으로 같은 UUID들을 복원한다.
+- `placeBoardNode`, `updateBoardNode`, Story-level Node API는 제거한다.
 
 ### Edges
 
@@ -255,9 +246,13 @@ Create/Update payload에 semantic fields와 presentation fields가 함께 존재
 POST   /api/v1/boards/:boardId/edges
 PATCH  /api/v1/boards/:boardId/edges/:edgeId
 DELETE /api/v1/boards/:boardId/edges/:edgeId
+POST   /api/v1/boards/:boardId/edges/:edgeId/restore
 ```
 
-Story-level/generic Edge API와 BoardEdge presentation API는 제거한다.
+- Create는 client-generated UUID를 받는다.
+- PATCH는 `expectedVersion`을 요구한다.
+- Edge restore는 삭제 직전 Edge 전체 snapshot을 같은 UUID로 복원한다.
+- Story-level/generic Edge API와 BoardEdge presentation API는 제거한다.
 
 ### Snapshot
 
@@ -288,13 +283,9 @@ Story-level/generic Edge API와 BoardEdge presentation API는 제거한다.
 - Board node placement-only endpoints
 - Board edge presentation-only endpoints
 
-정확한 route 파일 삭제/통합 목록은 implementation plan에서 현재 tree를 기준으로 확정한다.
-
 ## 7. Graph Repository / Application Layer
 
 `GraphRepository`는 Board-owned aggregate를 직접 다룬다.
-
-핵심 인터페이스 방향:
 
 ```text
 createBoard / updateBoard / listBoards / findBoard
@@ -319,57 +310,53 @@ removeEdgeFromBoard
 BoardNode/BoardEdge-specific persistence
 ```
 
-Authorization은 기존과 동일하게 use-case boundary에서 수행한다. Node/Edge 작업은 `board -> story -> workspace` ownership chain을 검증한다.
-
-외부 사용자가 존재 여부를 추측하지 못하도록 기존 hidden-404 정책을 유지한다.
+Authorization은 기존과 동일하게 use-case boundary에서 수행한다. Node/Edge 작업은 `board -> story -> workspace` ownership chain을 검증한다. 기존 hidden-404 정책도 유지한다.
 
 ## 8. Editor Persistence
 
-기존 editor에서 가치 있는 내부 구조는 유지한다.
+유지:
 
 - Zustand working state
-- React Flow는 rendering/input adapter
+- React Flow rendering/input adapter
 - draft -> debounce -> command -> Save Queue
-- node/edge lane serialization
+- `node:<id>` / `edge:<id>` lane serialization
 - optimistic version conflict handling
 - session-local Undo/Redo
 - reload persistence
 
-단, effective/canonical/state 합성 단계는 제거한다.
+제거:
 
-### Direct state
+- canonical + Scope State + Board presentation 합성
+- effective-node/effective-edge Scope resolution
+- Story canonical entity placement/removal 개념
 
-Canvas와 Inspector는 snapshot의 Node/Edge를 그대로 편집한다.
+Canvas와 Inspector는 snapshot의 Node/Edge를 직접 편집한다.
 
 ```text
 before: canonical Node + NodeState + BoardNode -> effective node
 now:    GraphNode -> rendered node
-```
 
-```text
 before: canonical Edge + EdgeState + BoardEdge -> effective edge
 now:    GraphEdge -> rendered edge
 ```
 
-### Delete / Undo semantics
+### Delete / Undo
 
-기존에는 Board에서 Node를 제거해도 Story canonical Node가 남았다. 새 모델에서는 Board에서 Node를 삭제하면 **실제 Node row를 삭제**하며 incident Edge도 삭제된다.
+Board에서 Node를 삭제하면 실제 Node row와 incident Edge가 삭제된다.
 
-Undo를 위해 frontend history command는 삭제 직전 Node와 incident Edge의 전체 snapshot을 보관하고 restore use-case가 같은 id로 엔티티를 재생성한다.
+Undo command는 삭제 직전 Node와 incident Edge의 full snapshot을 메모리에 보관하고 Node restore endpoint를 통해 transaction으로 복원한다. Edge 단독 삭제 Undo도 Edge restore endpoint를 사용한다.
 
-- Undo/Redo UX는 유지한다.
-- 삭제된 엔티티를 다른 Board에서 복원/공유하지 않는다.
-- persistent history는 추가하지 않는다.
+Undo/Redo history는 기존처럼 session-local이며 reload 후 유지하지 않는다.
 
 ## 9. Story Boards UX
 
-Story는 작품/프로젝트이고, Story page는 Board 관리 화면이다.
+Story는 작품/프로젝트이고 Story page는 Board 관리 화면이다.
 
 ### Board create
 
-기존 `Context` 선택을 완전히 제거한다.
+기존 Context 선택을 완전히 제거한다.
 
-최소 입력:
+입력:
 
 - Board name
 - optional description
@@ -377,7 +364,7 @@ Story는 작품/프로젝트이고, Story page는 Board 관리 화면이다.
 
 Board 생성 후 바로 Graph Editor로 이동한다.
 
-### Board list
+### Board list / tags
 
 각 Board card에 Tag를 표시한다.
 
@@ -386,35 +373,32 @@ Board 생성 후 바로 Graph Editor로 이동한다.
 #인물 #전체
 ```
 
-현재 Story의 Board 응답에서 Tag 문자열 union을 만들고 filter chip으로 사용한다. V1에서는 Board 수가 적다는 전제로 **client-side filtering**을 사용하고 별도 tag search API를 만들지 않는다.
+현재 Story의 `BoardResponse[]`에서 Tag 문자열 union을 만들고 filter chip으로 사용한다. V1에서는 Board 수가 적다는 전제로 client-side filtering을 사용한다.
 
-Board의 Tag는 Board metadata edit에서 추가/삭제한다. 별도의 “태그 관리” 화면은 만들지 않는다.
+Board metadata edit에서 Tag를 추가/삭제한다. 별도의 Tag 관리 화면이나 Workspace-global Tag master는 만들지 않는다.
 
 ## 10. Migration Strategy
 
 아직 배포되지 않았고 보존해야 할 Graph 사용자 데이터가 없으므로 compatibility migration을 만들지 않는다.
 
-### Selected strategy: clean graph migration baseline
+- `0000` auth/workspace foundation은 유지한다.
+- `0001` Story foundation은 유지한다.
+- `0002` 이후 기존 Graph/Scope/EdgeState migration은 Board-owned Graph 단일 baseline으로 다시 생성한다.
+- 기존 Scope/State migration 파일과 해당 Drizzle snapshot/journal entry는 제거한다.
+- schema와 Drizzle metadata를 새 baseline에 맞춘다.
+- 기존 local development DB는 데이터 변환하지 않고 volume/database reset 후 새 migration을 적용한다.
 
-- auth/workspace migration은 유지한다.
-- Story foundation migration은 유지한다.
-- 기존 Graph/Scope/EdgeState migration들을 Board-owned graph baseline으로 squash/regenerate한다.
-- Drizzle journal/snapshot metadata를 새 schema와 일치시킨다.
-- 기존 local development DB는 graph data migration을 시도하지 않고 reset한다.
-
-개발 환경 안내에 local volume reset 절차를 명시한다.
-
-이 결정은 **production migration 전략이 아니다**. 첫 배포 전이라는 전제에서만 허용한다.
+이 결정은 첫 production 배포 전이라는 전제에서만 허용한다.
 
 ## 11. Error / Concurrency Rules
 
-- 존재하지 않거나 접근 권한이 없는 Board/Node/Edge: 기존 hidden 404 정책.
-- Node/Edge stale version write: 409 conflict.
-- 다른 Board의 Node를 source/target으로 Edge 생성: validation failure; DB composite FK도 최종 방어선.
-- 빈/중복 Tag: request normalization 후 validation 또는 dedupe.
-- Save Queue에서 conflict가 발생하면 현재 editor recovery/reload 패턴을 유지한다.
-
-`board.revision`과 Node/Edge `version`의 구체적인 mutation 책임은 implementation plan에서 기존 CAS tests를 기준으로 최소 변경으로 정한다. 사용자에게 노출되는 개념은 아니다.
+- 존재하지 않거나 접근 권한이 없는 Board/Node/Edge: hidden 404.
+- Node/Edge PATCH의 stale `expectedVersion`: 409 conflict.
+- Node/Edge version은 semantic/presentation 구분 없이 해당 row의 모든 PATCH 성공 시 1 증가한다.
+- 다른 Board의 Node를 Edge source/target으로 지정: request failure; DB composite FK도 최종 방어선이다.
+- Tag는 API에서 trim 후 검증하며 빈 값, 50자 초과, 동일 Board 요청 내 중복을 거부한다.
+- Save Queue conflict 발생 시 기존 editor recovery/reload 패턴을 유지한다.
+- Board metadata는 V1에서 last-write-wins이며 별도 Board CAS token을 두지 않는다.
 
 ## 12. Test Strategy
 
@@ -426,14 +410,16 @@ Board의 Tag는 Board metadata edit에서 추가/삭제한다. 별도의 “태�
 - Node 삭제가 incident Edge를 cascade한다.
 - 같은 Story의 Board A/B에 동일 이름 Node를 만들어도 서로 독립이다.
 - Tag가 `(boardId, name)` 기준으로 격리된다.
+- Node/Edge semantic/presentation PATCH가 동일 version CAS를 따른다.
 
 ### Application / API
 
-- Story Board list/create/update returns tags.
-- Scope/State endpoints가 사라진다.
+- Story Board list/create/update가 tags를 반환한다.
+- Scope/State endpoints가 존재하지 않는다.
 - Node/Edge CRUD가 Board boundary를 검증한다.
 - stale version은 409를 유지한다.
-- snapshot은 board/nodes/edges만 반환한다.
+- snapshot은 story/board/nodes/edges만 반환한다.
+- Node restore가 Node + incident Edge를 atomic하게 복원한다.
 
 ### Frontend
 
@@ -450,18 +436,19 @@ Board의 Tag는 Board metadata edit에서 추가/삭제한다. 별도의 “태�
 4. Board B 생성.
 5. Board B에 Board A와 같은 이름의 Node 생성.
 6. Board B 수정이 Board A에 영향을 주지 않음을 확인.
-7. Story page에서 Tag filter로 Board 목록을 좁힘.
-8. Node 삭제 -> incident Edge 삭제 -> Undo 복원 -> reload persistence 확인.
+7. Story page에서 Tag filter로 Board 목록을 좁힌다.
+8. Node 삭제 -> incident Edge 삭제 -> Undo 복원 -> reload persistence를 확인한다.
 
 ## 13. Documentation Changes
 
-구현과 함께 다음 문서/규칙을 새 architecture에 맞춘다.
+이 architecture를 기준으로 다음 문서/규칙을 맞춘다.
 
 - root `AGENTS.md`
 - `src/backend/AGENTS.md`
 - `src/frontend/features/graph-editor/AGENTS.md`
-- root `DESIGN.md`의 Scope 언급 제거
-- 기존 Scope/NodeState/EdgeState 설계 문서는 historical record로 남기되, 이 문서가 graph ownership/state semantics에 대해 우선한다.
+- root `DESIGN.md`의 Scope product principle 제거
+
+기존 Scope/NodeState/EdgeState 설계 문서는 historical record로 남길 수 있지만 Graph ownership/state semantics가 충돌하면 **이 문서가 우선한다**.
 
 ## 14. Explicitly Out of Scope
 
@@ -471,6 +458,7 @@ Board의 Tag는 Board metadata edit에서 추가/삭제한다. 별도의 “태�
 - Tag hierarchy
 - Workspace-global Tag master
 - Tag management screen
+- server-side Tag search/filter API
 - realtime / CRDT
 - persistent Undo history
 - 기존 pre-release Graph 데이터 보존 migration
@@ -487,4 +475,4 @@ Node / Edge = 그 Board의 내용
 Tag = Board에 붙이는 분류 스티커
 ```
 
-그리고 코드/DB/API 역시 같은 구조를 그대로 표현해야 한다. 구현 내부의 save queue, CAS, Undo/Redo는 견고함을 위한 기술 요소일 뿐 새로운 사용자 도메인 개념을 만들지 않는다.
+코드/DB/API도 같은 구조를 그대로 표현한다. Save Queue, CAS, Undo/Redo는 견고함을 위한 내부 기술 요소일 뿐 새로운 사용자 도메인 개념을 만들지 않는다.
