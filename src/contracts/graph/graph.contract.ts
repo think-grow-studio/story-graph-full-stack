@@ -10,6 +10,21 @@ const nameSchema = z.string().trim().min(1).max(200);
 const descriptionSchema = z.string().max(10_000);
 const iconKeySchema = z.string().min(1).max(200).nullable();
 const dateTimeSchema = z.iso.datetime();
+const boardTagSchema = z.string().trim().min(1).max(50);
+const boardTagsSchema = z.array(boardTagSchema).superRefine((tags, context) => {
+  const seen = new Set<string>();
+  for (const [index, tag] of tags.entries()) {
+    if (seen.has(tag)) {
+      context.addIssue({
+        code: "custom",
+        message: "Board tags must be unique",
+        path: [index],
+      });
+      continue;
+    }
+    seen.add(tag);
+  }
+});
 
 export const workspaceQuerySchema = z.object({ workspaceId: workspaceIdSchema });
 
@@ -23,7 +38,8 @@ export const createBoardRequestSchema = z.object({
   workspaceId: workspaceIdSchema,
   name: nameSchema,
   description: descriptionSchema.default(""),
-  scopeId: graphIdSchema.nullable().default(null),
+  tags: boardTagsSchema.default([]),
+  scopeId: graphIdSchema.nullable().optional(),
 });
 
 export const createNodeRequestSchema = z.object({
@@ -198,10 +214,11 @@ export const edgeStateResponseSchema = z.object({
 export const boardResponseSchema = z.object({
   id: graphIdSchema,
   storyId: graphIdSchema,
-  scopeId: graphIdSchema.nullable(),
+  scopeId: graphIdSchema.nullable().optional(),
   name: z.string(),
   description: z.string(),
-  revision: z.number().int().min(0),
+  tags: boardTagsSchema.optional(),
+  revision: z.number().int().min(0).optional(),
   createdAt: dateTimeSchema,
   updatedAt: dateTimeSchema,
 });
