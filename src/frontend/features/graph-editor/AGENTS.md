@@ -1,10 +1,11 @@
 # Graph Editor
 - Zustand가 working state를 소유한다.
-- raw draft와 canonical/state를 분리하고 invalid draft는 저장하지 않는다.
-- React Flow는 rendering/input 전용, Board는 표현 상태만 소유한다.
-- scoped Node/Relationship은 canonical+NodeState/EdgeState로 resolve한다.
-- state는 canonical identity/topology를 덮어쓰지 않는다.
+- raw draft와 persisted Node/Edge state를 분리하고 invalid draft는 저장하지 않는다.
+- React Flow는 rendering/input 전용이다.
+- Node/Edge는 현재 Board가 직접 소유하며 다른 Board와 공유하지 않는다.
+- Node의 위치/크기/style과 Edge의 presentation은 각각 Node/Edge persisted entity에 포함한다.
+- Scope/NodeState/EdgeState effective-resolution layer를 만들지 않는다.
 - 편집은 draft→debounce→command→Save Queue다.
-- scoped edit도 node:<id>/edge:<id> lane과 command/history를 쓴다.
+- node:<id>/edge:<id> lane과 command/history serialization을 유지한다.
 - Undo/Redo는 inverse command를 재저장한다.
-- Board removal은 canonical/state를 삭제하지 않는다.
+- Node 삭제는 그 Board의 실제 Node와 incident Edge를 삭제하며, Undo는 삭제 직전 full snapshot을 복원한다.
