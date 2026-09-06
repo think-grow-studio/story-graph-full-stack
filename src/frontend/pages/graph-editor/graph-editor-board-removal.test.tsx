@@ -6,18 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getBootstrap: vi.fn(),
   getBoardSnapshot: vi.fn(),
-  listStoryNodes: vi.fn(),
-  createNodeOnBoard: vi.fn(),
-  updateBoardNode: vi.fn(),
-  createEdgeOnBoard: vi.fn(),
+  createNode: vi.fn(),
   updateNode: vi.fn(),
-  updateNodeState: vi.fn(),
+  deleteNode: vi.fn(),
+  restoreNode: vi.fn(),
+  createEdge: vi.fn(),
   updateEdge: vi.fn(),
-  updateEdgeState: vi.fn(),
-  removeNodeFromBoard: vi.fn(),
-  restoreNodeToBoard: vi.fn(),
-  removeEdgeFromBoard: vi.fn(),
-  restoreEdgeToBoard: vi.fn(),
+  deleteEdge: vi.fn(),
+  restoreEdge: vi.fn(),
 }));
 
 vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
@@ -26,18 +22,14 @@ vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
 
 vi.mock("@/frontend/api/graph/graph.api", () => ({
   getBoardSnapshot: mocks.getBoardSnapshot,
-  listStoryNodes: mocks.listStoryNodes,
-  createNodeOnBoard: mocks.createNodeOnBoard,
-  updateBoardNode: mocks.updateBoardNode,
-  createEdgeOnBoard: mocks.createEdgeOnBoard,
+  createNode: mocks.createNode,
   updateNode: mocks.updateNode,
-  updateNodeState: mocks.updateNodeState,
+  deleteNode: mocks.deleteNode,
+  restoreNode: mocks.restoreNode,
+  createEdge: mocks.createEdge,
   updateEdge: mocks.updateEdge,
-  updateEdgeState: mocks.updateEdgeState,
-  removeNodeFromBoard: mocks.removeNodeFromBoard,
-  restoreNodeToBoard: mocks.restoreNodeToBoard,
-  removeEdgeFromBoard: mocks.removeEdgeFromBoard,
-  restoreEdgeToBoard: mocks.restoreEdgeToBoard,
+  deleteEdge: mocks.deleteEdge,
+  restoreEdge: mocks.restoreEdge,
 }));
 
 vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
@@ -74,7 +66,45 @@ const boardId = "22222222-2222-4222-8222-222222222222";
 const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
-const now = "2026-08-29T00:00:00.000Z";
+const now = "2026-09-06T00:00:00.000Z";
+
+function node(id: string, name: string, x: number) {
+  return {
+    id,
+    boardId,
+    name,
+    description: "",
+    iconKey: null,
+    properties: {},
+    x,
+    y: 100,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
+    version: 2,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function relationship() {
+  return {
+    id: edgeId,
+    boardId,
+    sourceNodeId: aliceId,
+    targetNodeId: bobId,
+    name: "knows",
+    description: "",
+    iconKey: null,
+    properties: {},
+    style: {},
+    labelPresentation: {},
+    version: 3,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 function snapshot() {
   return {
@@ -82,91 +112,14 @@ function snapshot() {
     board: {
       id: boardId,
       storyId,
-      scopeId: null,
       name: "Characters",
       description: "",
-      revision: 3,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
-    scope: null,
-    nodes: [
-      {
-        id: aliceId,
-        storyId,
-        name: "Alice",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: bobId,
-        storyId,
-        name: "Bob",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    nodeStates: [],
-    edges: [
-      {
-        id: edgeId,
-        storyId,
-        sourceNodeId: aliceId,
-        targetNodeId: bobId,
-        name: "knows",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    edgeStates: [],
-    boardNodes: [
-      {
-        boardId,
-        nodeId: aliceId,
-        x: 100,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        boardId,
-        nodeId: bobId,
-        x: 400,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardEdges: [
-      {
-        boardId,
-        edgeId,
-        style: {},
-        labelPresentation: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
+    nodes: [node(aliceId, "Alice", 100), node(bobId, "Bob", 400)],
+    edges: [relationship()],
   };
 }
 
@@ -174,12 +127,11 @@ function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  const view = render(
+  return render(
     <QueryClientProvider client={queryClient}>
       <GraphEditorPage storyId={storyId} boardId={boardId} />
     </QueryClientProvider>,
   );
-  return { ...view, queryClient };
 }
 
 beforeEach(() => {
@@ -189,33 +141,41 @@ beforeEach(() => {
     workspace: { id: "workspace-1", name: "Workspace", slug: "workspace" },
   });
   mocks.getBoardSnapshot.mockResolvedValue(snapshot());
-  mocks.listStoryNodes.mockResolvedValue(snapshot().nodes);
-  mocks.removeNodeFromBoard.mockResolvedValue(undefined);
-  mocks.restoreNodeToBoard.mockResolvedValue({
-    node: snapshot().nodes[0],
-    boardNode: snapshot().boardNodes[0],
-    edges: snapshot().edges,
-    boardEdges: snapshot().boardEdges,
-  });
-  mocks.removeEdgeFromBoard.mockResolvedValue(undefined);
-  mocks.restoreEdgeToBoard.mockResolvedValue({
-    edge: snapshot().edges[0],
-    boardEdge: snapshot().boardEdges[0],
-  });
+  mocks.deleteNode.mockResolvedValue(undefined);
+  mocks.restoreNode.mockImplementation(async (input) => ({
+    node: { ...input.node, createdAt: now, updatedAt: now },
+    edges: input.edges.map((edge: Record<string, unknown>) => ({
+      ...edge,
+      createdAt: now,
+      updatedAt: now,
+    })),
+  }));
+  mocks.deleteEdge.mockResolvedValue(undefined);
+  mocks.restoreEdge.mockImplementation(async (input) => ({
+    ...input.edge,
+    createdAt: now,
+    updatedAt: now,
+  }));
 });
 
 afterEach(cleanup);
 
-describe("Graph Editor Board removal", () => {
-  it("removes a selected Node and incident Relationship from Board presentation", async () => {
+describe("Graph Editor direct deletion", () => {
+  it("deletes a Node with incident Relationships and restores the same rows with Undo", async () => {
     const user = userEvent.setup();
-    const { queryClient } = renderPage();
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select Alice" }));
-    await user.click(screen.getByRole("button", { name: "보드에서 제거" }));
+    expect(
+      screen.getByText(
+        "이 노드를 삭제하면 이 보드의 연결된 관계도 함께 삭제됩니다. 현재 세션에서 Undo할 수 있습니다.",
+      ),
+    ).toBeInTheDocument();
 
-    await waitFor(() => expect(mocks.removeNodeFromBoard).toHaveBeenCalledTimes(1));
-    expect(mocks.removeNodeFromBoard.mock.calls[0][0]).toEqual({
+    await user.click(screen.getByRole("button", { name: "노드 삭제" }));
+
+    await waitFor(() => expect(mocks.deleteNode).toHaveBeenCalledTimes(1));
+    expect(mocks.deleteNode).toHaveBeenCalledWith({
       boardId,
       nodeId: aliceId,
       workspaceId: "workspace-1",
@@ -224,61 +184,35 @@ describe("Graph Editor Board removal", () => {
     expect(screen.queryByRole("button", { name: "Select knows" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Select Bob" })).toBeInTheDocument();
 
-    const cached = queryClient.getQueryData<ReturnType<typeof snapshot>>([
-      "graph",
-      "snapshot",
-      "workspace-1",
-      boardId,
-    ]);
-    expect(cached?.nodes.map((node) => node.id)).toEqual([bobId]);
-    expect(cached?.edges).toEqual([]);
-    expect(cached?.boardEdges).toEqual([]);
-  });
-
-  it("undoes Node Board removal with its incident Relationship and snapshot cache", async () => {
-    const user = userEvent.setup();
-    const { queryClient } = renderPage();
-
-    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
-    await user.click(screen.getByRole("button", { name: "보드에서 제거" }));
-    await waitFor(() => expect(mocks.removeNodeFromBoard).toHaveBeenCalledTimes(1));
-
     await user.click(screen.getByRole("button", { name: "Undo" }));
 
-    await waitFor(() => expect(mocks.restoreNodeToBoard).toHaveBeenCalledTimes(1));
-    expect(mocks.restoreNodeToBoard.mock.calls[0][0]).toEqual({
+    await waitFor(() => expect(mocks.restoreNode).toHaveBeenCalledTimes(1));
+    expect(mocks.restoreNode.mock.calls[0][0]).toMatchObject({
       boardId,
       nodeId: aliceId,
       workspaceId: "workspace-1",
-      boardNode: snapshot().boardNodes[0],
-      boardEdges: snapshot().boardEdges,
+      node: expect.objectContaining({ id: aliceId, boardId }),
+      edges: [expect.objectContaining({ id: edgeId, boardId })],
     });
     expect(await screen.findByRole("button", { name: "Select Alice" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Select knows" })).toBeInTheDocument();
-
-    const cached = queryClient.getQueryData<ReturnType<typeof snapshot>>([
-      "graph",
-      "snapshot",
-      "workspace-1",
-      boardId,
-    ]);
-    expect(cached?.nodes).toContainEqual(expect.objectContaining({ id: aliceId }));
-    expect(cached?.edges).toContainEqual(expect.objectContaining({ id: edgeId }));
-    expect(cached?.boardNodes).toContainEqual(
-      expect.objectContaining({ nodeId: aliceId, x: 100, y: 100 }),
-    );
-    expect(cached?.boardEdges).toContainEqual(expect.objectContaining({ edgeId }));
   });
 
-  it("removes a selected Relationship from Board presentation while leaving both Nodes", async () => {
+  it("deletes one Relationship while keeping both Nodes and restores it with Undo", async () => {
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select knows" }));
-    await user.click(screen.getByRole("button", { name: "보드에서 제거" }));
+    expect(
+      screen.getByText(
+        "이 관계를 이 보드에서 삭제합니다. 현재 세션에서 Undo할 수 있습니다.",
+      ),
+    ).toBeInTheDocument();
 
-    await waitFor(() => expect(mocks.removeEdgeFromBoard).toHaveBeenCalledTimes(1));
-    expect(mocks.removeEdgeFromBoard.mock.calls[0][0]).toEqual({
+    await user.click(screen.getByRole("button", { name: "관계 삭제" }));
+
+    await waitFor(() => expect(mocks.deleteEdge).toHaveBeenCalledTimes(1));
+    expect(mocks.deleteEdge).toHaveBeenCalledWith({
       boardId,
       edgeId,
       workspaceId: "workspace-1",
@@ -286,38 +220,16 @@ describe("Graph Editor Board removal", () => {
     expect(screen.queryByRole("button", { name: "Select knows" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Select Alice" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Select Bob" })).toBeInTheDocument();
-  });
-
-  it("undoes Relationship Board removal through restore persistence and snapshot cache", async () => {
-    const user = userEvent.setup();
-    const { queryClient } = renderPage();
-
-    await user.click(await screen.findByRole("button", { name: "Select knows" }));
-    await user.click(screen.getByRole("button", { name: "보드에서 제거" }));
-    await waitFor(() => expect(mocks.removeEdgeFromBoard).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole("button", { name: "Select knows" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Undo" }));
 
-    await waitFor(() => expect(mocks.restoreEdgeToBoard).toHaveBeenCalledTimes(1));
-    expect(mocks.restoreEdgeToBoard.mock.calls[0][0]).toEqual({
+    await waitFor(() => expect(mocks.restoreEdge).toHaveBeenCalledTimes(1));
+    expect(mocks.restoreEdge.mock.calls[0][0]).toMatchObject({
       boardId,
       edgeId,
       workspaceId: "workspace-1",
-      style: {},
-      labelPresentation: {},
+      edge: expect.objectContaining({ id: edgeId, boardId }),
     });
     expect(await screen.findByRole("button", { name: "Select knows" })).toBeInTheDocument();
-
-    const cached = queryClient.getQueryData<ReturnType<typeof snapshot>>([
-      "graph",
-      "snapshot",
-      "workspace-1",
-      boardId,
-    ]);
-    expect(cached?.edges).toContainEqual(expect.objectContaining({ id: edgeId }));
-    expect(cached?.boardEdges).toContainEqual(
-      expect.objectContaining({ boardId, edgeId }),
-    );
   });
 });
