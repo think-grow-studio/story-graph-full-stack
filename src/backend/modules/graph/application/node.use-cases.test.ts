@@ -90,7 +90,11 @@ function createGraph(): GraphRepository {
     ),
     restoreNode: vi.fn(async (input) => ({
       node: { ...input.node, createdAt: now, updatedAt: now },
-      edges: input.edges.map((edge) => ({ ...edge, createdAt: now, updatedAt: now })),
+      edges: input.edges.map((edge: Record<string, unknown>) => ({
+        ...edge,
+        createdAt: now,
+        updatedAt: now,
+      })),
     })),
     createEdge: vi.fn(),
     findEdge: vi.fn(),
