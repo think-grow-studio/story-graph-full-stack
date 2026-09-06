@@ -16,10 +16,6 @@ export function AddNodeDialog({
   onCreate: (name: string) => void;
   onClose: () => void;
   busy: boolean;
-  /** @deprecated Transitional compatibility only; ignored by the creation-only dialog. */
-  existingNodes?: Array<{ id: string; name: string }>;
-  /** @deprecated Transitional compatibility only; ignored by the creation-only dialog. */
-  onPlace?: (nodeId: string) => void;
 }) {
   const [name, setName] = useState("");
 
