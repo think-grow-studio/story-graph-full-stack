@@ -5,7 +5,6 @@ import {
   integer,
   jsonb,
   pgTable,
-  primaryKey,
   text,
   timestamp,
   unique,
@@ -14,24 +13,6 @@ import {
 import type { JsonObject } from "@/backend/modules/graph/domain/graph";
 import { story } from "./story.schema";
 
-export const scope = pgTable(
-  "scope",
-  {
-    id: text("id").primaryKey(),
-    storyId: text("story_id")
-      .notNull()
-      .references(() => story.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    description: text("description").default("").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => [
-    unique("scope_id_story_id_unique").on(table.id, table.storyId),
-    index("scope_story_id_idx").on(table.storyId),
-  ],
-);
-
 export const board = pgTable(
   "board",
   {
@@ -39,33 +20,21 @@ export const board = pgTable(
     storyId: text("story_id")
       .notNull()
       .references(() => story.id, { onDelete: "cascade" }),
-    scopeId: text("scope_id"),
     name: text("name").notNull(),
     description: text("description").default("").notNull(),
-    revision: integer("revision").default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (table) => [
-    unique("board_id_story_id_unique").on(table.id, table.storyId),
-    index("board_story_id_idx").on(table.storyId),
-    index("board_scope_id_idx").on(table.scopeId),
-    foreignKey({
-      name: "board_scope_story_fk",
-      columns: [table.scopeId, table.storyId],
-      foreignColumns: [scope.id, scope.storyId],
-    }),
-  ],
+  (table) => [index("board_story_id_idx").on(table.storyId)],
 );
 
 export const graphNode = pgTable(
   "graph_node",
   {
     id: text("id").primaryKey(),
-    storyId: text("story_id")
+    boardId: text("board_id")
       .notNull()
-      .references(() => story.id, { onDelete: "cascade" }),
-    boardId: text("board_id").references(() => board.id, { onDelete: "cascade" }),
+      .references(() => board.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description").default("").notNull(),
     iconKey: text("icon_key"),
@@ -81,9 +50,7 @@ export const graphNode = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    unique("graph_node_id_story_id_unique").on(table.id, table.storyId),
     unique("graph_node_id_board_id_unique").on(table.id, table.boardId),
-    index("graph_node_story_id_idx").on(table.storyId),
     index("graph_node_board_id_idx").on(table.boardId),
   ],
 );
@@ -92,10 +59,9 @@ export const graphEdge = pgTable(
   "graph_edge",
   {
     id: text("id").primaryKey(),
-    storyId: text("story_id")
+    boardId: text("board_id")
       .notNull()
-      .references(() => story.id, { onDelete: "cascade" }),
-    boardId: text("board_id").references(() => board.id, { onDelete: "cascade" }),
+      .references(() => board.id, { onDelete: "cascade" }),
     sourceNodeId: text("source_node_id").notNull(),
     targetNodeId: text("target_node_id").notNull(),
     name: text("name").notNull(),
@@ -112,22 +78,10 @@ export const graphEdge = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    unique("graph_edge_id_story_id_unique").on(table.id, table.storyId),
     unique("graph_edge_id_board_id_unique").on(table.id, table.boardId),
-    index("graph_edge_story_id_idx").on(table.storyId),
     index("graph_edge_board_id_idx").on(table.boardId),
     index("graph_edge_source_node_id_idx").on(table.sourceNodeId),
     index("graph_edge_target_node_id_idx").on(table.targetNodeId),
-    foreignKey({
-      name: "graph_edge_source_story_fk",
-      columns: [table.sourceNodeId, table.storyId],
-      foreignColumns: [graphNode.id, graphNode.storyId],
-    }).onDelete("cascade"),
-    foreignKey({
-      name: "graph_edge_target_story_fk",
-      columns: [table.targetNodeId, table.storyId],
-      foreignColumns: [graphNode.id, graphNode.storyId],
-    }).onDelete("cascade"),
     foreignKey({
       name: "graph_edge_source_board_fk",
       columns: [table.sourceNodeId, table.boardId],
@@ -137,129 +91,6 @@ export const graphEdge = pgTable(
       name: "graph_edge_target_board_fk",
       columns: [table.targetNodeId, table.boardId],
       foreignColumns: [graphNode.id, graphNode.boardId],
-    }).onDelete("cascade"),
-  ],
-);
-
-export const nodeState = pgTable(
-  "node_state",
-  {
-    scopeId: text("scope_id").notNull(),
-    nodeId: text("node_id").notNull(),
-    storyId: text("story_id").notNull(),
-    name: text("name"),
-    description: text("description"),
-    properties: jsonb("properties").$type<JsonObject>(),
-    version: integer("version").default(1).notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => [
-    primaryKey({ name: "node_state_pk", columns: [table.scopeId, table.nodeId] }),
-    index("node_state_story_id_idx").on(table.storyId),
-    index("node_state_node_id_idx").on(table.nodeId),
-    foreignKey({
-      name: "node_state_scope_story_fk",
-      columns: [table.scopeId, table.storyId],
-      foreignColumns: [scope.id, scope.storyId],
-    }).onDelete("cascade"),
-    foreignKey({
-      name: "node_state_node_story_fk",
-      columns: [table.nodeId, table.storyId],
-      foreignColumns: [graphNode.id, graphNode.storyId],
-    }).onDelete("cascade"),
-  ],
-);
-
-export const edgeState = pgTable(
-  "edge_state",
-  {
-    scopeId: text("scope_id").notNull(),
-    edgeId: text("edge_id").notNull(),
-    storyId: text("story_id").notNull(),
-    name: text("name"),
-    description: text("description"),
-    properties: jsonb("properties").$type<JsonObject>(),
-    version: integer("version").default(1).notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => [
-    primaryKey({ name: "edge_state_pk", columns: [table.scopeId, table.edgeId] }),
-    index("edge_state_story_id_idx").on(table.storyId),
-    index("edge_state_edge_id_idx").on(table.edgeId),
-    foreignKey({
-      name: "edge_state_scope_story_fk",
-      columns: [table.scopeId, table.storyId],
-      foreignColumns: [scope.id, scope.storyId],
-    }).onDelete("cascade"),
-    foreignKey({
-      name: "edge_state_edge_story_fk",
-      columns: [table.edgeId, table.storyId],
-      foreignColumns: [graphEdge.id, graphEdge.storyId],
-    }).onDelete("cascade"),
-  ],
-);
-
-export const boardNode = pgTable(
-  "board_node",
-  {
-    boardId: text("board_id").notNull(),
-    nodeId: text("node_id").notNull(),
-    storyId: text("story_id").notNull(),
-    x: doublePrecision("x").notNull(),
-    y: doublePrecision("y").notNull(),
-    width: doublePrecision("width"),
-    height: doublePrecision("height"),
-    zIndex: integer("z_index").default(0).notNull(),
-    style: jsonb("style").$type<JsonObject>().default({}).notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => [
-    primaryKey({ name: "board_node_pk", columns: [table.boardId, table.nodeId] }),
-    index("board_node_story_id_idx").on(table.storyId),
-    index("board_node_node_id_idx").on(table.nodeId),
-    foreignKey({
-      name: "board_node_board_story_fk",
-      columns: [table.boardId, table.storyId],
-      foreignColumns: [board.id, board.storyId],
-    }).onDelete("cascade"),
-    foreignKey({
-      name: "board_node_node_story_fk",
-      columns: [table.nodeId, table.storyId],
-      foreignColumns: [graphNode.id, graphNode.storyId],
-    }).onDelete("cascade"),
-  ],
-);
-
-export const boardEdge = pgTable(
-  "board_edge",
-  {
-    boardId: text("board_id").notNull(),
-    edgeId: text("edge_id").notNull(),
-    storyId: text("story_id").notNull(),
-    style: jsonb("style").$type<JsonObject>().default({}).notNull(),
-    labelPresentation: jsonb("label_presentation")
-      .$type<JsonObject>()
-      .default({})
-      .notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => [
-    primaryKey({ name: "board_edge_pk", columns: [table.boardId, table.edgeId] }),
-    index("board_edge_story_id_idx").on(table.storyId),
-    index("board_edge_edge_id_idx").on(table.edgeId),
-    foreignKey({
-      name: "board_edge_board_story_fk",
-      columns: [table.boardId, table.storyId],
-      foreignColumns: [board.id, board.storyId],
-    }).onDelete("cascade"),
-    foreignKey({
-      name: "board_edge_edge_story_fk",
-      columns: [table.edgeId, table.storyId],
-      foreignColumns: [graphEdge.id, graphEdge.storyId],
     }).onDelete("cascade"),
   ],
 );
