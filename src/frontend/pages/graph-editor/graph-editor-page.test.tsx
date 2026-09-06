@@ -173,7 +173,11 @@ beforeEach(() => {
   mocks.deleteNode.mockResolvedValue(undefined);
   mocks.restoreNode.mockImplementation(async (input) => ({
     node: { ...input.node, createdAt: now, updatedAt: now },
-    edges: input.edges.map((edge) => ({ ...edge, createdAt: now, updatedAt: now })),
+    edges: input.edges.map((edge: Record<string, unknown>) => ({
+      ...edge,
+      createdAt: now,
+      updatedAt: now,
+    })),
   }));
   mocks.createEdge.mockImplementation(async (input) => ({
     id: input.id,
