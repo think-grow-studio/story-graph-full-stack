@@ -110,7 +110,8 @@ describe("Board-owned Graph contracts", () => {
     ).toThrow();
   });
 
-  it("parses a direct Board snapshot with no Story/Scope/presentation side arrays", () => {
+  it("parses a direct Board snapshot with only story, Board, Nodes and Edges", () => {
+    const story = { id: storyId, name: "Novel" };
     const board = boardResponseSchema.parse({
       id: boardId,
       storyId,
@@ -140,10 +141,11 @@ describe("Board-owned Graph contracts", () => {
 
     expect(
       boardSnapshotResponseSchema.parse({
+        story,
         board,
         nodes: [node],
         edges: [],
       }),
-    ).toEqual({ board, nodes: [node], edges: [] });
+    ).toEqual({ story, board, nodes: [node], edges: [] });
   });
 });
