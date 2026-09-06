@@ -1,14 +1,19 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getBootstrap: vi.fn(),
   getBoardSnapshot: vi.fn(),
-  createNodeOnBoard: vi.fn(),
-  updateBoardNode: vi.fn(),
-  createEdgeOnBoard: vi.fn(),
+  createNode: vi.fn(),
+  updateNode: vi.fn(),
+  deleteNode: vi.fn(),
+  restoreNode: vi.fn(),
+  createEdge: vi.fn(),
+  updateEdge: vi.fn(),
+  deleteEdge: vi.fn(),
+  restoreEdge: vi.fn(),
 }));
 
 vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
@@ -17,9 +22,14 @@ vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
 
 vi.mock("@/frontend/api/graph/graph.api", () => ({
   getBoardSnapshot: mocks.getBoardSnapshot,
-  createNodeOnBoard: mocks.createNodeOnBoard,
-  updateBoardNode: mocks.updateBoardNode,
-  createEdgeOnBoard: mocks.createEdgeOnBoard,
+  createNode: mocks.createNode,
+  updateNode: mocks.updateNode,
+  deleteNode: mocks.deleteNode,
+  restoreNode: mocks.restoreNode,
+  createEdge: mocks.createEdge,
+  updateEdge: mocks.updateEdge,
+  deleteEdge: mocks.deleteEdge,
+  restoreEdge: mocks.restoreEdge,
 }));
 
 vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
@@ -54,7 +64,7 @@ const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
 const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
-const now = "2026-08-28T00:00:00.000Z";
+const now = "2026-09-06T00:00:00.000Z";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -69,69 +79,54 @@ beforeEach(() => {
       storyId,
       name: "Characters",
       description: "",
-      revision: 0,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
     nodes: [
       {
         id: aliceId,
-        storyId,
+        boardId,
         name: "Alice",
         description: "",
         iconKey: null,
         properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: bobId,
-        storyId,
-        name: "Bob",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    edges: [],
-    boardNodes: [
-      {
-        boardId,
-        nodeId: aliceId,
         x: 100,
         y: 100,
         width: null,
         height: null,
         zIndex: 0,
         style: {},
+        version: 1,
         createdAt: now,
         updatedAt: now,
       },
       {
+        id: bobId,
         boardId,
-        nodeId: bobId,
+        name: "Bob",
+        description: "",
+        iconKey: null,
+        properties: {},
         x: 400,
         y: 100,
         width: null,
         height: null,
         zIndex: 0,
         style: {},
+        version: 1,
         createdAt: now,
         updatedAt: now,
       },
     ],
-    boardEdges: [],
+    edges: [],
   });
-  mocks.createEdgeOnBoard.mockRejectedValue(new Error("offline"));
+  mocks.createEdge.mockRejectedValue(new Error("offline"));
 });
 
 afterEach(cleanup);
 
-describe("GraphEditorPage failed relationship creation", () => {
+describe("GraphEditorPage failed direct Relationship creation", () => {
   it("keeps the optimistic Edge and exposes save retry", async () => {
     const user = userEvent.setup();
     const queryClient = new QueryClient({
@@ -149,6 +144,7 @@ describe("GraphEditorPage failed relationship creation", () => {
     await user.type(screen.getByLabelText("관계 이름"), "knows");
     await user.click(screen.getByRole("button", { name: "관계 만들기" }));
 
+    await waitFor(() => expect(mocks.createEdge).toHaveBeenCalledTimes(1));
     expect(
       await screen.findByText("Unable to create Relationship."),
     ).toBeInTheDocument();
