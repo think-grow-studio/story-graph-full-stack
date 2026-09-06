@@ -273,7 +273,7 @@ describe("GraphEditorPage", () => {
     expect(screen.queryByLabelText("노드 이름")).not.toBeInTheDocument();
   });
 
-  it("keeps the add-node dialog creation-only for an independent Board", async () => {
+  it("keeps the add-node dialog creation-only without querying Story Nodes", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Alice");
@@ -283,6 +283,7 @@ describe("GraphEditorPage", () => {
     expect(screen.queryByLabelText("기존 노드")).not.toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "Carol" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "보드에 추가" })).not.toBeInTheDocument();
+    expect(mocks.listStoryNodes).not.toHaveBeenCalled();
     expect(mocks.placeNodeOnBoard).not.toHaveBeenCalled();
   });
 
