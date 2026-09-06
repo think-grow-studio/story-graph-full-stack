@@ -13,9 +13,7 @@ export function AddNodeDialog({
   busy,
 }: {
   open: boolean;
-  existingNodes: Array<{ id: string; name: string }>;
   onCreate: (name: string) => void;
-  onPlace: (nodeId: string) => void;
   onClose: () => void;
   busy: boolean;
 }) {
