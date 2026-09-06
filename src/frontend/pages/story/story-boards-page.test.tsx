@@ -11,8 +11,7 @@ const mocks = vi.hoisted(() => ({
   getStory: vi.fn(),
   listBoards: vi.fn(),
   createBoard: vi.fn(),
-  listScopes: vi.fn(),
-  createScope: vi.fn(),
+  updateBoard: vi.fn(),
   replace: vi.fn(),
   push: vi.fn(),
 }));
@@ -32,8 +31,7 @@ vi.mock("@/frontend/api/story/story.api", () => ({
 vi.mock("@/frontend/api/graph/graph.api", () => ({
   listBoards: mocks.listBoards,
   createBoard: mocks.createBoard,
-  listScopes: mocks.listScopes,
-  createScope: mocks.createScope,
+  updateBoard: mocks.updateBoard,
 }));
 
 vi.mock("@/frontend/features/auth/logout-button", () => ({
@@ -71,7 +69,7 @@ const board = {
   id: boardId,
   storyId,
   name: "Characters",
-  description: "",
+  description: "Main cast",
   tags: ["인물", "전체"],
   createdAt: "2026-08-28T00:00:00.000Z",
   updatedAt: "2026-08-28T00:00:00.000Z",
@@ -81,7 +79,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getBootstrap.mockResolvedValue(bootstrap);
   mocks.getStory.mockResolvedValue(story);
-  mocks.listScopes.mockResolvedValue([]);
   mocks.listBoards.mockResolvedValue([board]);
 });
 
@@ -180,6 +177,46 @@ describe("StoryBoardsPage", () => {
 
     expect(await within(dialog).findByText("같은 태그를 두 번 붙일 수 없습니다.")).toBeInTheDocument();
     expect(mocks.createBoard).not.toHaveBeenCalled();
+  });
+
+  it("edits Board name, description, and the whole tag set", async () => {
+    mocks.updateBoard.mockResolvedValue({
+      ...board,
+      name: "Core Characters",
+      description: "Lead cast",
+      tags: ["인물", "핵심"],
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole("link", { name: "Characters" });
+    await user.click(screen.getByRole("button", { name: "Characters 보드 편집" }));
+
+    const dialog = screen.getByRole("dialog", { name: "보드 편집" });
+    const nameInput = within(dialog).getByLabelText("보드 이름");
+    const descriptionInput = within(dialog).getByLabelText("설명");
+    const tagsInput = within(dialog).getByLabelText("태그");
+    expect(nameInput).toHaveValue("Characters");
+    expect(descriptionInput).toHaveValue("Main cast");
+    expect(tagsInput).toHaveValue("인물, 전체");
+
+    await user.clear(nameInput);
+    await user.type(nameInput, "Core Characters");
+    await user.clear(descriptionInput);
+    await user.type(descriptionInput, "Lead cast");
+    await user.clear(tagsInput);
+    await user.type(tagsInput, "인물, 핵심");
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
+
+    await waitFor(() =>
+      expect(mocks.updateBoard).toHaveBeenCalledWith({
+        boardId,
+        workspaceId: "workspace-1",
+        name: "Core Characters",
+        description: "Lead cast",
+        tags: ["인물", "핵심"],
+      }),
+    );
   });
 
   it("redirects an expired session to login", async () => {
