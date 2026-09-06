@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -6,16 +6,17 @@ vi.mock("server-only", () => ({}));
 import { db } from "@/backend/infrastructure/database/client";
 import {
   board,
-  boardEdge,
-  boardNode,
+  boardTag,
   graphEdge,
   graphNode,
   organization,
   user,
 } from "@/backend/infrastructure/database/schema";
 import type {
-  GraphEdge,
-  GraphNode,
+  CreateGraphEdge,
+  CreateGraphNode,
+  RestorableGraphEdge,
+  RestorableGraphNode,
 } from "@/backend/modules/graph/domain/graph";
 import { DrizzleGraphRepository } from "@/backend/modules/graph/infrastructure/drizzle-graph.repository";
 import type { Story } from "@/backend/modules/story/domain/story";
@@ -31,7 +32,6 @@ const createdOrganizationIds: string[] = [];
 async function createWorkspace(name: string) {
   const identity = await createTestIdentity(name);
   createdUserIds.push(identity.user.id);
-
   const workspace = await ensurePersonalWorkspace(
     { userId: identity.user.id, userName: identity.user.name },
     {
@@ -53,56 +53,87 @@ async function createStory(workspaceId: string, name: string) {
     createdAt: now,
     updatedAt: now,
   };
-
   await new DrizzleStoryRepository().create(story);
   return story;
 }
 
-function makeNode(storyId: string, name: string): GraphNode {
-  const now = new Date();
+function makeNode(
+  boardId: string,
+  name: string,
+  overrides: Partial<CreateGraphNode> = {},
+): CreateGraphNode {
   return {
     id: crypto.randomUUID(),
-    storyId,
+    boardId,
     name,
     description: "",
     iconKey: null,
     properties: {},
-    version: 1,
-    createdAt: now,
-    updatedAt: now,
+    x: 10,
+    y: 20,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
+    ...overrides,
   };
 }
 
 function makeEdge(
-  storyId: string,
+  boardId: string,
   sourceNodeId: string,
   targetNodeId: string,
   name: string,
-): GraphEdge {
-  const now = new Date();
+  overrides: Partial<CreateGraphEdge> = {},
+): CreateGraphEdge {
   return {
     id: crypto.randomUUID(),
-    storyId,
+    boardId,
     sourceNodeId,
     targetNodeId,
     name,
     description: "",
     iconKey: null,
     properties: {},
-    version: 1,
-    createdAt: now,
-    updatedAt: now,
+    style: {},
+    labelPresentation: {},
+    ...overrides,
   };
 }
 
-const placement = {
-  x: 10,
-  y: 20,
-  width: null,
-  height: null,
-  zIndex: 0,
-  style: {},
-};
+function restorableNode(value: {
+  id: string;
+  boardId: string;
+  name: string;
+  description: string;
+  iconKey: string | null;
+  properties: Record<string, unknown>;
+  x: number;
+  y: number;
+  width: number | null;
+  height: number | null;
+  zIndex: number;
+  style: Record<string, unknown>;
+  version: number;
+}): RestorableGraphNode {
+  return value;
+}
+
+function restorableEdge(value: {
+  id: string;
+  boardId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  name: string;
+  description: string;
+  iconKey: string | null;
+  properties: Record<string, unknown>;
+  style: Record<string, unknown>;
+  labelPresentation: Record<string, unknown>;
+  version: number;
+}): RestorableGraphEdge {
+  return value;
+}
 
 afterEach(async () => {
   for (const organizationId of createdOrganizationIds.splice(0)) {
@@ -113,274 +144,258 @@ afterEach(async () => {
   }
 });
 
-describe("graph database invariants", () => {
-  it("allows multiple directed edges with the same source and target", async () => {
-    const workspace = await createWorkspace("Multi Edge Owner");
-    const story = await createStory(workspace.id, "Multi Edge Story");
-    const sourceId = crypto.randomUUID();
-    const targetId = crypto.randomUUID();
-
-    await db.insert(graphNode).values([
-      { id: sourceId, storyId: story.id, name: "Source" },
-      { id: targetId, storyId: story.id, name: "Target" },
-    ]);
-
-    const firstId = crypto.randomUUID();
-    const secondId = crypto.randomUUID();
-    await db.insert(graphEdge).values([
-      {
-        id: firstId,
-        storyId: story.id,
-        sourceNodeId: sourceId,
-        targetNodeId: targetId,
-        name: "trusts",
-      },
-      {
-        id: secondId,
-        storyId: story.id,
-        sourceNodeId: sourceId,
-        targetNodeId: targetId,
-        name: "protects",
-      },
-    ]);
-
-    const rows = await db
-      .select({ id: graphEdge.id })
-      .from(graphEdge)
-      .where(eq(graphEdge.storyId, story.id));
-
-    expect(rows.map((row) => row.id).sort()).toEqual([firstId, secondId].sort());
-  });
-
-  it("rejects an edge whose endpoint belongs to another Story", async () => {
-    const workspace = await createWorkspace("Cross Story Edge Owner");
-    const firstStory = await createStory(workspace.id, "First Story");
-    const secondStory = await createStory(workspace.id, "Second Story");
-    const firstNodeId = crypto.randomUUID();
-    const secondNodeId = crypto.randomUUID();
-
-    await db.insert(graphNode).values([
-      { id: firstNodeId, storyId: firstStory.id, name: "First Node" },
-      { id: secondNodeId, storyId: secondStory.id, name: "Second Node" },
-    ]);
-
-    await expect(
-      db.insert(graphEdge).values({
-        id: crypto.randomUUID(),
-        storyId: firstStory.id,
-        sourceNodeId: firstNodeId,
-        targetNodeId: secondNodeId,
-        name: "invalid",
-      }),
-    ).rejects.toBeTruthy();
-  });
-
-  it("rejects Board presentation rows that reference another Story", async () => {
-    const workspace = await createWorkspace("Cross Story Board Owner");
-    const firstStory = await createStory(workspace.id, "Board Story");
-    const secondStory = await createStory(workspace.id, "Other Story");
-    const firstBoardId = crypto.randomUUID();
-    const firstNodeId = crypto.randomUUID();
-    const secondNodeId = crypto.randomUUID();
-
-    await db.insert(board).values({
-      id: firstBoardId,
-      storyId: firstStory.id,
-      name: "Main Board",
-    });
-    await db.insert(graphNode).values([
-      { id: firstNodeId, storyId: firstStory.id, name: "First Node" },
-      { id: secondNodeId, storyId: secondStory.id, name: "Second Node" },
-    ]);
-
-    await expect(
-      db.insert(boardNode).values({
-        boardId: firstBoardId,
-        nodeId: secondNodeId,
-        storyId: firstStory.id,
-        x: 0,
-        y: 0,
-      }),
-    ).rejects.toBeTruthy();
-
-    const otherEdgeId = crypto.randomUUID();
-    await db.insert(graphEdge).values({
-      id: otherEdgeId,
-      storyId: secondStory.id,
-      sourceNodeId: secondNodeId,
-      targetNodeId: secondNodeId,
-      name: "self",
-    });
-
-    await expect(
-      db.insert(boardEdge).values({
-        boardId: firstBoardId,
-        edgeId: otherEdgeId,
-        storyId: firstStory.id,
-      }),
-    ).rejects.toBeTruthy();
-
-    const validBoardNodeId = crypto.randomUUID();
-    await db.insert(graphNode).values({
-      id: validBoardNodeId,
-      storyId: firstStory.id,
-      name: "Valid Board Node",
-    });
-    await expect(
-      db.insert(boardNode).values({
-        boardId: firstBoardId,
-        nodeId: validBoardNodeId,
-        storyId: firstStory.id,
-        x: 10,
-        y: 20,
-      }),
-    ).resolves.toBeDefined();
-  });
-});
-
-describe("DrizzleGraphRepository", () => {
-  it("creates a Board at revision zero", async () => {
-    const workspace = await createWorkspace("Board Repository Owner");
-    const story = await createStory(workspace.id, "Board Repository Story");
+describe("DrizzleGraphRepository board-owned graph", () => {
+  it("creates and lists Board tags as child values", async () => {
+    const workspace = await createWorkspace("Board Tags Owner");
+    const story = await createStory(workspace.id, "Board Tags Story");
     const repository = new DrizzleGraphRepository();
 
     const created = await repository.createBoard({
       storyId: story.id,
-      name: "Main Board",
-      description: "Primary view",
+      name: "Characters",
+      description: "Character map",
+      tags: ["인물", "1부"],
     });
 
-    expect(created.storyId).toBe(story.id);
-    expect(created.revision).toBe(0);
-    await expect(repository.findBoard(created.id)).resolves.toMatchObject({
-      id: created.id,
-      revision: 0,
+    expect(created).toMatchObject({
+      storyId: story.id,
+      name: "Characters",
+      tags: ["인물", "1부"],
     });
+    await expect(repository.listBoards(story.id)).resolves.toEqual([created]);
   });
 
-  it("creates Node + BoardNode atomically and increments Board revision once", async () => {
-    const workspace = await createWorkspace("Node Transaction Owner");
-    const story = await createStory(workspace.id, "Node Transaction Story");
-    const otherStory = await createStory(workspace.id, "Other Node Story");
+  it("stores Board ownership, semantic fields and presentation on one Node row", async () => {
+    const workspace = await createWorkspace("Board Node Owner");
+    const story = await createStory(workspace.id, "Board Node Story");
     const repository = new DrizzleGraphRepository();
-    const createdBoard = await repository.createBoard({
+    const firstBoard = await repository.createBoard({
       storyId: story.id,
-      name: "Main",
+      name: "A",
       description: "",
+      tags: [],
     });
-    const node = makeNode(story.id, "Alice");
-
-    const result = await repository.createNodeOnBoard({
-      boardId: createdBoard.id,
-      node,
-      placement,
-    });
-
-    expect(result.node.id).toBe(node.id);
-    expect(result.boardNode).toMatchObject({
-      boardId: createdBoard.id,
-      nodeId: node.id,
-      x: 10,
-      y: 20,
-    });
-    await expect(repository.findBoard(createdBoard.id)).resolves.toMatchObject({
-      revision: 1,
+    const secondBoard = await repository.createBoard({
+      storyId: story.id,
+      name: "B",
+      description: "",
+      tags: [],
     });
 
-    const invalidNode = makeNode(otherStory.id, "Wrong Story");
+    const first = await repository.createNode(
+      makeNode(firstBoard.id, "Alice", { x: 30, style: { role: "lead" } }),
+    );
+    const second = await repository.createNode(
+      makeNode(secondBoard.id, "Alice", { x: 300 }),
+    );
+
+    expect(first).toMatchObject({
+      boardId: firstBoard.id,
+      name: "Alice",
+      x: 30,
+      style: { role: "lead" },
+      version: 1,
+    });
+    expect(second).toMatchObject({ boardId: secondBoard.id, name: "Alice", x: 300 });
+    expect(second.id).not.toBe(first.id);
+  });
+
+  it("rejects an Edge whose endpoint belongs to another Board", async () => {
+    const workspace = await createWorkspace("Cross Board Edge Owner");
+    const story = await createStory(workspace.id, "Cross Board Edge Story");
+    const repository = new DrizzleGraphRepository();
+    const firstBoard = await repository.createBoard({
+      storyId: story.id,
+      name: "A",
+      description: "",
+      tags: [],
+    });
+    const secondBoard = await repository.createBoard({
+      storyId: story.id,
+      name: "B",
+      description: "",
+      tags: [],
+    });
+    const firstNode = await repository.createNode(makeNode(firstBoard.id, "A"));
+    const secondNode = await repository.createNode(makeNode(secondBoard.id, "B"));
+
     await expect(
-      repository.createNodeOnBoard({
-        boardId: createdBoard.id,
-        node: invalidNode,
-        placement,
-      }),
+      repository.createEdge(
+        makeEdge(firstBoard.id, firstNode.id, secondNode.id, "invalid"),
+      ),
     ).rejects.toBeTruthy();
-    await expect(repository.findNode(invalidNode.id)).resolves.toBeNull();
-    await expect(repository.findBoard(createdBoard.id)).resolves.toMatchObject({
-      revision: 1,
-    });
   });
 
-  it("updates and removes BoardNode presentation while preserving the canonical Node", async () => {
-    const workspace = await createWorkspace("Placement Owner");
-    const story = await createStory(workspace.id, "Placement Story");
+  it("cascades Board deletion to tags, Nodes and Edges", async () => {
+    const workspace = await createWorkspace("Cascade Owner");
+    const story = await createStory(workspace.id, "Cascade Story");
     const repository = new DrizzleGraphRepository();
     const createdBoard = await repository.createBoard({
       storyId: story.id,
       name: "Main",
       description: "",
+      tags: ["delete-me"],
     });
-    const node = makeNode(story.id, "Alice");
-    await repository.createNodeOnBoard({
-      boardId: createdBoard.id,
-      node,
-      placement,
-    });
+    const source = await repository.createNode(makeNode(createdBoard.id, "Source"));
+    const target = await repository.createNode(makeNode(createdBoard.id, "Target"));
+    const edge = await repository.createEdge(
+      makeEdge(createdBoard.id, source.id, target.id, "connects"),
+    );
 
-    const updated = await repository.updateBoardNode({
-      boardId: createdBoard.id,
-      nodeId: node.id,
-      x: 50,
-      y: 60,
-      zIndex: 3,
-      style: { emphasized: true },
-    });
-    expect(updated).toMatchObject({ x: 50, y: 60, zIndex: 3 });
-    await expect(repository.findBoard(createdBoard.id)).resolves.toMatchObject({
-      revision: 2,
-    });
+    await db.delete(board).where(eq(board.id, createdBoard.id));
 
     await expect(
-      repository.removeNodeFromBoard(createdBoard.id, node.id),
-    ).resolves.toBe(true);
-    await expect(repository.findBoard(createdBoard.id)).resolves.toMatchObject({
-      revision: 3,
-    });
-    await expect(repository.findNode(node.id)).resolves.toMatchObject({ id: node.id });
+      db.select().from(boardTag).where(eq(boardTag.boardId, createdBoard.id)),
+    ).resolves.toHaveLength(0);
+    await expect(
+      db.select().from(graphNode).where(eq(graphNode.boardId, createdBoard.id)),
+    ).resolves.toHaveLength(0);
+    await expect(
+      db.select().from(graphEdge).where(eq(graphEdge.id, edge.id)),
+    ).resolves.toHaveLength(0);
   });
 
-  it("creates/removes BoardEdge membership and preserves the canonical Edge", async () => {
-    const workspace = await createWorkspace("Edge Transaction Owner");
-    const story = await createStory(workspace.id, "Edge Transaction Story");
+  it("deletes a Node with incident Edges and returns an Undo snapshot", async () => {
+    const workspace = await createWorkspace("Delete Node Owner");
+    const story = await createStory(workspace.id, "Delete Node Story");
     const repository = new DrizzleGraphRepository();
     const createdBoard = await repository.createBoard({
       storyId: story.id,
       name: "Main",
       description: "",
+      tags: [],
     });
-    const source = makeNode(story.id, "Source");
-    const target = makeNode(story.id, "Target");
-    await repository.createNodeOnBoard({ boardId: createdBoard.id, node: source, placement });
-    await repository.createNodeOnBoard({
-      boardId: createdBoard.id,
-      node: target,
-      placement: { ...placement, x: 100 },
-    });
-    const edge = makeEdge(story.id, source.id, target.id, "trusts");
+    const source = await repository.createNode(makeNode(createdBoard.id, "Source"));
+    const target = await repository.createNode(makeNode(createdBoard.id, "Target"));
+    const edge = await repository.createEdge(
+      makeEdge(createdBoard.id, source.id, target.id, "connects"),
+    );
 
-    const created = await repository.createEdgeOnBoard({
-      boardId: createdBoard.id,
-      edge,
-    });
-    expect(created.edge.id).toBe(edge.id);
-    expect(created.boardEdge).toMatchObject({
-      boardId: createdBoard.id,
-      edgeId: edge.id,
-    });
-    await expect(repository.findBoard(createdBoard.id)).resolves.toMatchObject({
-      revision: 3,
-    });
+    const deleted = await repository.deleteNode(createdBoard.id, source.id);
 
-    await expect(
-      repository.removeEdgeFromBoard(createdBoard.id, edge.id),
-    ).resolves.toBe(true);
-    await expect(repository.findBoard(createdBoard.id)).resolves.toMatchObject({
-      revision: 4,
-    });
-    await expect(repository.findEdge(edge.id)).resolves.toMatchObject({ id: edge.id });
+    expect(deleted?.node.id).toBe(source.id);
+    expect(deleted?.edges.map((item) => item.id)).toEqual([edge.id]);
+    await expect(repository.findNode(createdBoard.id, source.id)).resolves.toBeNull();
+    await expect(repository.findEdge(createdBoard.id, edge.id)).resolves.toBeNull();
   });
 
-  it("returns one snapshot containing only entities represented on the Board", async () => {
+  it("uses row-level compare-and-swap for Node and Edge updates", async () => {
+    const workspace = await createWorkspace("CAS Owner");
+    const story = await createStory(workspace.id, "CAS Story");
+    const repository = new DrizzleGraphRepository();
+    const createdBoard = await repository.createBoard({
+      storyId: story.id,
+      name: "Main",
+      description: "",
+      tags: [],
+    });
+    const source = await repository.createNode(makeNode(createdBoard.id, "Source"));
+    const target = await repository.createNode(makeNode(createdBoard.id, "Target"));
+    const edge = await repository.createEdge(
+      makeEdge(createdBoard.id, source.id, target.id, "connects"),
+    );
+
+    const moved = await repository.updateNode({
+      boardId: createdBoard.id,
+      id: source.id,
+      expectedVersion: 1,
+      x: 77,
+      name: "Moved Source",
+    });
+    expect(moved).toMatchObject({ x: 77, name: "Moved Source", version: 2 });
+    await expect(
+      repository.updateNode({
+        boardId: createdBoard.id,
+        id: source.id,
+        expectedVersion: 1,
+        x: 88,
+      }),
+    ).resolves.toBeNull();
+
+    const renamedEdge = await repository.updateEdge({
+      boardId: createdBoard.id,
+      id: edge.id,
+      expectedVersion: 1,
+      name: "protects",
+      style: { dashed: true },
+    });
+    expect(renamedEdge).toMatchObject({
+      name: "protects",
+      style: { dashed: true },
+      version: 2,
+    });
+  });
+
+  it("restores the same Node and incident Edge UUIDs and versions transactionally", async () => {
+    const workspace = await createWorkspace("Restore Owner");
+    const story = await createStory(workspace.id, "Restore Story");
+    const repository = new DrizzleGraphRepository();
+    const createdBoard = await repository.createBoard({
+      storyId: story.id,
+      name: "Main",
+      description: "",
+      tags: [],
+    });
+    const source = await repository.createNode(makeNode(createdBoard.id, "Source"));
+    const target = await repository.createNode(makeNode(createdBoard.id, "Target"));
+    const edge = await repository.createEdge(
+      makeEdge(createdBoard.id, source.id, target.id, "connects"),
+    );
+    const updatedSource = await repository.updateNode({
+      boardId: createdBoard.id,
+      id: source.id,
+      expectedVersion: source.version,
+      x: 44,
+    });
+    expect(updatedSource).not.toBeNull();
+
+    const deleted = await repository.deleteNode(createdBoard.id, source.id);
+    expect(deleted).not.toBeNull();
+
+    const restored = await repository.restoreNode({
+      boardId: createdBoard.id,
+      node: restorableNode({
+        id: deleted!.node.id,
+        boardId: deleted!.node.boardId,
+        name: deleted!.node.name,
+        description: deleted!.node.description,
+        iconKey: deleted!.node.iconKey,
+        properties: deleted!.node.properties,
+        x: deleted!.node.x,
+        y: deleted!.node.y,
+        width: deleted!.node.width,
+        height: deleted!.node.height,
+        zIndex: deleted!.node.zIndex,
+        style: deleted!.node.style,
+        version: deleted!.node.version,
+      }),
+      edges: deleted!.edges.map((item) =>
+        restorableEdge({
+          id: item.id,
+          boardId: item.boardId,
+          sourceNodeId: item.sourceNodeId,
+          targetNodeId: item.targetNodeId,
+          name: item.name,
+          description: item.description,
+          iconKey: item.iconKey,
+          properties: item.properties,
+          style: item.style,
+          labelPresentation: item.labelPresentation,
+          version: item.version,
+        }),
+      ),
+    });
+
+    expect(restored?.node).toMatchObject({
+      id: source.id,
+      boardId: createdBoard.id,
+      version: updatedSource!.version,
+      x: 44,
+    });
+    expect(restored?.edges[0]).toMatchObject({ id: edge.id, version: edge.version });
+  });
+
+  it("returns a direct Board snapshot with no presentation/state side tables", async () => {
     const workspace = await createWorkspace("Snapshot Owner");
     const story = await createStory(workspace.id, "Snapshot Story");
     const repository = new DrizzleGraphRepository();
@@ -388,100 +403,50 @@ describe("DrizzleGraphRepository", () => {
       storyId: story.id,
       name: "Main",
       description: "",
+      tags: ["snapshot"],
     });
-    const source = makeNode(story.id, "Visible Source");
-    const target = makeNode(story.id, "Visible Target");
-    await repository.createNodeOnBoard({ boardId: createdBoard.id, node: source, placement });
-    await repository.createNodeOnBoard({
-      boardId: createdBoard.id,
-      node: target,
-      placement: { ...placement, x: 100 },
-    });
-    const visibleEdge = makeEdge(story.id, source.id, target.id, "visible");
-    await repository.createEdgeOnBoard({ boardId: createdBoard.id, edge: visibleEdge });
-
-    const hiddenNode = makeNode(story.id, "Hidden Node");
-    await db.insert(graphNode).values(hiddenNode);
-    const hiddenEdge = makeEdge(story.id, hiddenNode.id, hiddenNode.id, "hidden");
-    await db.insert(graphEdge).values(hiddenEdge);
+    const source = await repository.createNode(makeNode(createdBoard.id, "Source"));
+    const target = await repository.createNode(makeNode(createdBoard.id, "Target"));
+    const edge = await repository.createEdge(
+      makeEdge(createdBoard.id, source.id, target.id, "connects"),
+    );
 
     const snapshot = await repository.getBoardSnapshot(createdBoard.id);
 
-    expect(snapshot?.board.id).toBe(createdBoard.id);
-    expect(snapshot?.nodes.map((item) => item.id).sort()).toEqual(
-      [source.id, target.id].sort(),
-    );
-    expect(snapshot?.edges.map((item) => item.id)).toEqual([visibleEdge.id]);
-    expect(snapshot?.boardNodes).toHaveLength(2);
-    expect(snapshot?.boardEdges).toHaveLength(1);
-    expect(snapshot?.nodes.some((item) => item.id === hiddenNode.id)).toBe(false);
-    expect(snapshot?.edges.some((item) => item.id === hiddenEdge.id)).toBe(false);
+    expect(snapshot).toEqual({
+      board: createdBoard,
+      nodes: [source, target],
+      edges: [edge],
+    });
   });
 
-  it("uses compare-and-swap for Node and Edge updates without changing Board revision", async () => {
-    const workspace = await createWorkspace("Optimistic Lock Owner");
-    const story = await createStory(workspace.id, "Optimistic Lock Story");
+  it("scopes entity lookup by Board id", async () => {
+    const workspace = await createWorkspace("Lookup Owner");
+    const story = await createStory(workspace.id, "Lookup Story");
     const repository = new DrizzleGraphRepository();
-    const createdBoard = await repository.createBoard({
+    const firstBoard = await repository.createBoard({
       storyId: story.id,
-      name: "Main",
+      name: "A",
       description: "",
+      tags: [],
     });
-    const source = makeNode(story.id, "Source");
-    const target = makeNode(story.id, "Target");
-    await repository.createNodeOnBoard({ boardId: createdBoard.id, node: source, placement });
-    await repository.createNodeOnBoard({
-      boardId: createdBoard.id,
-      node: target,
-      placement: { ...placement, x: 100 },
+    const secondBoard = await repository.createBoard({
+      storyId: story.id,
+      name: "B",
+      description: "",
+      tags: [],
     });
-    const edge = makeEdge(story.id, source.id, target.id, "trusts");
-    await repository.createEdgeOnBoard({ boardId: createdBoard.id, edge });
-    const revisionBeforeCanonicalUpdates = (await repository.findBoard(createdBoard.id))?.revision;
+    const node = await repository.createNode(makeNode(firstBoard.id, "Only A"));
 
-    const updatedNode = await repository.updateNode({
-      id: source.id,
-      expectedVersion: 1,
-      name: "Updated Source",
-      properties: { role: "hero" },
+    await expect(repository.findNode(firstBoard.id, node.id)).resolves.toMatchObject({
+      id: node.id,
     });
-    expect(updatedNode).toMatchObject({
-      name: "Updated Source",
-      version: 2,
-      properties: { role: "hero" },
-    });
-    await expect(
-      repository.updateNode({
-        id: source.id,
-        expectedVersion: 1,
-        name: "Stale Source",
-      }),
-    ).resolves.toBeNull();
-    await expect(repository.findNode(source.id)).resolves.toMatchObject({
-      name: "Updated Source",
-      version: 2,
-    });
+    await expect(repository.findNode(secondBoard.id, node.id)).resolves.toBeNull();
 
-    const updatedEdge = await repository.updateEdge({
-      id: edge.id,
-      expectedVersion: 1,
-      description: "updated",
-    });
-    expect(updatedEdge).toMatchObject({ description: "updated", version: 2 });
-    await expect(
-      repository.updateEdge({
-        id: edge.id,
-        expectedVersion: 1,
-        description: "stale",
-      }),
-    ).resolves.toBeNull();
-    await expect(repository.findEdge(edge.id)).resolves.toMatchObject({
-      description: "updated",
-      version: 2,
-    });
-
-    await expect(repository.findBoard(createdBoard.id)).resolves.toMatchObject({
-      revision: revisionBeforeCanonicalUpdates,
-    });
+    const rows = await db
+      .select({ id: graphNode.id })
+      .from(graphNode)
+      .where(and(eq(graphNode.id, node.id), eq(graphNode.boardId, firstBoard.id)));
+    expect(rows).toHaveLength(1);
   });
 });
