@@ -1,0 +1,41 @@
+name: Generate Board-Owned Migration
+
+on:
+  push:
+    branches:
+      - feat/board-owned-graph-migration-workflow
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate clean Graph migration baseline
+        run: |
+          rm -f drizzle/0002_*.sql drizzle/0003_*.sql drizzle/0004_*.sql drizzle/0005_*.sql drizzle/0006_*.sql
+          rm -f drizzle/meta/0002_snapshot.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'drizzle/meta/_journal.json';
+          const journal = JSON.parse(fs.readFileSync(path, 'utf8'));
+          journal.entries = journal.entries.filter((entry) => entry.idx < 2);
+          fs.writeFileSync(path, JSON.stringify(journal, null, 2) + '\n');
+          NODE
+          pnpm db:generate -- --name board_owned_graph
+      - uses: actions/upload-artifact@v4
+        with:
+          name: board-owned-migration
+          path: drizzle
+          if-no-files-found: error
