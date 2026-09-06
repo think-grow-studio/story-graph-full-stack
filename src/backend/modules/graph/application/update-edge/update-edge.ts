@@ -8,12 +8,15 @@ export async function updateEdge(
   input: {
     actorId: string;
     workspaceId: string;
+    boardId: string;
     edgeId: string;
-    version: number;
+    expectedVersion: number;
     name?: string;
     description?: string;
     iconKey?: string | null;
     properties?: JsonObject;
+    style?: JsonObject;
+    labelPresentation?: JsonObject;
   },
   dependencies: {
     stories: StoryRepository;
@@ -21,14 +24,14 @@ export async function updateEdge(
     access: WorkspaceAccessService;
   },
 ): Promise<GraphEdge> {
-  const edge = await dependencies.graph.findEdge(input.edgeId);
-  if (!edge) {
-    throw new ApplicationError("NOT_FOUND", 404, "Edge not found");
+  const board = await dependencies.graph.findBoard(input.boardId);
+  if (!board) {
+    throw new ApplicationError("NOT_FOUND", 404, "Board not found");
   }
 
-  const story = await dependencies.stories.findById(edge.storyId);
+  const story = await dependencies.stories.findById(board.storyId);
   if (!story || story.workspaceId !== input.workspaceId) {
-    throw new ApplicationError("NOT_FOUND", 404, "Edge not found");
+    throw new ApplicationError("NOT_FOUND", 404, "Board not found");
   }
 
   await dependencies.access.requireCapability({
@@ -37,13 +40,23 @@ export async function updateEdge(
     capability: "graph:update",
   });
 
+  const existing = await dependencies.graph.findEdge(board.id, input.edgeId);
+  if (!existing) {
+    throw new ApplicationError("NOT_FOUND", 404, "Edge not found");
+  }
+
   const updated = await dependencies.graph.updateEdge({
-    id: edge.id,
-    expectedVersion: input.version,
+    boardId: board.id,
+    id: existing.id,
+    expectedVersion: input.expectedVersion,
     ...(input.name !== undefined ? { name: input.name } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
     ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
     ...(input.properties !== undefined ? { properties: input.properties } : {}),
+    ...(input.style !== undefined ? { style: input.style } : {}),
+    ...(input.labelPresentation !== undefined
+      ? { labelPresentation: input.labelPresentation }
+      : {}),
   });
 
   if (!updated) {
