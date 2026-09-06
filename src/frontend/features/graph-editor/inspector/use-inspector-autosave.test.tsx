@@ -21,11 +21,17 @@ const now = "2026-08-29T00:00:00.000Z";
 function alice(): GraphNodeResponse {
   return {
     id: nodeId,
-    storyId,
+    boardId,
     name: "Alice",
     description: "",
     iconKey: null,
     properties: {},
+    x: 100,
+    y: 100,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
     version: 3,
     createdAt: now,
     updatedAt: now,
@@ -41,27 +47,12 @@ function stores() {
       storyId,
       name: "Characters",
       description: "",
-      revision: 1,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
     nodes: [alice()],
     edges: [],
-    boardNodes: [
-      {
-        boardId,
-        nodeId,
-        x: 100,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardEdges: [],
   });
 
   const draftStore = createInspectorDraftStore();
@@ -117,6 +108,7 @@ describe("useInspectorAutosave", () => {
       expect.objectContaining({
         type: "update-node",
         nodeId,
+        expectedVersion: 3,
         name: "Alicia",
       }),
     );
