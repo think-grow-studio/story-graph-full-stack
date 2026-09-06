@@ -1,8 +1,9 @@
+import type { GraphEdgeResponse } from "@/contracts/graph/graph.contract";
+
 export type CreateEdgeCommand = {
   type: "create-edge";
   boardId: string;
   workspaceId: string;
-  storyId: string;
   edgeId: string;
   sourceNodeId: string;
   targetNodeId: string;
@@ -15,38 +16,23 @@ export type UpdateEdgeCommand = {
   boardId: string;
   workspaceId: string;
   edgeId: string;
-  version: number;
+  expectedVersion: number;
   name: string;
   description: string;
   properties: Record<string, unknown>;
 };
 
-export type UpdateEdgeStateCommand = {
-  type: "update-edge-state";
-  boardId: string;
-  workspaceId: string;
-  scopeId: string;
-  edgeId: string;
-  version: number | null;
-  name: string | null;
-  description: string | null;
-  properties: Record<string, unknown> | null;
-};
-
-export type RemoveBoardEdgeCommand = {
-  type: "remove-board-edge";
+export type DeleteEdgeCommand = {
+  type: "delete-edge";
   boardId: string;
   workspaceId: string;
   edgeId: string;
 };
 
-export type RestoreBoardEdgeCommand = {
-  type: "restore-board-edge";
+export type RestoreEdgeCommand = {
+  type: "restore-edge";
   boardId: string;
   workspaceId: string;
   edgeId: string;
-  style: Record<string, unknown>;
-  labelPresentation: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
+  edge: GraphEdgeResponse;
 };
