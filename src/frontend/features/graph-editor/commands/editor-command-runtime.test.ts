@@ -263,4 +263,73 @@ describe("Board-owned editor command runtime", () => {
       version: 5,
     });
   });
+
+  it("does not resurrect Nodes or Edges when an earlier save resolves after a later optimistic delete", async () => {
+    const store = hydrate();
+    let resolveNode!: (node: GraphNodeResponse) => void;
+    let resolveEdge!: (edge: GraphEdgeResponse) => void;
+    const updateNode = vi.fn().mockImplementation(
+      () => new Promise<GraphNodeResponse>((done) => (resolveNode = done)),
+    );
+    const updateEdge = vi.fn().mockImplementation(
+      () => new Promise<GraphEdgeResponse>((done) => (resolveEdge = done)),
+    );
+    const adapter = persistence({ updateNode, updateEdge });
+
+    const nodeUpdate = {
+      type: "update-node",
+      boardId,
+      workspaceId: "workspace-1",
+      nodeId: aliceId,
+      expectedVersion: 3,
+      name: "Alicia",
+      description: "Lead",
+      properties: {},
+    } as const;
+    expect(applyEditorCommand(store, nodeUpdate)).toBe(true);
+    const pendingNode = persistAndReconcileEditorCommand(store, adapter, nodeUpdate);
+    await vi.waitFor(() => expect(updateNode).toHaveBeenCalledTimes(1));
+
+    expect(
+      applyEditorCommand(store, {
+        type: "delete-node",
+        boardId,
+        workspaceId: "workspace-1",
+        nodeId: aliceId,
+      }),
+    ).toBe(true);
+    resolveNode(nodeFixture({ name: "Alicia", version: 4 }));
+    await pendingNode;
+
+    expect(store.getState().nodes.some((node) => node.id === aliceId)).toBe(false);
+    expect(store.getState().edges).toHaveLength(0);
+
+    const edgeStore = hydrate();
+    const edgeUpdate = {
+      type: "update-edge",
+      boardId,
+      workspaceId: "workspace-1",
+      edgeId,
+      expectedVersion: 4,
+      name: "protects",
+      description: "",
+      properties: {},
+    } as const;
+    expect(applyEditorCommand(edgeStore, edgeUpdate)).toBe(true);
+    const pendingEdge = persistAndReconcileEditorCommand(edgeStore, adapter, edgeUpdate);
+    await vi.waitFor(() => expect(updateEdge).toHaveBeenCalledTimes(1));
+
+    expect(
+      applyEditorCommand(edgeStore, {
+        type: "delete-edge",
+        boardId,
+        workspaceId: "workspace-1",
+        edgeId,
+      }),
+    ).toBe(true);
+    resolveEdge(edgeFixture({ name: "protects", version: 5 }));
+    await pendingEdge;
+
+    expect(edgeStore.getState().edges.some((edge) => edge.id === edgeId)).toBe(false);
+  });
 });
