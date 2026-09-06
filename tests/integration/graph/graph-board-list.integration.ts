@@ -65,7 +65,7 @@ async function createBoard(
     request(`http://localhost/api/v1/stories/${storyId}/boards`, {
       method: "POST",
       cookie,
-      body: { workspaceId, name },
+      body: { workspaceId, name, tags: [name.toLowerCase().replace(/\s+/g, "-")] },
     }),
     storyContext(storyId),
   );
@@ -83,7 +83,7 @@ afterEach(async () => {
 });
 
 describe("Board list API", () => {
-  it("lists only Boards belonging to the requested Story", async () => {
+  it("lists only Boards belonging to the requested Story with their tags", async () => {
     const { cookie, workspaceId } = await createSession("Board List Owner");
     const story = await createStory(cookie, workspaceId);
     const first = await createBoard(cookie, workspaceId, story.id, "World");
@@ -100,8 +100,18 @@ describe("Board list API", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       boards: [
-        expect.objectContaining({ id: first.id, storyId: story.id, name: "World" }),
-        expect.objectContaining({ id: second.id, storyId: story.id, name: "Characters" }),
+        expect.objectContaining({
+          id: first.id,
+          storyId: story.id,
+          name: "World",
+          tags: ["world"],
+        }),
+        expect.objectContaining({
+          id: second.id,
+          storyId: story.id,
+          name: "Characters",
+          tags: ["characters"],
+        }),
       ],
     });
   });
