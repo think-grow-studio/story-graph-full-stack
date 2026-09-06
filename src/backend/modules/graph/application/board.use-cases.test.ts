@@ -7,9 +7,11 @@ import type { StoryRepository } from "@/backend/modules/story/domain/story.repos
 import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
 import { createBoard } from "./create-board/create-board";
 import { getBoardSnapshot } from "./get-board-snapshot/get-board-snapshot";
+import { updateBoard } from "./update-board/update-board";
+
+const now = new Date("2026-09-06T00:00:00.000Z");
 
 function storyFixture(overrides: Partial<Story> = {}): Story {
-  const now = new Date("2026-08-28T00:00:00.000Z");
   return {
     id: "story-1",
     workspaceId: "workspace-1",
@@ -22,7 +24,6 @@ function storyFixture(overrides: Partial<Story> = {}): Story {
 }
 
 function boardFixture(overrides: Partial<Board> = {}): Board {
-  const now = new Date("2026-08-28T00:00:00.000Z");
   return {
     id: "board-1",
     storyId: "story-1",
@@ -36,11 +37,7 @@ function boardFixture(overrides: Partial<Board> = {}): Board {
 }
 
 function snapshotFixture(board: Board): BoardSnapshot {
-  return {
-    board,
-    nodes: [],
-    edges: [],
-  };
+  return { board, nodes: [], edges: [] };
 }
 
 function createStories(stories: Story[] = []): StoryRepository {
@@ -62,7 +59,7 @@ function createStories(stories: Story[] = []): StoryRepository {
 function createGraph(boardValue: Board = boardFixture()): GraphRepository {
   return {
     createBoard: vi.fn(async (input) => ({ ...boardValue, ...input })),
-    updateBoard: vi.fn(async () => null),
+    updateBoard: vi.fn(async (input) => ({ ...boardValue, ...input })),
     listBoards: vi.fn(async () => [boardValue]),
     findBoard: vi.fn(async (id) => (id === boardValue.id ? boardValue : null)),
     getBoardSnapshot: vi.fn(async (id) =>
@@ -130,6 +127,26 @@ describe("Board use-cases", () => {
     });
   });
 
+  it("updates Board metadata and replaces tags only when provided", async () => {
+    const result = await updateBoard(
+      {
+        actorId: "user-1",
+        workspaceId: "workspace-1",
+        boardId: "board-1",
+        name: "Characters",
+        tags: ["인물", "1부"],
+      },
+      { stories, graph, access },
+    );
+
+    expect(result).toMatchObject({ name: "Characters", tags: ["인물", "1부"] });
+    expect(graph.updateBoard).toHaveBeenCalledWith({
+      id: "board-1",
+      name: "Characters",
+      tags: ["인물", "1부"],
+    });
+  });
+
   it("returns 404 for missing/cross-workspace Story before authorization", async () => {
     stories = createStories([storyFixture({ workspaceId: "workspace-2" })]);
 
@@ -147,6 +164,25 @@ describe("Board use-cases", () => {
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
     expect(access.requireCapability).not.toHaveBeenCalled();
+  });
+
+  it("hides cross-workspace Boards before update authorization", async () => {
+    stories = createStories([storyFixture({ workspaceId: "workspace-2" })]);
+
+    await expect(
+      updateBoard(
+        {
+          actorId: "user-1",
+          workspaceId: "workspace-1",
+          boardId: "board-1",
+          name: "Denied",
+        },
+        { stories, graph, access },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
+
+    expect(access.requireCapability).not.toHaveBeenCalled();
+    expect(graph.updateBoard).not.toHaveBeenCalled();
   });
 
   it("loads a direct Board snapshot after Board→Story ownership resolution", async () => {
