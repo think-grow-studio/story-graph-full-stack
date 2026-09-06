@@ -1,0 +1,22 @@
+name: Board-Owned OpenAPI GREEN
+
+on:
+  push:
+    branches:
+      - test/board-owned-openapi-green
+
+jobs:
+  focused-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm vitest run src/backend/infrastructure/openapi/openapi-document.test.ts
