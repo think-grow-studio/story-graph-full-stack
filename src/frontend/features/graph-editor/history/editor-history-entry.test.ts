@@ -1,442 +1,282 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  GraphEdgeResponse,
+  GraphNodeResponse,
+} from "@/contracts/graph/graph.contract";
+import type { EditorCommand } from "../commands/editor-command";
 import { createGraphEditorStore } from "../store/graph-editor-store";
 import {
   createEditorHistoryEntry,
   isUndoableEditorCommand,
 } from "./editor-history-entry";
 
-const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
 const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
-const scopeId = "77777777-7777-4777-8777-777777777777";
 const workspaceId = "workspace-1";
-const now = "2026-08-30T00:00:00.000Z";
+const now = "2026-09-06T00:00:00.000Z";
 
-function hydratedStore() {
+function alice(overrides: Partial<GraphNodeResponse> = {}): GraphNodeResponse {
+  return {
+    id: aliceId,
+    boardId,
+    name: "Alice",
+    description: "Lead",
+    iconKey: null,
+    properties: { role: "lead" },
+    x: 100,
+    y: 120,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
+    version: 3,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function bob(): GraphNodeResponse {
+  return alice({ id: bobId, name: "Bob", x: 400, version: 2 });
+}
+
+function relationship(overrides: Partial<GraphEdgeResponse> = {}): GraphEdgeResponse {
+  return {
+    id: edgeId,
+    boardId,
+    sourceNodeId: aliceId,
+    targetNodeId: bobId,
+    name: "knows",
+    description: "Old friends",
+    iconKey: null,
+    properties: { since: 2020 },
+    style: { dashed: true },
+    labelPresentation: { placement: "center" },
+    version: 4,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function setup() {
   const store = createGraphEditorStore();
   store.getState().hydrate({
-    story: { id: storyId, name: "Novel" },
+    story: { id: "11111111-1111-4111-8111-111111111111", name: "Novel" },
     board: {
       id: boardId,
-      storyId,
+      storyId: "11111111-1111-4111-8111-111111111111",
       name: "Characters",
       description: "",
-      revision: 3,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
-    nodes: [
-      {
-        id: aliceId,
-        storyId,
-        name: "Alice",
-        description: "Original",
-        iconKey: null,
-        properties: { role: "lead" },
-        version: 7,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: bobId,
-        storyId,
-        name: "Bob",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 2,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    edges: [
-      {
-        id: edgeId,
-        storyId,
-        sourceNodeId: aliceId,
-        targetNodeId: bobId,
-        name: "knows",
-        description: "Original relation",
-        iconKey: null,
-        properties: { strength: 1 },
-        version: 4,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardNodes: [
-      {
-        boardId,
-        nodeId: aliceId,
-        x: 500,
-        y: 300,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        boardId,
-        nodeId: bobId,
-        x: 400,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardEdges: [
-      {
-        boardId,
-        edgeId,
-        style: {},
-        labelPresentation: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
+    nodes: [alice(), bob()],
+    edges: [relationship()],
   });
   return store;
 }
 
-describe("editor history entry", () => {
-  it("derives a canonical Node inverse from the pre-command working state", () => {
-    const store = hydratedStore();
-    const forward = {
-      type: "update-node" as const,
-      boardId,
-      workspaceId,
-      nodeId: aliceId,
-      version: 7,
-      name: "Alicia",
-      description: "Changed",
-      properties: { role: "lead", age: 31 },
-    };
-
-    expect(
-      createEditorHistoryEntry({ store, command: forward, nowMs: 1_000 }),
-    ).toEqual({
-      forward,
-      inverse: {
-        type: "update-node",
-        boardId,
-        workspaceId,
-        nodeId: aliceId,
-        version: 7,
-        name: "Alice",
-        description: "Original",
-        properties: { role: "lead" },
-      },
-      coalescingKey: `update-node:${aliceId}`,
-      createdAtMs: 1_000,
-      updatedAtMs: 1_000,
-    });
+function history(store = setup(), command: EditorCommand, moveStartPosition?: { x: number; y: number }) {
+  return createEditorHistoryEntry({
+    store,
+    command,
+    nowMs: 1000,
+    ...(moveStartPosition ? { moveStartPosition } : {}),
   });
+}
 
-  it("derives a scoped NodeState inverse without touching the canonical Node", () => {
-    const store = hydratedStore();
-    store.getState().replaceNodeState({
-      scopeId,
-      nodeId: aliceId,
-      name: "Queen Alice",
-      description: null,
-      properties: { role: "queen" },
-      version: 2,
-      createdAt: now,
-      updatedAt: now,
-    });
-    const forward = {
-      type: "update-node-state" as const,
-      boardId,
-      workspaceId,
-      scopeId,
-      nodeId: aliceId,
-      version: 2,
-      name: "Empress Alice",
-      description: null,
-      properties: { role: "queen" },
-    };
-
-    expect(isUndoableEditorCommand(forward)).toBe(true);
-    expect(
-      createEditorHistoryEntry({ store, command: forward, nowMs: 1_500 }),
-    ).toEqual({
-      forward,
-      inverse: {
-        type: "update-node-state",
-        boardId,
-        workspaceId,
-        scopeId,
-        nodeId: aliceId,
-        version: 2,
-        name: "Queen Alice",
-        description: null,
-        properties: { role: "queen" },
-      },
-      coalescingKey: `update-node-state:${scopeId}:${aliceId}`,
-      createdAtMs: 1_500,
-      updatedAtMs: 1_500,
-    });
-    expect(store.getState().nodes.find((node) => node.id === aliceId)?.name).toBe(
-      "Alice",
-    );
-  });
-
-  it("uses all-null sparse state as the inverse for the first scoped edit", () => {
-    const store = hydratedStore();
-    const forward = {
-      type: "update-node-state" as const,
-      boardId,
-      workspaceId,
-      scopeId,
-      nodeId: aliceId,
-      version: null,
-      name: "Queen Alice",
-      description: null,
-      properties: { role: "queen" },
-    };
-
-    expect(
-      createEditorHistoryEntry({ store, command: forward, nowMs: 1_750 }),
-    ).toEqual({
-      forward,
-      inverse: {
-        type: "update-node-state",
-        boardId,
-        workspaceId,
-        scopeId,
-        nodeId: aliceId,
-        version: null,
-        name: null,
-        description: null,
-        properties: null,
-      },
-      coalescingKey: `update-node-state:${scopeId}:${aliceId}`,
-      createdAtMs: 1_750,
-      updatedAtMs: 1_750,
-    });
-  });
-
-  it("derives a canonical Edge inverse from the pre-command working state", () => {
-    const store = hydratedStore();
-    const forward = {
-      type: "update-edge" as const,
-      boardId,
-      workspaceId,
-      edgeId,
-      version: 4,
-      name: "trusts",
-      description: "Changed relation",
-      properties: { strength: 9 },
-    };
-
-    expect(
-      createEditorHistoryEntry({ store, command: forward, nowMs: 2_000 }),
-    ).toMatchObject({
-      forward,
-      inverse: {
-        type: "update-edge",
-        edgeId,
-        version: 4,
-        name: "knows",
-        description: "Original relation",
-        properties: { strength: 1 },
-      },
-      coalescingKey: `update-edge:${edgeId}`,
-    });
-  });
-
-  it("derives a scoped EdgeState inverse from the prior sparse override", () => {
-    const store = hydratedStore();
-    store.getState().replaceEdgeState({
-      scopeId,
-      edgeId,
-      name: "rules",
-      description: null,
-      properties: null,
-      version: 3,
-      createdAt: now,
-      updatedAt: now,
-    });
-    const forward = {
-      type: "update-edge-state" as const,
-      boardId,
-      workspaceId,
-      scopeId,
-      edgeId,
-      version: 3,
-      name: "commands",
-      description: null,
-      properties: null,
-    };
-
-    expect(isUndoableEditorCommand(forward)).toBe(true);
-    expect(
-      createEditorHistoryEntry({ store, command: forward, nowMs: 2_250 }),
-    ).toEqual({
-      forward,
-      inverse: {
-        type: "update-edge-state",
-        boardId,
-        workspaceId,
-        scopeId,
-        edgeId,
-        version: 3,
-        name: "rules",
-        description: null,
-        properties: null,
-      },
-      coalescingKey: `update-edge-state:${scopeId}:${edgeId}`,
-      createdAtMs: 2_250,
-      updatedAtMs: 2_250,
-    });
-  });
-
-  it("uses all-null sparse EdgeState as the inverse for a first scoped Relationship edit", () => {
-    const store = hydratedStore();
-    const forward = {
-      type: "update-edge-state" as const,
-      boardId,
-      workspaceId,
-      scopeId,
-      edgeId,
-      version: null,
-      name: "rules",
-      description: null,
-      properties: null,
-    };
-
-    expect(
-      createEditorHistoryEntry({ store, command: forward, nowMs: 2_500 }),
-    ).toEqual({
-      forward,
-      inverse: {
-        type: "update-edge-state",
-        boardId,
-        workspaceId,
-        scopeId,
-        edgeId,
-        version: null,
-        name: null,
-        description: null,
-        properties: null,
-      },
-      coalescingKey: `update-edge-state:${scopeId}:${edgeId}`,
-      createdAtMs: 2_500,
-      updatedAtMs: 2_500,
-    });
-  });
-
-  it("uses the explicit drag-start position for a Move inverse", () => {
-    const store = hydratedStore();
-    const forward = {
-      type: "move-node" as const,
-      boardId,
-      workspaceId,
-      nodeId: aliceId,
-      position: { x: 500, y: 300 },
-    };
-
-    expect(
-      createEditorHistoryEntry({
-        store,
-        command: forward,
-        nowMs: 3_000,
-        moveStartPosition: { x: 100, y: 200 },
-      }),
-    ).toEqual({
-      forward,
-      inverse: {
-        ...forward,
-        position: { x: 100, y: 200 },
-      },
-      coalescingKey: null,
-      createdAtMs: 3_000,
-      updatedAtMs: 3_000,
-    });
-  });
-
-  it("does not create Move history without a start position or for a no-op move", () => {
-    const store = hydratedStore();
-    const forward = {
-      type: "move-node" as const,
-      boardId,
-      workspaceId,
-      nodeId: aliceId,
-      position: { x: 500, y: 300 },
-    };
-
-    expect(
-      createEditorHistoryEntry({ store, command: forward, nowMs: 4_000 }),
-    ).toBeNull();
-    expect(
-      createEditorHistoryEntry({
-        store,
-        command: forward,
-        nowMs: 4_000,
-        moveStartPosition: { x: 500, y: 300 },
-      }),
-    ).toBeNull();
-  });
-
-  it("returns no entry when a supported canonical entity is missing", () => {
-    const store = hydratedStore();
-
-    expect(
-      createEditorHistoryEntry({
-        store,
-        command: {
-          type: "update-node",
-          boardId,
-          workspaceId,
-          nodeId: "missing-node",
-          version: 1,
-          name: "Ghost",
-          description: "",
-          properties: {},
-        },
-        nowMs: 5_000,
-      }),
-    ).toBeNull();
-  });
-
-  it("marks Move, canonical updates, and Board Edge removal as undoable", () => {
-    expect(
-      isUndoableEditorCommand({
+describe("Board-owned editor history entries", () => {
+  it("treats direct move/update/delete/restore commands as undoable", () => {
+    const commands: EditorCommand[] = [
+      {
         type: "move-node",
         boardId,
         workspaceId,
         nodeId: aliceId,
-        position: { x: 1, y: 2 },
-      }),
-    ).toBe(true);
+        expectedVersion: 3,
+        position: { x: 200, y: 220 },
+      },
+      {
+        type: "update-node",
+        boardId,
+        workspaceId,
+        nodeId: aliceId,
+        expectedVersion: 3,
+        name: "Alicia",
+        description: "Lead",
+        properties: { role: "lead" },
+      },
+      { type: "delete-node", boardId, workspaceId, nodeId: aliceId },
+      {
+        type: "restore-node",
+        boardId,
+        workspaceId,
+        nodeId: aliceId,
+        node: alice(),
+        edges: [relationship()],
+      },
+      {
+        type: "update-edge",
+        boardId,
+        workspaceId,
+        edgeId,
+        expectedVersion: 4,
+        name: "protects",
+        description: "",
+        properties: {},
+      },
+      { type: "delete-edge", boardId, workspaceId, edgeId },
+      {
+        type: "restore-edge",
+        boardId,
+        workspaceId,
+        edgeId,
+        edge: relationship(),
+      },
+    ];
+
+    for (const command of commands) expect(isUndoableEditorCommand(command)).toBe(true);
     expect(
       isUndoableEditorCommand({
         type: "create-node",
         boardId,
         workspaceId,
-        storyId,
-        nodeId: "new-node",
+        nodeId: "66666666-6666-4666-8666-666666666666",
         name: "New",
         position: { x: 0, y: 0 },
         createdAt: now,
       }),
     ).toBe(false);
-    expect(
-      isUndoableEditorCommand({
-        type: "remove-board-edge",
-        boardId,
-        workspaceId,
-        edgeId,
-      }),
-    ).toBe(true);
+  });
+
+  it("captures the starting Node position for move Undo", () => {
+    const command: EditorCommand = {
+      type: "move-node",
+      boardId,
+      workspaceId,
+      nodeId: aliceId,
+      expectedVersion: 3,
+      position: { x: 200, y: 220 },
+    };
+
+    const entry = history(setup(), command, { x: 100, y: 120 });
+    expect(entry?.inverse).toEqual({
+      ...command,
+      position: { x: 100, y: 120 },
+    });
+  });
+
+  it("captures current direct Node and Edge semantic fields as update inverses", () => {
+    const store = setup();
+    const nodeEntry = history(store, {
+      type: "update-node",
+      boardId,
+      workspaceId,
+      nodeId: aliceId,
+      expectedVersion: 3,
+      name: "Alicia",
+      description: "New",
+      properties: {},
+    });
+    expect(nodeEntry?.inverse).toMatchObject({
+      type: "update-node",
+      nodeId: aliceId,
+      expectedVersion: 3,
+      name: "Alice",
+      description: "Lead",
+      properties: { role: "lead" },
+    });
+
+    const edgeEntry = history(store, {
+      type: "update-edge",
+      boardId,
+      workspaceId,
+      edgeId,
+      expectedVersion: 4,
+      name: "protects",
+      description: "New",
+      properties: {},
+    });
+    expect(edgeEntry?.inverse).toMatchObject({
+      type: "update-edge",
+      edgeId,
+      expectedVersion: 4,
+      name: "knows",
+      description: "Old friends",
+      properties: { since: 2020 },
+    });
+  });
+
+  it("captures a deleted Node plus every incident Edge for Undo", () => {
+    const store = setup();
+    const entry = history(store, {
+      type: "delete-node",
+      boardId,
+      workspaceId,
+      nodeId: aliceId,
+    });
+
+    expect(entry?.inverse).toEqual({
+      type: "restore-node",
+      boardId,
+      workspaceId,
+      nodeId: aliceId,
+      node: alice(),
+      edges: [relationship()],
+    });
+  });
+
+  it("turns Node restore back into delete for Redo", () => {
+    const entry = history(setup(), {
+      type: "restore-node",
+      boardId,
+      workspaceId,
+      nodeId: aliceId,
+      node: alice(),
+      edges: [relationship()],
+    });
+
+    expect(entry?.inverse).toEqual({
+      type: "delete-node",
+      boardId,
+      workspaceId,
+      nodeId: aliceId,
+    });
+  });
+
+  it("captures the whole deleted Edge row and makes restore invert to delete", () => {
+    const store = setup();
+    const deleted = history(store, {
+      type: "delete-edge",
+      boardId,
+      workspaceId,
+      edgeId,
+    });
+    expect(deleted?.inverse).toEqual({
+      type: "restore-edge",
+      boardId,
+      workspaceId,
+      edgeId,
+      edge: relationship(),
+    });
+
+    const restored = history(store, {
+      type: "restore-edge",
+      boardId,
+      workspaceId,
+      edgeId,
+      edge: relationship(),
+    });
+    expect(restored?.inverse).toEqual({
+      type: "delete-edge",
+      boardId,
+      workspaceId,
+      edgeId,
+    });
   });
 });
