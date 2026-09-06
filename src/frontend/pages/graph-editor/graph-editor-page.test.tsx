@@ -273,29 +273,17 @@ describe("GraphEditorPage", () => {
     expect(screen.queryByLabelText("노드 이름")).not.toBeInTheDocument();
   });
 
-  it("offers only unrepresented canonical Nodes in the same add-node dialog", async () => {
+  it("keeps the add-node dialog creation-only for an independent Board", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Alice");
 
     await user.click(screen.getByRole("button", { name: "노드 추가" }));
-    const picker = await screen.findByLabelText("기존 노드");
-    expect(screen.queryByRole("option", { name: "Alice" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Bob" })).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Carol" })).toBeInTheDocument();
-
-    await user.selectOptions(picker, thirdNodeId);
-    await user.click(screen.getByRole("button", { name: "보드에 추가" }));
-
-    await waitFor(() => expect(mocks.placeNodeOnBoard).toHaveBeenCalledTimes(1));
-    expect(mocks.placeNodeOnBoard).toHaveBeenCalledWith({
-      boardId,
-      nodeId: thirdNodeId,
-      workspaceId: "workspace-1",
-      position: { x: 320, y: 240 },
-    });
-    expect(await screen.findByText("Carol")).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "노드 추가" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "노드 추가" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("기존 노드")).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Carol" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "보드에 추가" })).not.toBeInTheDocument();
+    expect(mocks.placeNodeOnBoard).not.toHaveBeenCalled();
   });
 
   it("keeps drag movement local and persists only when drag stops", async () => {
