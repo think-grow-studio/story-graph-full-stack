@@ -1,17 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Board, BoardNode, GraphNode } from "../domain/graph";
+import type { Board, DeletedNodeSnapshot, GraphNode } from "../domain/graph";
 import type { GraphRepository } from "../domain/graph.repository";
 import type { Story } from "@/backend/modules/story/domain/story";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
 import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
-import { createNodeOnBoard } from "./create-node-on-board/create-node-on-board";
-import { removeNodeFromBoard } from "./remove-node-from-board/remove-node-from-board";
-import { updateBoardNode } from "./update-board-node/update-board-node";
+import { createNode } from "./create-node/create-node";
+import { deleteNode } from "./delete-node/delete-node";
+import { restoreNode } from "./restore-node/restore-node";
 import { updateNode } from "./update-node/update-node";
 
+const now = new Date("2026-09-06T00:00:00.000Z");
+const nodeId = "00000000-0000-4000-8000-000000000001";
+
 function storyFixture(overrides: Partial<Story> = {}): Story {
-  const now = new Date("2026-08-28T00:00:00.000Z");
   return {
     id: "story-1",
     workspaceId: "workspace-1",
@@ -24,14 +26,12 @@ function storyFixture(overrides: Partial<Story> = {}): Story {
 }
 
 function boardFixture(overrides: Partial<Board> = {}): Board {
-  const now = new Date("2026-08-28T00:00:00.000Z");
   return {
     id: "board-1",
     storyId: "story-1",
-    scopeId: null,
     name: "Main",
     description: "",
-    revision: 0,
+    tags: [],
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -39,32 +39,20 @@ function boardFixture(overrides: Partial<Board> = {}): Board {
 }
 
 function nodeFixture(overrides: Partial<GraphNode> = {}): GraphNode {
-  const now = new Date("2026-08-28T00:00:00.000Z");
   return {
-    id: "00000000-0000-4000-8000-000000000001",
-    storyId: "story-1",
+    id: nodeId,
+    boardId: "board-1",
     name: "Alice",
     description: "",
     iconKey: null,
     properties: {},
-    version: 1,
-    createdAt: now,
-    updatedAt: now,
-    ...overrides,
-  };
-}
-
-function boardNodeFixture(overrides: Partial<BoardNode> = {}): BoardNode {
-  const now = new Date("2026-08-28T00:00:00.000Z");
-  return {
-    boardId: "board-1",
-    nodeId: "00000000-0000-4000-8000-000000000001",
     x: 10,
     y: 20,
     width: null,
     height: null,
     zIndex: 0,
     style: {},
+    version: 1,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -85,33 +73,30 @@ function createStories(stories: Story[] = [storyFixture()]): StoryRepository {
 function createGraph(): GraphRepository {
   const board = boardFixture();
   const node = nodeFixture();
-  const boardNode = boardNodeFixture();
+  const deleted: DeletedNodeSnapshot = { node, edges: [] };
   return {
-    createScope: vi.fn(),
-    listScopes: vi.fn(),
-    findScope: vi.fn(),
     createBoard: vi.fn(),
+    updateBoard: vi.fn(),
     listBoards: vi.fn(),
     findBoard: vi.fn(async (id) => (id === board.id ? board : null)),
-    listNodes: vi.fn(async () => [node]),
-    findNode: vi.fn(async (id) => (id === node.id ? node : null)),
-    findEdge: vi.fn(),
     getBoardSnapshot: vi.fn(),
-    createNodeOnBoard: vi.fn(async (input) => ({
-      node: input.node,
-      boardNode: { ...boardNode, ...input.placement, boardId: input.boardId, nodeId: input.node.id },
-    })),
-    placeNodeOnBoard: vi.fn(),
-    putNodeState: vi.fn(),
-    putEdgeState: vi.fn(),
+    createNode: vi.fn(async (input) => ({ ...input, version: 1, createdAt: now, updatedAt: now })),
+    findNode: vi.fn(async (boardId, id) =>
+      boardId === board.id && id === node.id ? node : null,
+    ),
     updateNode: vi.fn(async (input) => ({ ...node, ...input, version: node.version + 1 })),
-    updateBoardNode: vi.fn(async (input) => ({ ...boardNode, ...input })),
-    removeNodeFromBoard: vi.fn(async () => true),
-    restoreNodeToBoard: vi.fn(),
-    createEdgeOnBoard: vi.fn(),
+    deleteNode: vi.fn(async (boardId, id) =>
+      boardId === board.id && id === node.id ? deleted : null,
+    ),
+    restoreNode: vi.fn(async (input) => ({
+      node: { ...input.node, createdAt: now, updatedAt: now },
+      edges: input.edges.map((edge) => ({ ...edge, createdAt: now, updatedAt: now })),
+    })),
+    createEdge: vi.fn(),
+    findEdge: vi.fn(),
     updateEdge: vi.fn(),
-    removeEdgeFromBoard: vi.fn(),
-    restoreEdgeToBoard: vi.fn(),
+    deleteEdge: vi.fn(),
+    restoreEdge: vi.fn(),
   };
 }
 
@@ -122,7 +107,7 @@ function createAccess(): WorkspaceAccessService {
   };
 }
 
-describe("Node use-cases", () => {
+describe("Board-owned Node use-cases", () => {
   let stories: StoryRepository;
   let graph: GraphRepository;
   let access: WorkspaceAccessService;
@@ -133,15 +118,15 @@ describe("Node use-cases", () => {
     access = createAccess();
   });
 
-  it("creates canonical Node + BoardNode after ownership validation and graph:update", async () => {
-    const result = await createNodeOnBoard(
+  it("creates one direct Board-owned Node after Board ownership authorization", async () => {
+    const result = await createNode(
       {
         actorId: "user-1",
         workspaceId: "workspace-1",
         boardId: "board-1",
-        id: "00000000-0000-4000-8000-000000000009",
-        name: "Bob",
-        description: "Friend",
+        id: nodeId,
+        name: "Alice",
+        description: "Lead",
         iconKey: "person",
         properties: { age: 20 },
         x: 120,
@@ -154,45 +139,33 @@ describe("Node use-cases", () => {
       { stories, graph, access },
     );
 
-    expect(access.requireCapability).toHaveBeenCalledWith({
-      userId: "user-1",
-      workspaceId: "workspace-1",
-      capability: "graph:update",
-    });
-    expect(graph.createNodeOnBoard).toHaveBeenCalledWith({
+    expect(graph.createNode).toHaveBeenCalledWith({
+      id: nodeId,
       boardId: "board-1",
-      node: expect.objectContaining({
-        id: "00000000-0000-4000-8000-000000000009",
-        storyId: "story-1",
-        name: "Bob",
-        description: "Friend",
-        iconKey: "person",
-        properties: { age: 20 },
-        version: 1,
-      }),
-      placement: {
-        x: 120,
-        y: 80,
-        width: null,
-        height: null,
-        zIndex: 2,
-        style: { accent: true },
-      },
+      name: "Alice",
+      description: "Lead",
+      iconKey: "person",
+      properties: { age: 20 },
+      x: 120,
+      y: 80,
+      width: null,
+      height: null,
+      zIndex: 2,
+      style: { accent: true },
     });
-    expect(result.boardNode).not.toHaveProperty("name");
-    expect(result.boardNode).not.toHaveProperty("properties");
+    expect(result).toMatchObject({ boardId: "board-1", x: 120, version: 1 });
   });
 
-  it("hides a cross-workspace Board before capability checks", async () => {
+  it("hides a cross-workspace Board before graph:update capability checks", async () => {
     stories = createStories([storyFixture({ workspaceId: "workspace-2" })]);
 
     await expect(
-      createNodeOnBoard(
+      createNode(
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
           boardId: "board-1",
-          id: "00000000-0000-4000-8000-000000000009",
+          id: nodeId,
           name: "Denied",
           description: "",
           iconKey: null,
@@ -207,29 +180,34 @@ describe("Node use-cases", () => {
         { stories, graph, access },
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
+
     expect(access.requireCapability).not.toHaveBeenCalled();
-    expect(graph.createNodeOnBoard).not.toHaveBeenCalled();
+    expect(graph.createNode).not.toHaveBeenCalled();
   });
 
-  it("updates a canonical Node with compare-and-swap and maps stale writes to 409", async () => {
+  it("updates semantic and position fields in one CAS write and maps stale writes to 409", async () => {
     const updated = await updateNode(
       {
         actorId: "user-1",
         workspaceId: "workspace-1",
-        nodeId: "00000000-0000-4000-8000-000000000001",
-        version: 1,
-        name: "Alice v2",
-        properties: { age: 21 },
+        boardId: "board-1",
+        nodeId,
+        expectedVersion: 1,
+        name: "Alicia",
+        x: 50,
+        style: { selected: true },
       },
       { stories, graph, access },
     );
 
-    expect(updated.version).toBe(2);
+    expect(updated).toMatchObject({ name: "Alicia", x: 50, version: 2 });
     expect(graph.updateNode).toHaveBeenCalledWith({
-      id: "00000000-0000-4000-8000-000000000001",
+      boardId: "board-1",
+      id: nodeId,
       expectedVersion: 1,
-      name: "Alice v2",
-      properties: { age: 21 },
+      name: "Alicia",
+      x: 50,
+      style: { selected: true },
     });
 
     vi.mocked(graph.updateNode).mockResolvedValueOnce(null);
@@ -238,99 +216,91 @@ describe("Node use-cases", () => {
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
-          nodeId: "00000000-0000-4000-8000-000000000001",
-          version: 1,
-          description: "stale",
+          boardId: "board-1",
+          nodeId,
+          expectedVersion: 1,
+          y: 99,
         },
         { stories, graph, access },
       ),
     ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
   });
 
-  it("returns 404 for cross-workspace Node before graph:update", async () => {
-    stories = createStories([storyFixture({ workspaceId: "workspace-2" })]);
-
-    await expect(
-      updateNode(
-        {
-          actorId: "user-1",
-          workspaceId: "workspace-1",
-          nodeId: "00000000-0000-4000-8000-000000000001",
-          version: 1,
-          name: "Denied",
-        },
-        { stories, graph, access },
-      ),
-    ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
-    expect(access.requireCapability).not.toHaveBeenCalled();
-    expect(graph.updateNode).not.toHaveBeenCalled();
-  });
-
-  it("updates BoardNode presentation without mutating the canonical Node", async () => {
-    const result = await updateBoardNode(
+  it("deletes the Node row and returns the Node plus incident Edge snapshot", async () => {
+    const result = await deleteNode(
       {
         actorId: "user-1",
         workspaceId: "workspace-1",
         boardId: "board-1",
-        nodeId: "00000000-0000-4000-8000-000000000001",
-        x: 50,
-        style: { selected: true },
+        nodeId,
       },
       { stories, graph, access },
     );
 
-    expect(result).toMatchObject({ x: 50, style: { selected: true } });
-    expect(graph.updateBoardNode).toHaveBeenCalledWith({
-      boardId: "board-1",
-      nodeId: "00000000-0000-4000-8000-000000000001",
-      x: 50,
-      style: { selected: true },
-    });
-    expect(graph.updateNode).not.toHaveBeenCalled();
+    expect(result.node.id).toBe(nodeId);
+    expect(graph.deleteNode).toHaveBeenCalledWith("board-1", nodeId);
   });
 
-  it("rejects BoardNode addressing when Board and Node belong to different Stories", async () => {
-    vi.mocked(graph.findNode).mockResolvedValueOnce(
-      nodeFixture({ storyId: "story-2" }),
+  it("restores the captured Node identity/version under the same Board", async () => {
+    const captured = nodeFixture({ version: 3, x: 77 });
+    const result = await restoreNode(
+      {
+        actorId: "user-1",
+        workspaceId: "workspace-1",
+        boardId: "board-1",
+        nodeId,
+        node: {
+          id: captured.id,
+          boardId: captured.boardId,
+          name: captured.name,
+          description: captured.description,
+          iconKey: captured.iconKey,
+          properties: captured.properties,
+          x: captured.x,
+          y: captured.y,
+          width: captured.width,
+          height: captured.height,
+          zIndex: captured.zIndex,
+          style: captured.style,
+          version: captured.version,
+        },
+        edges: [],
+      },
+      { stories, graph, access },
     );
 
+    expect(result.node).toMatchObject({ id: nodeId, boardId: "board-1", version: 3, x: 77 });
+  });
+
+  it("rejects restore when route identity and snapshot identity differ", async () => {
     await expect(
-      updateBoardNode(
+      restoreNode(
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
           boardId: "board-1",
-          nodeId: "00000000-0000-4000-8000-000000000001",
-          x: 50,
+          nodeId,
+          node: {
+            id: "00000000-0000-4000-8000-000000000009",
+            boardId: "board-1",
+            name: "Wrong",
+            description: "",
+            iconKey: null,
+            properties: {},
+            x: 0,
+            y: 0,
+            width: null,
+            height: null,
+            zIndex: 0,
+            style: {},
+            version: 1,
+          },
+          edges: [],
         },
         { stories, graph, access },
       ),
-    ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
-    expect(access.requireCapability).not.toHaveBeenCalled();
-    expect(graph.updateBoardNode).not.toHaveBeenCalled();
-  });
+    ).rejects.toMatchObject({ code: "BAD_REQUEST", status: 400 });
 
-  it("removes only Board membership and requires graph:update after ownership validation", async () => {
-    await expect(
-      removeNodeFromBoard(
-        {
-          actorId: "user-1",
-          workspaceId: "workspace-1",
-          boardId: "board-1",
-          nodeId: "00000000-0000-4000-8000-000000000001",
-        },
-        { stories, graph, access },
-      ),
-    ).resolves.toBeUndefined();
-
-    expect(access.requireCapability).toHaveBeenCalledWith({
-      userId: "user-1",
-      workspaceId: "workspace-1",
-      capability: "graph:update",
-    });
-    expect(graph.removeNodeFromBoard).toHaveBeenCalledWith(
-      "board-1",
-      "00000000-0000-4000-8000-000000000001",
-    );
+    expect(graph.restoreNode).not.toHaveBeenCalled();
   });
 });
