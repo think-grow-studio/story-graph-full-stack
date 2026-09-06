@@ -5,6 +5,12 @@ import {
   closeE2EAuthDatabase,
   createE2EIdentity,
 } from "./helpers/e2e-auth";
+import {
+  createE2EBoard,
+  createE2EEdge,
+  createE2ENode,
+  createE2EStory,
+} from "./helpers/graph-fixtures";
 
 test.afterAll(async () => {
   await closeE2EAuthDatabase();
@@ -18,93 +24,69 @@ test("Boards keep same-named Nodes and Relationships independent", async ({
 
   try {
     await context.addCookies(identity.cookies);
-
     const bootstrapResponse = await context.request.get("/api/v1/bootstrap");
     expect(bootstrapResponse.status()).toBe(200);
-    const bootstrap = await bootstrapResponse.json();
-    const workspaceId = bootstrap.workspace.id as string;
+    const { workspace } = await bootstrapResponse.json();
+    const workspaceId = workspace.id as string;
 
-    const storyResponse = await context.request.post("/api/v1/stories", {
-      data: { workspaceId, name: "Independent Boards Story" },
+    const story = await createE2EStory(
+      context.request,
+      workspaceId,
+      "Independent Boards Story",
+    );
+    const boardA = await createE2EBoard(
+      context.request,
+      story.id,
+      workspaceId,
+      "Board A",
+      ["characters", "draft"],
+    );
+    const boardB = await createE2EBoard(
+      context.request,
+      story.id,
+      workspaceId,
+      "Board B",
+      ["characters"],
+    );
+
+    const aliceA = await createE2ENode(context.request, boardA.id, workspaceId, {
+      name: "Alice",
+      x: 120,
+      y: 180,
     });
-    expect(storyResponse.status()).toBe(201);
-    const story = await storyResponse.json();
+    const bobA = await createE2ENode(context.request, boardA.id, workspaceId, {
+      name: "Bob",
+      x: 420,
+      y: 180,
+    });
+    const aliceB = await createE2ENode(context.request, boardB.id, workspaceId, {
+      name: "Alice",
+      x: 160,
+      y: 220,
+    });
+    const bobB = await createE2ENode(context.request, boardB.id, workspaceId, {
+      name: "Bob",
+      x: 460,
+      y: 220,
+    });
 
-    const createBoard = async (name: string, tags: string[]) => {
-      const response = await context.request.post(
-        `/api/v1/stories/${story.id}/boards`,
-        { data: { workspaceId, name, tags } },
-      );
-      expect(response.status()).toBe(201);
-      return response.json();
-    };
-
-    const boardA = await createBoard("Board A", ["characters", "draft"]);
-    const boardB = await createBoard("Board B", ["characters"]);
-
-    const createNode = async (
-      boardId: string,
-      name: string,
-      x: number,
-      y: number,
-    ) => {
-      const id = crypto.randomUUID();
-      const response = await context.request.post(
-        `/api/v1/boards/${boardId}/nodes`,
-        {
-          data: {
-            workspaceId,
-            id,
-            name,
-            description: "",
-            properties: {},
-            position: { x, y },
-          },
-        },
-      );
-      expect(response.status()).toBe(201);
-      return { id, body: await response.json() };
-    };
-
-    const aliceA = await createNode(boardA.id, "Alice", 120, 180);
-    const bobA = await createNode(boardA.id, "Bob", 420, 180);
-    const aliceB = await createNode(boardB.id, "Alice", 160, 220);
-    const bobB = await createNode(boardB.id, "Bob", 460, 220);
-
-    const createEdge = async (
-      boardId: string,
-      sourceNodeId: string,
-      targetNodeId: string,
-      name: string,
-    ) => {
-      const id = crypto.randomUUID();
-      const response = await context.request.post(
-        `/api/v1/boards/${boardId}/edges`,
-        {
-          data: {
-            workspaceId,
-            id,
-            sourceNodeId,
-            targetNodeId,
-            name,
-            description: "",
-            properties: {},
-          },
-        },
-      );
-      expect(response.status()).toBe(201);
-      return { id, body: await response.json() };
-    };
-
-    const edgeA = await createEdge(boardA.id, aliceA.id, bobA.id, "knows");
-    const edgeB = await createEdge(boardB.id, aliceB.id, bobB.id, "knows");
+    const edgeA = await createE2EEdge(context.request, boardA.id, workspaceId, {
+      sourceNodeId: aliceA.id,
+      targetNodeId: bobA.id,
+      name: "knows",
+    });
+    const edgeB = await createE2EEdge(context.request, boardB.id, workspaceId, {
+      sourceNodeId: aliceB.id,
+      targetNodeId: bobB.id,
+      name: "knows",
+    });
 
     const updateAliceA = await context.request.patch(
-      `/api/v1/nodes/${aliceA.id}`,
+      `/api/v1/boards/${boardA.id}/nodes/${aliceA.id}`,
       {
         data: {
           workspaceId,
-          version: aliceA.body.node.version,
+          expectedVersion: aliceA.version,
           name: "Queen Alice",
           description: "Board A only",
           properties: { board: "A" },
@@ -114,11 +96,11 @@ test("Boards keep same-named Nodes and Relationships independent", async ({
     expect(updateAliceA.status()).toBe(200);
 
     const updateEdgeA = await context.request.patch(
-      `/api/v1/edges/${edgeA.id}`,
+      `/api/v1/boards/${boardA.id}/edges/${edgeA.id}`,
       {
         data: {
           workspaceId,
-          version: edgeA.body.edge.version,
+          expectedVersion: edgeA.version,
           name: "protects",
           description: "Board A only",
           properties: { board: "A" },
@@ -141,38 +123,32 @@ test("Boards keep same-named Nodes and Relationships independent", async ({
     expect(snapshotA.nodes).toContainEqual(
       expect.objectContaining({
         id: aliceA.id,
+        boardId: boardA.id,
         name: "Queen Alice",
         description: "Board A only",
         properties: { board: "A" },
       }),
     );
-    expect(snapshotA.nodes.some((node: { id: string }) => node.id === aliceB.id)).toBe(
-      false,
-    );
+    expect(snapshotA.nodes.some((node: { id: string }) => node.id === aliceB.id)).toBe(false);
     expect(snapshotB.nodes).toContainEqual(
-      expect.objectContaining({ id: aliceB.id, name: "Alice" }),
+      expect.objectContaining({ id: aliceB.id, boardId: boardB.id, name: "Alice" }),
     );
-    expect(snapshotB.nodes.some((node: { id: string }) => node.id === aliceA.id)).toBe(
-      false,
-    );
+    expect(snapshotB.nodes.some((node: { id: string }) => node.id === aliceA.id)).toBe(false);
 
     expect(snapshotA.edges).toContainEqual(
       expect.objectContaining({
         id: edgeA.id,
+        boardId: boardA.id,
         name: "protects",
         description: "Board A only",
         properties: { board: "A" },
       }),
     );
-    expect(snapshotA.edges.some((edge: { id: string }) => edge.id === edgeB.id)).toBe(
-      false,
-    );
+    expect(snapshotA.edges.some((edge: { id: string }) => edge.id === edgeB.id)).toBe(false);
     expect(snapshotB.edges).toContainEqual(
-      expect.objectContaining({ id: edgeB.id, name: "knows" }),
+      expect.objectContaining({ id: edgeB.id, boardId: boardB.id, name: "knows" }),
     );
-    expect(snapshotB.edges.some((edge: { id: string }) => edge.id === edgeA.id)).toBe(
-      false,
-    );
+    expect(snapshotB.edges.some((edge: { id: string }) => edge.id === edgeA.id)).toBe(false);
 
     await page.goto(`/stories/${story.id}`);
     await expect(page.getByRole("heading", { name: "Independent Boards Story" })).toBeVisible();
