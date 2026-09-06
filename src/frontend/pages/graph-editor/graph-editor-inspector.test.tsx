@@ -13,13 +13,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getBootstrap: vi.fn(),
   getBoardSnapshot: vi.fn(),
-  createNodeOnBoard: vi.fn(),
-  updateBoardNode: vi.fn(),
-  createEdgeOnBoard: vi.fn(),
+  createNode: vi.fn(),
   updateNode: vi.fn(),
-  updateNodeState: vi.fn(),
+  deleteNode: vi.fn(),
+  restoreNode: vi.fn(),
+  createEdge: vi.fn(),
   updateEdge: vi.fn(),
-  updateEdgeState: vi.fn(),
+  deleteEdge: vi.fn(),
+  restoreEdge: vi.fn(),
 }));
 
 vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
@@ -28,13 +29,14 @@ vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
 
 vi.mock("@/frontend/api/graph/graph.api", () => ({
   getBoardSnapshot: mocks.getBoardSnapshot,
-  createNodeOnBoard: mocks.createNodeOnBoard,
-  updateBoardNode: mocks.updateBoardNode,
-  createEdgeOnBoard: mocks.createEdgeOnBoard,
+  createNode: mocks.createNode,
   updateNode: mocks.updateNode,
-  updateNodeState: mocks.updateNodeState,
+  deleteNode: mocks.deleteNode,
+  restoreNode: mocks.restoreNode,
+  createEdge: mocks.createEdge,
   updateEdge: mocks.updateEdge,
-  updateEdgeState: mocks.updateEdgeState,
+  deleteEdge: mocks.deleteEdge,
+  restoreEdge: mocks.restoreEdge,
 }));
 
 vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
@@ -87,8 +89,7 @@ const boardId = "22222222-2222-4222-8222-222222222222";
 const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
-const scopeId = "77777777-7777-4777-8777-777777777777";
-const now = "2026-08-28T00:00:00.000Z";
+const now = "2026-09-06T00:00:00.000Z";
 
 function snapshot() {
   return {
@@ -98,29 +99,41 @@ function snapshot() {
       storyId,
       name: "Characters",
       description: "",
-      revision: 1,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
     nodes: [
       {
         id: aliceId,
-        storyId,
+        boardId,
         name: "Alice",
         description: "Protagonist",
         iconKey: null,
         properties: { role: "lead" },
+        x: 100,
+        y: 100,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
         version: 3,
         createdAt: now,
         updatedAt: now,
       },
       {
         id: bobId,
-        storyId,
+        boardId,
         name: "Bob",
         description: "",
         iconKey: null,
         properties: {},
+        x: 400,
+        y: 100,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
         version: 1,
         createdAt: now,
         updatedAt: now,
@@ -129,80 +142,16 @@ function snapshot() {
     edges: [
       {
         id: edgeId,
-        storyId,
+        boardId,
         sourceNodeId: aliceId,
         targetNodeId: bobId,
         name: "knows",
         description: "Old friends",
         iconKey: null,
         properties: { since: 2020 },
-        version: 4,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardNodes: [
-      {
-        boardId,
-        nodeId: aliceId,
-        x: 100,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        boardId,
-        nodeId: bobId,
-        x: 400,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardEdges: [
-      {
-        boardId,
-        edgeId,
         style: {},
         labelPresentation: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-  };
-}
-
-function scopedSnapshot() {
-  const base = snapshot();
-  return {
-    ...base,
-    board: { ...base.board, scopeId, name: "Chapter Relationships" },
-    scope: {
-      id: scopeId,
-      storyId,
-      name: "Chapter 10",
-      description: "",
-      createdAt: now,
-      updatedAt: now,
-    },
-    nodeStates: [],
-    edges: [{ ...base.edges[0], name: "serves" }],
-    edgeStates: [
-      {
-        scopeId,
-        edgeId,
-        name: "rules",
-        description: null,
-        properties: null,
-        version: 2,
+        version: 4,
         createdAt: now,
         updatedAt: now,
       },
@@ -291,9 +240,10 @@ describe("Graph Editor inspector", () => {
 
     await waitFor(() => expect(mocks.updateNode).toHaveBeenCalledTimes(1));
     expect(mocks.updateNode.mock.calls[0][0]).toEqual({
+      boardId,
       nodeId: aliceId,
       workspaceId: "workspace-1",
-      version: 3,
+      expectedVersion: 3,
       name: "Alicia",
       description: "Main protagonist",
       properties: { role: "lead", age: 31 },
@@ -340,9 +290,10 @@ describe("Graph Editor inspector", () => {
 
     await waitFor(() => expect(mocks.updateEdge).toHaveBeenCalledTimes(1));
     expect(mocks.updateEdge.mock.calls[0][0]).toEqual({
+      boardId,
       edgeId,
       workspaceId: "workspace-1",
-      version: 4,
+      expectedVersion: 4,
       name: "best friend",
       description: "Childhood friends",
       properties: { since: 2012 },
@@ -359,30 +310,6 @@ describe("Graph Editor inspector", () => {
         expect.objectContaining({ id: edgeId, name: "best friend", version: 5 }),
       );
     });
-  });
-
-  it("renders scoped Relationship state in both canvas and Inspector while canonical Edge stays unchanged", async () => {
-    mocks.getBoardSnapshot.mockResolvedValueOnce(scopedSnapshot());
-    const user = userEvent.setup();
-    const { queryClient } = renderPage();
-
-    expect(
-      await screen.findByRole("button", { name: "Select rules" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Select serves" })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Select rules" }));
-    expect(screen.getByRole("heading", { name: "관계" })).toBeInTheDocument();
-    expect(screen.getByLabelText("이름")).toHaveValue("rules");
-
-    const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof scopedSnapshot>>([
-      "graph",
-      "snapshot",
-      "workspace-1",
-      boardId,
-    ]);
-    expect(cachedSnapshot?.edges[0]?.name).toBe("serves");
-    expect(cachedSnapshot?.edgeStates[0]?.name).toBe("rules");
   });
 
   it("preserves an invalid Alice draft across Alice -> Bob -> Alice selection", async () => {
@@ -466,7 +393,12 @@ describe("Graph Editor inspector", () => {
       await screen.findByText("This Node changed elsewhere. Reload before saving again."),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("이름")).toHaveValue("Alicia local draft");
-    expect(mocks.updateNode.mock.calls[0][0]).toMatchObject({ version: 3 });
+    expect(mocks.updateNode.mock.calls[0][0]).toMatchObject({
+      boardId,
+      nodeId: aliceId,
+      expectedVersion: 3,
+      workspaceId: "workspace-1",
+    });
 
     fireEvent.change(screen.getByLabelText("이름"), {
       target: { value: "Alicia revised after conflict" },
