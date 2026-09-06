@@ -9,7 +9,6 @@ export async function createBoard(
     actorId: string;
     workspaceId: string;
     storyId: string;
-    scopeId?: string | null;
     name: string;
     description: string;
     tags?: string[];
@@ -25,14 +24,6 @@ export async function createBoard(
     throw new ApplicationError("NOT_FOUND", 404, "Story not found");
   }
 
-  const scopeId = input.scopeId ?? null;
-  if (scopeId) {
-    const scope = await dependencies.graph.findScope(scopeId);
-    if (!scope || scope.storyId !== story.id) {
-      throw new ApplicationError("NOT_FOUND", 404, "Scope not found");
-    }
-  }
-
   await dependencies.access.requireCapability({
     userId: input.actorId,
     workspaceId: input.workspaceId,
@@ -41,7 +32,6 @@ export async function createBoard(
 
   return dependencies.graph.createBoard({
     storyId: story.id,
-    scopeId,
     name: input.name,
     description: input.description,
     tags: input.tags ?? [],
