@@ -1,44 +1,29 @@
 import type {
-  BoardNodeResponse,
-  EdgeStateResponse,
   GraphEdgeResponse,
   GraphNodeResponse,
-  NodeStateResponse,
-  RestoreBoardNodeResponse,
+  RestoreNodeResponse,
 } from "@/contracts/graph/graph.contract";
 
 import type {
   CreateEdgeCommand,
   CreateNodeCommand,
+  DeleteEdgeCommand,
+  DeleteNodeCommand,
   MoveNodeCommand,
-  PlaceBoardNodeCommand,
-  RemoveBoardEdgeCommand,
-  RemoveBoardNodeCommand,
-  RestoreBoardEdgeCommand,
-  RestoreBoardNodeCommand,
+  RestoreEdgeCommand,
+  RestoreNodeCommand,
   UpdateEdgeCommand,
-  UpdateEdgeStateCommand,
   UpdateNodeCommand,
-  UpdateNodeStateCommand,
 } from "../commands/editor-command";
-import type {
-  GraphEditorEdgePair,
-  GraphEditorNodePair,
-} from "../model/editor-types";
 
 export type EditorPersistence = {
-  createNode: (command: CreateNodeCommand) => Promise<GraphEditorNodePair>;
-  placeBoardNode: (command: PlaceBoardNodeCommand) => Promise<GraphEditorNodePair>;
-  moveNode: (command: MoveNodeCommand) => Promise<BoardNodeResponse>;
-  createEdge: (command: CreateEdgeCommand) => Promise<GraphEditorEdgePair>;
+  createNode: (command: CreateNodeCommand) => Promise<GraphNodeResponse>;
+  moveNode: (command: MoveNodeCommand) => Promise<GraphNodeResponse>;
   updateNode: (command: UpdateNodeCommand) => Promise<GraphNodeResponse>;
-  updateNodeState: (command: UpdateNodeStateCommand) => Promise<NodeStateResponse>;
+  deleteNode: (command: DeleteNodeCommand) => Promise<void>;
+  restoreNode: (command: RestoreNodeCommand) => Promise<RestoreNodeResponse>;
+  createEdge: (command: CreateEdgeCommand) => Promise<GraphEdgeResponse>;
   updateEdge: (command: UpdateEdgeCommand) => Promise<GraphEdgeResponse>;
-  updateEdgeState: (command: UpdateEdgeStateCommand) => Promise<EdgeStateResponse>;
-  removeBoardNode: (command: RemoveBoardNodeCommand) => Promise<void>;
-  restoreBoardNode: (
-    command: RestoreBoardNodeCommand,
-  ) => Promise<RestoreBoardNodeResponse>;
-  removeBoardEdge: (command: RemoveBoardEdgeCommand) => Promise<void>;
-  restoreBoardEdge: (command: RestoreBoardEdgeCommand) => Promise<GraphEditorEdgePair>;
+  deleteEdge: (command: DeleteEdgeCommand) => Promise<void>;
+  restoreEdge: (command: RestoreEdgeCommand) => Promise<GraphEdgeResponse>;
 };
