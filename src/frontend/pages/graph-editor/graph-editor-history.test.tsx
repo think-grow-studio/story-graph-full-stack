@@ -5,11 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getBootstrap: vi.fn(),
   getBoardSnapshot: vi.fn(),
-  createNodeOnBoard: vi.fn(),
-  updateBoardNode: vi.fn(),
-  createEdgeOnBoard: vi.fn(),
+  createNode: vi.fn(),
   updateNode: vi.fn(),
+  deleteNode: vi.fn(),
+  restoreNode: vi.fn(),
+  createEdge: vi.fn(),
   updateEdge: vi.fn(),
+  deleteEdge: vi.fn(),
+  restoreEdge: vi.fn(),
 }));
 
 vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
@@ -18,11 +21,14 @@ vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
 
 vi.mock("@/frontend/api/graph/graph.api", () => ({
   getBoardSnapshot: mocks.getBoardSnapshot,
-  createNodeOnBoard: mocks.createNodeOnBoard,
-  updateBoardNode: mocks.updateBoardNode,
-  createEdgeOnBoard: mocks.createEdgeOnBoard,
+  createNode: mocks.createNode,
   updateNode: mocks.updateNode,
+  deleteNode: mocks.deleteNode,
+  restoreNode: mocks.restoreNode,
+  createEdge: mocks.createEdge,
   updateEdge: mocks.updateEdge,
+  deleteEdge: mocks.deleteEdge,
+  restoreEdge: mocks.restoreEdge,
 }));
 
 vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
@@ -48,7 +54,28 @@ import { GraphEditorPage } from "./graph-editor-page";
 const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
 const nodeId = "33333333-3333-4333-8333-333333333333";
-const now = "2026-08-30T00:00:00.000Z";
+const now = "2026-09-06T00:00:00.000Z";
+
+function nodeFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: nodeId,
+    boardId,
+    name: "Alice",
+    description: "Protagonist",
+    iconKey: null,
+    properties: { role: "lead" },
+    x: 100,
+    y: 100,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
+    version: 3,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
 
 function snapshot() {
   return {
@@ -58,39 +85,12 @@ function snapshot() {
       storyId,
       name: "Characters",
       description: "",
-      revision: 1,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
-    nodes: [
-      {
-        id: nodeId,
-        storyId,
-        name: "Alice",
-        description: "Protagonist",
-        iconKey: null,
-        properties: { role: "lead" },
-        version: 3,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
+    nodes: [nodeFixture()],
     edges: [],
-    boardNodes: [
-      {
-        boardId,
-        nodeId,
-        x: 100,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardEdges: [],
   };
 }
 
@@ -121,9 +121,9 @@ beforeEach(() => {
   });
   mocks.getBoardSnapshot.mockResolvedValue(snapshot());
   mocks.updateNode
-    .mockResolvedValueOnce({ ...snapshot().nodes[0], name: "Alicia", version: 4 })
-    .mockResolvedValueOnce({ ...snapshot().nodes[0], name: "Alice", version: 5 })
-    .mockResolvedValueOnce({ ...snapshot().nodes[0], name: "Alicia", version: 6 });
+    .mockResolvedValueOnce(nodeFixture({ name: "Alicia", version: 4 }))
+    .mockResolvedValueOnce(nodeFixture({ name: "Alice", version: 5 }))
+    .mockResolvedValueOnce(nodeFixture({ name: "Alicia", version: 6 }));
 });
 
 afterEach(() => {
@@ -143,6 +143,13 @@ describe("Graph Editor history", () => {
     await advance(500);
 
     expect(mocks.updateNode).toHaveBeenCalledTimes(1);
+    expect(mocks.updateNode.mock.calls[0]?.[0]).toMatchObject({
+      boardId,
+      workspaceId: "workspace-1",
+      nodeId,
+      expectedVersion: 3,
+      name: "Alicia",
+    });
     const undo = screen.getByRole("button", { name: "Undo" });
     expect(undo).toBeEnabled();
 
@@ -154,6 +161,8 @@ describe("Graph Editor history", () => {
     expect(screen.getByLabelText("이름")).toHaveValue("Alice");
     expect(mocks.updateNode).toHaveBeenCalledTimes(2);
     expect(mocks.updateNode.mock.calls[1]?.[0]).toMatchObject({
+      boardId,
+      workspaceId: "workspace-1",
       nodeId,
       name: "Alice",
     });
@@ -172,6 +181,8 @@ describe("Graph Editor history", () => {
     expect(screen.getByLabelText("이름")).toHaveValue("Alicia");
     expect(mocks.updateNode).toHaveBeenCalledTimes(3);
     expect(mocks.updateNode.mock.calls[2]?.[0]).toMatchObject({
+      boardId,
+      workspaceId: "workspace-1",
       nodeId,
       name: "Alicia",
     });
