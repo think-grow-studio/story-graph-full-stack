@@ -11,10 +11,7 @@ import {
 } from "react";
 
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
-import {
-  useBoardSnapshotQuery,
-  useStoryNodesQuery,
-} from "@/frontend/api/graph/graph.queries";
+import { useBoardSnapshotQuery } from "@/frontend/api/graph/graph.queries";
 import { AddNodeDialog } from "@/frontend/features/graph-editor/actions/add-node-dialog";
 import { RelationshipDialog } from "@/frontend/features/graph-editor/actions/relationship-dialog";
 import type { EditorCommand } from "@/frontend/features/graph-editor/commands/editor-command";
@@ -92,7 +89,6 @@ function GraphEditorContent({
   const bootstrap = useBootstrapQuery();
   const workspaceId = bootstrap.data?.workspace.id;
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
-  const storyNodes = useStoryNodesQuery(workspaceId, storyId);
   const { persistence } = useEditorPersistence(workspaceId, boardId);
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
@@ -313,29 +309,6 @@ function GraphEditorContent({
     if (operationId) setNodeDialogOpen(false);
   }
 
-  function handleAddExistingNode(nodeId: string) {
-    if (!workspaceId || !storyNodes.data) return;
-
-    const node = storyNodes.data.find((candidate) => candidate.id === nodeId);
-    if (!node) return;
-
-    const isAlreadyRepresented = store
-      .getState()
-      .boardNodes.some((candidate) => candidate.nodeId === node.id);
-    if (isAlreadyRepresented) return;
-
-    const position = canvasRef.current?.getCenterPosition() ?? { x: 0, y: 0 };
-    const operationId = history.dispatch({
-      type: "place-board-node",
-      boardId,
-      workspaceId,
-      node,
-      position,
-      createdAt: new Date().toISOString(),
-    });
-    if (operationId) setNodeDialogOpen(false);
-  }
-
   function handleConnectNodes(sourceNodeId: string, targetNodeId: string) {
     setPendingConnection({ sourceNodeId, targetNodeId });
   }
@@ -443,10 +416,6 @@ function GraphEditorContent({
 
   const placementByNodeId = new Map(
     state.boardNodes.map((boardNode) => [boardNode.nodeId, boardNode]),
-  );
-  const representedNodeIds = new Set(state.boardNodes.map((boardNode) => boardNode.nodeId));
-  const availableExistingNodes = (storyNodes.data ?? []).filter(
-    (node) => !representedNodeIds.has(node.id),
   );
   const canvasNodes = state.nodes.flatMap((node) => {
     const placement = placementByNodeId.get(node.id);
@@ -578,11 +547,6 @@ function GraphEditorContent({
 
       <div className="grid min-h-0 gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="grid min-h-0 gap-3">
-          {storyNodes.isError ? (
-            <p className="text-sm text-[var(--sg-danger)]">
-              기존 노드 목록을 불러오지 못했습니다. 새 노드는 계속 만들 수 있습니다.
-            </p>
-          ) : null}
           {actionFailures.length ? (
             <div className="grid gap-1" role="status">
               {actionFailures.map((failure) => (
@@ -630,10 +594,10 @@ function GraphEditorContent({
 
       <AddNodeDialog
         busy={false}
-        existingNodes={availableExistingNodes}
+        existingNodes={[]}
         onClose={() => setNodeDialogOpen(false)}
         onCreate={handleCreateNode}
-        onPlace={handleAddExistingNode}
+        onPlace={() => {}}
         open={isNodeDialogOpen}
       />
 
