@@ -92,23 +92,17 @@ export async function persistAndReconcileEditorCommand(
   switch (prepared.type) {
     case "create-node": {
       const persisted = await persistence.createNode(prepared);
-      store.getState().replaceNode(
-        mergePersistedNode(persisted, findNode(store, prepared.nodeId)),
-      );
+      reconcileNodeIfPresent(store, prepared.nodeId, persisted);
       return;
     }
     case "move-node": {
       const persisted = await persistence.moveNode(prepared);
-      store.getState().replaceNode(
-        mergePersistedNode(persisted, findNode(store, prepared.nodeId)),
-      );
+      reconcileNodeIfPresent(store, prepared.nodeId, persisted);
       return;
     }
     case "update-node": {
       const persisted = await persistence.updateNode(prepared);
-      store.getState().replaceNode(
-        mergePersistedNode(persisted, findNode(store, prepared.nodeId)),
-      );
+      reconcileNodeIfPresent(store, prepared.nodeId, persisted);
       return;
     }
     case "delete-node":
@@ -116,31 +110,25 @@ export async function persistAndReconcileEditorCommand(
       return;
     case "restore-node": {
       const persisted = await persistence.restoreNode(prepared);
-      const state = store.getState();
-      const currentNode = state.nodes.find((node) => node.id === prepared.nodeId);
-      state.replaceNode(mergePersistedNode(persisted.node, currentNode));
+      const currentNode = findNode(store, prepared.nodeId);
+      if (!currentNode) return;
+
+      store.getState().replaceNode(mergePersistedNode(persisted.node, currentNode));
       for (const persistedEdge of persisted.edges) {
-        const currentEdge = store
-          .getState()
-          .edges.find((edge) => edge.id === persistedEdge.id);
-        store
-          .getState()
-          .replaceEdge(mergePersistedEdge(persistedEdge, currentEdge));
+        const currentEdge = findEdge(store, persistedEdge.id);
+        if (!currentEdge) continue;
+        store.getState().replaceEdge(mergePersistedEdge(persistedEdge, currentEdge));
       }
       return;
     }
     case "create-edge": {
       const persisted = await persistence.createEdge(prepared);
-      store.getState().replaceEdge(
-        mergePersistedEdge(persisted, findEdge(store, prepared.edgeId)),
-      );
+      reconcileEdgeIfPresent(store, prepared.edgeId, persisted);
       return;
     }
     case "update-edge": {
       const persisted = await persistence.updateEdge(prepared);
-      store.getState().replaceEdge(
-        mergePersistedEdge(persisted, findEdge(store, prepared.edgeId)),
-      );
+      reconcileEdgeIfPresent(store, prepared.edgeId, persisted);
       return;
     }
     case "delete-edge":
@@ -148,9 +136,7 @@ export async function persistAndReconcileEditorCommand(
       return;
     case "restore-edge": {
       const persisted = await persistence.restoreEdge(prepared);
-      store.getState().replaceEdge(
-        mergePersistedEdge(persisted, findEdge(store, prepared.edgeId)),
-      );
+      reconcileEdgeIfPresent(store, prepared.edgeId, persisted);
       return;
     }
   }
@@ -252,11 +238,30 @@ function findEdge(store: GraphEditorStore, edgeId: string) {
   return store.getState().edges.find((edge) => edge.id === edgeId);
 }
 
+function reconcileNodeIfPresent(
+  store: GraphEditorStore,
+  nodeId: string,
+  persisted: GraphNodeResponse,
+) {
+  const current = findNode(store, nodeId);
+  if (!current) return;
+  store.getState().replaceNode(mergePersistedNode(persisted, current));
+}
+
+function reconcileEdgeIfPresent(
+  store: GraphEditorStore,
+  edgeId: string,
+  persisted: GraphEdgeResponse,
+) {
+  const current = findEdge(store, edgeId);
+  if (!current) return;
+  store.getState().replaceEdge(mergePersistedEdge(persisted, current));
+}
+
 function mergePersistedNode(
   persisted: GraphNodeResponse,
-  current: GraphNodeResponse | undefined,
+  current: GraphNodeResponse,
 ): GraphNodeResponse {
-  if (!current) return persisted;
   return {
     ...persisted,
     name: current.name,
@@ -274,9 +279,8 @@ function mergePersistedNode(
 
 function mergePersistedEdge(
   persisted: GraphEdgeResponse,
-  current: GraphEdgeResponse | undefined,
+  current: GraphEdgeResponse,
 ): GraphEdgeResponse {
-  if (!current) return persisted;
   return {
     ...persisted,
     name: current.name,
