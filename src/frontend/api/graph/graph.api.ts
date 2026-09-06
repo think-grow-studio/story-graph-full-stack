@@ -1,68 +1,29 @@
 import {
-  boardNodeResponseSchema,
   boardResponseSchema,
   boardSnapshotResponseSchema,
   createBoardRequestSchema,
   createEdgeRequestSchema,
-  createEdgeResponseSchema,
   createNodeRequestSchema,
-  createNodeResponseSchema,
-  createScopeRequestSchema,
-  edgeStateResponseSchema,
   graphEdgeResponseSchema,
   graphNodeResponseSchema,
   listBoardsResponseSchema,
-  listScopesResponseSchema,
-  listStoryNodesResponseSchema,
-  nodeStateResponseSchema,
-  placeBoardNodeRequestSchema,
-  putEdgeStateRequestSchema,
-  putNodeStateRequestSchema,
-  restoreBoardEdgeRequestSchema,
-  restoreBoardNodeRequestSchema,
-  restoreBoardNodeResponseSchema,
-  scopeResponseSchema,
-  updateBoardNodeRequestSchema,
+  restoreEdgeRequestSchema,
+  restoreNodeRequestSchema,
+  restoreNodeResponseSchema,
+  updateBoardRequestSchema,
   updateEdgeRequestSchema,
   updateNodeRequestSchema,
-  type BoardEdgeResponse,
-  type BoardNodeResponse,
   type BoardResponse,
   type BoardSnapshotResponse,
-  type EdgeStateResponse,
   type GraphEdgeResponse,
   type GraphNodeResponse,
-  type NodeStateResponse,
-  type RestoreBoardNodeResponse,
-  type ScopeResponse,
+  type RestoreNodeResponse,
 } from "@/contracts/graph/graph.contract";
 
 import { apiClient } from "../client/api-client";
 
-export async function listScopes(
-  storyId: string,
-  workspaceId: string,
-): Promise<ScopeResponse[]> {
-  const response = await apiClient.get(`/stories/${storyId}/scopes`, {
-    params: { workspaceId },
-  });
-  return listScopesResponseSchema.parse(response.data).scopes;
-}
-
-export async function createScope(input: {
-  storyId: string;
-  workspaceId: string;
-  name: string;
-  description: string;
-}): Promise<ScopeResponse> {
-  const payload = createScopeRequestSchema.parse({
-    workspaceId: input.workspaceId,
-    name: input.name,
-    description: input.description,
-  });
-  const response = await apiClient.post(`/stories/${input.storyId}/scopes`, payload);
-  return scopeResponseSchema.parse(response.data);
-}
+export type RestorableNode = Omit<GraphNodeResponse, "createdAt" | "updatedAt">;
+export type RestorableEdge = Omit<GraphEdgeResponse, "createdAt" | "updatedAt">;
 
 export async function listBoards(
   storyId: string,
@@ -74,33 +35,42 @@ export async function listBoards(
   return listBoardsResponseSchema.parse(response.data).boards;
 }
 
-export async function createBoard(input: {
+export type CreateBoardInput = {
   storyId: string;
   workspaceId: string;
-  scopeId?: string | null;
   name: string;
   description: string;
-  tags?: string[];
-}): Promise<BoardResponse> {
+  tags: string[];
+};
+
+export async function createBoard(input: CreateBoardInput): Promise<BoardResponse> {
   const payload = createBoardRequestSchema.parse({
     workspaceId: input.workspaceId,
-    scopeId: input.scopeId ?? null,
     name: input.name,
     description: input.description,
-    tags: input.tags ?? [],
+    tags: input.tags,
   });
   const response = await apiClient.post(`/stories/${input.storyId}/boards`, payload);
   return boardResponseSchema.parse(response.data);
 }
 
-export async function listStoryNodes(
-  storyId: string,
-  workspaceId: string,
-): Promise<GraphNodeResponse[]> {
-  const response = await apiClient.get(`/stories/${storyId}/nodes`, {
-    params: { workspaceId },
+export type UpdateBoardInput = {
+  boardId: string;
+  workspaceId: string;
+  name?: string;
+  description?: string;
+  tags?: string[];
+};
+
+export async function updateBoard(input: UpdateBoardInput): Promise<BoardResponse> {
+  const payload = updateBoardRequestSchema.parse({
+    workspaceId: input.workspaceId,
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.tags !== undefined ? { tags: input.tags } : {}),
   });
-  return listStoryNodesResponseSchema.parse(response.data).nodes;
+  const response = await apiClient.patch(`/boards/${input.boardId}`, payload);
+  return boardResponseSchema.parse(response.data);
 }
 
 export async function getBoardSnapshot(
@@ -113,285 +83,204 @@ export async function getBoardSnapshot(
   return boardSnapshotResponseSchema.parse(response.data);
 }
 
-export type CreateNodeOnBoardInput = {
+export type CreateNodeInput = {
   boardId: string;
   workspaceId: string;
   id: string;
   name: string;
-  position: { x: number; y: number };
+  description?: string;
+  iconKey?: string | null;
+  properties?: Record<string, unknown>;
+  x: number;
+  y: number;
+  width?: number | null;
+  height?: number | null;
+  zIndex?: number;
+  style?: Record<string, unknown>;
 };
 
-export async function createNodeOnBoard(
-  input: CreateNodeOnBoardInput,
-): Promise<{ node: GraphNodeResponse; boardNode: BoardNodeResponse }> {
+export async function createNode(input: CreateNodeInput): Promise<GraphNodeResponse> {
   const payload = createNodeRequestSchema.parse({
     workspaceId: input.workspaceId,
     id: input.id,
     name: input.name,
-    description: "",
-    iconKey: null,
-    properties: {},
-    position: input.position,
-    width: null,
-    height: null,
-    zIndex: 0,
-    style: {},
+    description: input.description ?? "",
+    iconKey: input.iconKey ?? null,
+    properties: input.properties ?? {},
+    x: input.x,
+    y: input.y,
+    width: input.width ?? null,
+    height: input.height ?? null,
+    zIndex: input.zIndex ?? 0,
+    style: input.style ?? {},
   });
   const response = await apiClient.post(`/boards/${input.boardId}/nodes`, payload);
-  return createNodeResponseSchema.parse(response.data);
+  return graphNodeResponseSchema.parse(response.data);
 }
 
-export type PlaceNodeOnBoardInput = {
+export type UpdateNodeInput = {
   boardId: string;
   nodeId: string;
   workspaceId: string;
-  position: { x: number; y: number };
+  expectedVersion: number;
+  name?: string;
+  description?: string;
+  iconKey?: string | null;
+  properties?: Record<string, unknown>;
+  x?: number;
+  y?: number;
+  width?: number | null;
+  height?: number | null;
+  zIndex?: number;
+  style?: Record<string, unknown>;
 };
 
-export async function placeNodeOnBoard(
-  input: PlaceNodeOnBoardInput,
-): Promise<{ node: GraphNodeResponse; boardNode: BoardNodeResponse }> {
-  const payload = placeBoardNodeRequestSchema.parse({
+export async function updateNode(input: UpdateNodeInput): Promise<GraphNodeResponse> {
+  const payload = updateNodeRequestSchema.parse({
     workspaceId: input.workspaceId,
-    x: input.position.x,
-    y: input.position.y,
-    width: null,
-    height: null,
-    zIndex: 0,
-    style: {},
+    expectedVersion: input.expectedVersion,
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
+    ...(input.properties !== undefined ? { properties: input.properties } : {}),
+    ...(input.x !== undefined ? { x: input.x } : {}),
+    ...(input.y !== undefined ? { y: input.y } : {}),
+    ...(input.width !== undefined ? { width: input.width } : {}),
+    ...(input.height !== undefined ? { height: input.height } : {}),
+    ...(input.zIndex !== undefined ? { zIndex: input.zIndex } : {}),
+    ...(input.style !== undefined ? { style: input.style } : {}),
   });
-  const response = await apiClient.put(
-    `/boards/${input.boardId}/nodes/${input.nodeId}/presentation`,
+  const response = await apiClient.patch(
+    `/boards/${input.boardId}/nodes/${input.nodeId}`,
     payload,
   );
-  return createNodeResponseSchema.parse(response.data);
+  return graphNodeResponseSchema.parse(response.data);
 }
 
-export type CreateEdgeOnBoardInput = {
+export type DeleteNodeInput = {
+  boardId: string;
+  nodeId: string;
+  workspaceId: string;
+};
+
+export async function deleteNode(input: DeleteNodeInput): Promise<void> {
+  await apiClient.delete(`/boards/${input.boardId}/nodes/${input.nodeId}`, {
+    params: { workspaceId: input.workspaceId },
+  });
+}
+
+export type RestoreNodeInput = {
+  boardId: string;
+  nodeId: string;
+  workspaceId: string;
+  node: RestorableNode;
+  edges: RestorableEdge[];
+};
+
+export async function restoreNode(input: RestoreNodeInput): Promise<RestoreNodeResponse> {
+  const payload = restoreNodeRequestSchema.parse({
+    workspaceId: input.workspaceId,
+    node: input.node,
+    edges: input.edges,
+  });
+  const response = await apiClient.post(
+    `/boards/${input.boardId}/nodes/${input.nodeId}/restore`,
+    payload,
+  );
+  return restoreNodeResponseSchema.parse(response.data);
+}
+
+export type CreateEdgeInput = {
   boardId: string;
   workspaceId: string;
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
   name: string;
+  description?: string;
+  iconKey?: string | null;
+  properties?: Record<string, unknown>;
+  style?: Record<string, unknown>;
+  labelPresentation?: Record<string, unknown>;
 };
 
-export async function createEdgeOnBoard(
-  input: CreateEdgeOnBoardInput,
-): Promise<{ edge: GraphEdgeResponse; boardEdge: BoardEdgeResponse }> {
+export async function createEdge(input: CreateEdgeInput): Promise<GraphEdgeResponse> {
   const payload = createEdgeRequestSchema.parse({
     workspaceId: input.workspaceId,
     id: input.id,
     sourceNodeId: input.sourceNodeId,
     targetNodeId: input.targetNodeId,
     name: input.name,
-    description: "",
-    iconKey: null,
-    properties: {},
+    description: input.description ?? "",
+    iconKey: input.iconKey ?? null,
+    properties: input.properties ?? {},
+    style: input.style ?? {},
+    labelPresentation: input.labelPresentation ?? {},
   });
   const response = await apiClient.post(`/boards/${input.boardId}/edges`, payload);
-  return createEdgeResponseSchema.parse(response.data);
-}
-
-export type UpdateNodeInput = {
-  nodeId: string;
-  workspaceId: string;
-  version: number;
-  name: string;
-  description: string;
-  properties: Record<string, unknown>;
-};
-
-export async function updateNode(input: UpdateNodeInput): Promise<GraphNodeResponse> {
-  const payload = updateNodeRequestSchema.parse({
-    workspaceId: input.workspaceId,
-    version: input.version,
-    name: input.name,
-    description: input.description,
-    properties: input.properties,
-  });
-  const response = await apiClient.patch(`/nodes/${input.nodeId}`, payload);
-  return graphNodeResponseSchema.parse(response.data);
-}
-
-export type UpdateNodeStateInput = {
-  scopeId: string;
-  nodeId: string;
-  workspaceId: string;
-  version: number | null;
-  name: string | null;
-  description: string | null;
-  properties: Record<string, unknown> | null;
-};
-
-export async function updateNodeState(
-  input: UpdateNodeStateInput,
-): Promise<NodeStateResponse> {
-  const payload = putNodeStateRequestSchema.parse({
-    workspaceId: input.workspaceId,
-    version: input.version,
-    name: input.name,
-    description: input.description,
-    properties: input.properties,
-  });
-  const response = await apiClient.put(
-    `/scopes/${input.scopeId}/nodes/${input.nodeId}/state`,
-    payload,
-  );
-  return nodeStateResponseSchema.parse(response.data);
+  return graphEdgeResponseSchema.parse(response.data);
 }
 
 export type UpdateEdgeInput = {
+  boardId: string;
   edgeId: string;
   workspaceId: string;
-  version: number;
-  name: string;
-  description: string;
-  properties: Record<string, unknown>;
+  expectedVersion: number;
+  name?: string;
+  description?: string;
+  iconKey?: string | null;
+  properties?: Record<string, unknown>;
+  style?: Record<string, unknown>;
+  labelPresentation?: Record<string, unknown>;
 };
 
 export async function updateEdge(input: UpdateEdgeInput): Promise<GraphEdgeResponse> {
   const payload = updateEdgeRequestSchema.parse({
     workspaceId: input.workspaceId,
-    version: input.version,
-    name: input.name,
-    description: input.description,
-    properties: input.properties,
+    expectedVersion: input.expectedVersion,
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
+    ...(input.properties !== undefined ? { properties: input.properties } : {}),
+    ...(input.style !== undefined ? { style: input.style } : {}),
+    ...(input.labelPresentation !== undefined
+      ? { labelPresentation: input.labelPresentation }
+      : {}),
   });
-  const response = await apiClient.patch(`/edges/${input.edgeId}`, payload);
+  const response = await apiClient.patch(
+    `/boards/${input.boardId}/edges/${input.edgeId}`,
+    payload,
+  );
   return graphEdgeResponseSchema.parse(response.data);
 }
 
-export type UpdateEdgeStateInput = {
-  scopeId: string;
-  edgeId: string;
-  workspaceId: string;
-  version: number | null;
-  name: string | null;
-  description: string | null;
-  properties: Record<string, unknown> | null;
-};
-
-export async function updateEdgeState(
-  input: UpdateEdgeStateInput,
-): Promise<EdgeStateResponse> {
-  const payload = putEdgeStateRequestSchema.parse({
-    workspaceId: input.workspaceId,
-    version: input.version,
-    name: input.name,
-    description: input.description,
-    properties: input.properties,
-  });
-  const response = await apiClient.put(
-    `/scopes/${input.scopeId}/edges/${input.edgeId}/state`,
-    payload,
-  );
-  return edgeStateResponseSchema.parse(response.data);
-}
-
-export type UpdateBoardNodeInput = {
-  boardId: string;
-  nodeId: string;
-  workspaceId: string;
-  x: number;
-  y: number;
-};
-
-export async function updateBoardNode(
-  input: UpdateBoardNodeInput,
-): Promise<BoardNodeResponse> {
-  const payload = updateBoardNodeRequestSchema.parse({
-    workspaceId: input.workspaceId,
-    x: input.x,
-    y: input.y,
-  });
-  const response = await apiClient.patch(
-    `/boards/${input.boardId}/nodes/${input.nodeId}`,
-    payload,
-  );
-  return boardNodeResponseSchema.parse(response.data);
-}
-
-export type RemoveNodeFromBoardInput = {
-  boardId: string;
-  nodeId: string;
-  workspaceId: string;
-};
-
-export async function removeNodeFromBoard(
-  input: RemoveNodeFromBoardInput,
-): Promise<void> {
-  await apiClient.delete(`/boards/${input.boardId}/nodes/${input.nodeId}`, {
-    params: { workspaceId: input.workspaceId },
-  });
-}
-
-export type RestoreNodeToBoardInput = {
-  boardId: string;
-  nodeId: string;
-  workspaceId: string;
-  boardNode: Pick<
-    BoardNodeResponse,
-    "x" | "y" | "width" | "height" | "zIndex" | "style"
-  >;
-  boardEdges: Array<
-    Pick<BoardEdgeResponse, "edgeId" | "style" | "labelPresentation">
-  >;
-};
-
-export async function restoreNodeToBoard(
-  input: RestoreNodeToBoardInput,
-): Promise<RestoreBoardNodeResponse> {
-  const payload = restoreBoardNodeRequestSchema.parse({
-    workspaceId: input.workspaceId,
-    x: input.boardNode.x,
-    y: input.boardNode.y,
-    width: input.boardNode.width,
-    height: input.boardNode.height,
-    zIndex: input.boardNode.zIndex,
-    style: input.boardNode.style,
-    boardEdges: input.boardEdges,
-  });
-  const response = await apiClient.put(
-    `/boards/${input.boardId}/nodes/${input.nodeId}`,
-    payload,
-  );
-  return restoreBoardNodeResponseSchema.parse(response.data);
-}
-
-export type RemoveEdgeFromBoardInput = {
+export type DeleteEdgeInput = {
   boardId: string;
   edgeId: string;
   workspaceId: string;
 };
 
-export async function removeEdgeFromBoard(
-  input: RemoveEdgeFromBoardInput,
-): Promise<void> {
+export async function deleteEdge(input: DeleteEdgeInput): Promise<void> {
   await apiClient.delete(`/boards/${input.boardId}/edges/${input.edgeId}`, {
     params: { workspaceId: input.workspaceId },
   });
 }
 
-export type RestoreEdgeToBoardInput = {
+export type RestoreEdgeInput = {
   boardId: string;
   edgeId: string;
   workspaceId: string;
-  style: Record<string, unknown>;
-  labelPresentation: Record<string, unknown>;
+  edge: RestorableEdge;
 };
 
-export async function restoreEdgeToBoard(
-  input: RestoreEdgeToBoardInput,
-): Promise<{ edge: GraphEdgeResponse; boardEdge: BoardEdgeResponse }> {
-  const payload = restoreBoardEdgeRequestSchema.parse({
+export async function restoreEdge(input: RestoreEdgeInput): Promise<GraphEdgeResponse> {
+  const payload = restoreEdgeRequestSchema.parse({
     workspaceId: input.workspaceId,
-    style: input.style,
-    labelPresentation: input.labelPresentation,
+    edge: input.edge,
   });
-  const response = await apiClient.put(
-    `/boards/${input.boardId}/edges/${input.edgeId}`,
+  const response = await apiClient.post(
+    `/boards/${input.boardId}/edges/${input.edgeId}/restore`,
     payload,
   );
-  return createEdgeResponseSchema.parse(response.data);
+  return graphEdgeResponseSchema.parse(response.data);
 }
