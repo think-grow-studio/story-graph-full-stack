@@ -9,11 +9,7 @@ import { POST as CREATE_NODE } from "@/app/api/v1/boards/[boardId]/nodes/route";
 import { POST as CREATE_STORY } from "@/app/api/v1/stories/route";
 import { POST as CREATE_BOARD } from "@/app/api/v1/stories/[storyId]/boards/route";
 import { db } from "@/backend/infrastructure/database/client";
-import {
-  member,
-  organization,
-  user,
-} from "@/backend/infrastructure/database/schema";
+import { member, organization, user } from "@/backend/infrastructure/database/schema";
 import { createTestIdentity } from "../../helpers/test-auth";
 
 const createdUserIds: string[] = [];
@@ -113,7 +109,8 @@ describe("Graph Core API capability enforcement", () => {
           workspaceId: owner.workspaceId,
           id: crypto.randomUUID(),
           name: "Forbidden Node",
-          position: { x: 0, y: 0 },
+          x: 0,
+          y: 0,
         },
       }),
       boardContext(board.id),
