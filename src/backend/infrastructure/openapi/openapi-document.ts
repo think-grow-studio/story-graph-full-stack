@@ -24,23 +24,15 @@ export async function buildOpenApiDocument() {
       updateStoryRequestSchema,
     },
     {
-      boardEdgeResponseSchema,
-      boardNodeResponseSchema,
       boardResponseSchema,
       boardSnapshotResponseSchema,
       createBoardRequestSchema,
       createEdgeRequestSchema,
-      createEdgeResponseSchema,
       createNodeRequestSchema,
-      createNodeResponseSchema,
       graphEdgeResponseSchema,
       graphIdSchema,
       graphNodeResponseSchema,
       listBoardsResponseSchema,
-      restoreBoardEdgeRequestSchema,
-      restoreBoardNodeRequestSchema,
-      restoreBoardNodeResponseSchema,
-      updateBoardNodeRequestSchema,
       updateEdgeRequestSchema,
       updateNodeRequestSchema,
       workspaceQuerySchema,
@@ -60,36 +52,15 @@ export async function buildOpenApiDocument() {
   const storyResponse = registry.register("StoryResponse", storyResponseSchema);
   const listStoriesResponse = registry.register("ListStoriesResponse", listStoriesResponseSchema);
   const apiErrorResponse = registry.register("ApiErrorResponse", apiErrorResponseSchema);
-
   const createBoardRequest = registry.register("CreateBoardRequest", createBoardRequestSchema);
   const boardResponse = registry.register("BoardResponse", boardResponseSchema);
   const listBoardsResponse = registry.register("ListBoardsResponse", listBoardsResponseSchema);
   const createNodeRequest = registry.register("CreateNodeRequest", createNodeRequestSchema);
   const updateNodeRequest = registry.register("UpdateNodeRequest", updateNodeRequestSchema);
-  const updateBoardNodeRequest = registry.register(
-    "UpdateBoardNodeRequest",
-    updateBoardNodeRequestSchema,
-  );
-  const restoreBoardNodeRequest = registry.register(
-    "RestoreBoardNodeRequest",
-    restoreBoardNodeRequestSchema,
-  );
-  const restoreBoardNodeResponse = registry.register(
-    "RestoreBoardNodeResponse",
-    restoreBoardNodeResponseSchema,
-  );
   const graphNodeResponse = registry.register("GraphNodeResponse", graphNodeResponseSchema);
-  const boardNodeResponse = registry.register("BoardNodeResponse", boardNodeResponseSchema);
-  const createNodeResponse = registry.register("CreateNodeResponse", createNodeResponseSchema);
   const createEdgeRequest = registry.register("CreateEdgeRequest", createEdgeRequestSchema);
-  const restoreBoardEdgeRequest = registry.register(
-    "RestoreBoardEdgeRequest",
-    restoreBoardEdgeRequestSchema,
-  );
   const updateEdgeRequest = registry.register("UpdateEdgeRequest", updateEdgeRequestSchema);
   const graphEdgeResponse = registry.register("GraphEdgeResponse", graphEdgeResponseSchema);
-  registry.register("BoardEdgeResponse", boardEdgeResponseSchema);
-  const createEdgeResponse = registry.register("CreateEdgeResponse", createEdgeResponseSchema);
   const boardSnapshotResponse = registry.register(
     "BoardSnapshotResponse",
     boardSnapshotResponseSchema,
@@ -107,8 +78,6 @@ export async function buildOpenApiDocument() {
   const storyIdParams = z.object({ storyId: z.string().min(1) });
   const graphStoryIdParams = z.object({ storyId: graphIdSchema });
   const boardIdParams = z.object({ boardId: graphIdSchema });
-  const nodeIdParams = z.object({ nodeId: graphIdSchema });
-  const edgeIdParams = z.object({ edgeId: graphIdSchema });
   const boardNodeParams = z.object({ boardId: graphIdSchema, nodeId: graphIdSchema });
   const boardEdgeParams = z.object({ boardId: graphIdSchema, edgeId: graphIdSchema });
 
@@ -162,56 +131,26 @@ export async function buildOpenApiDocument() {
     },
   });
 
-  registry.registerPath({
-    method: "get",
-    path: "/api/v1/stories/{storyId}",
-    tags: ["Stories"],
-    summary: "Get a Story",
-    security: secured,
-    request: { params: storyIdParams, query: storyWorkspaceQuerySchema },
-    responses: {
-      200: { description: "Story", content: json(storyResponse) },
-      400: errorResponse,
-      401: errorResponse,
-      403: errorResponse,
-      404: errorResponse,
-    },
-  });
-
-  registry.registerPath({
-    method: "patch",
-    path: "/api/v1/stories/{storyId}",
-    tags: ["Stories"],
-    summary: "Update a Story",
-    security: secured,
-    request: {
-      params: storyIdParams,
-      body: { content: json(updateStoryRequestSchema) },
-    },
-    responses: {
-      200: { description: "Updated Story", content: json(storyResponse) },
-      400: errorResponse,
-      401: errorResponse,
-      403: errorResponse,
-      404: errorResponse,
-    },
-  });
-
-  registry.registerPath({
-    method: "delete",
-    path: "/api/v1/stories/{storyId}",
-    tags: ["Stories"],
-    summary: "Delete a Story",
-    security: secured,
-    request: { params: storyIdParams, query: storyWorkspaceQuerySchema },
-    responses: {
-      204: { description: "Story deleted" },
-      400: errorResponse,
-      401: errorResponse,
-      403: errorResponse,
-      404: errorResponse,
-    },
-  });
+  for (const method of ["get", "patch", "delete"] as const) {
+    registry.registerPath({
+      method,
+      path: "/api/v1/stories/{storyId}",
+      tags: ["Stories"],
+      summary: `${method} Story`,
+      security: secured,
+      request:
+        method === "get" || method === "delete"
+          ? { params: storyIdParams, query: storyWorkspaceQuerySchema }
+          : {
+              params: storyIdParams,
+              body: { content: json(updateStoryRequestSchema) },
+            },
+      responses:
+        method === "delete"
+          ? { 204: { description: "Story deleted" }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse }
+          : { 200: { description: "Story", content: json(storyResponse) }, 400: errorResponse, 401: errorResponse, 403: errorResponse, 404: errorResponse },
+    });
+  }
 
   registry.registerPath({
     method: "get",
@@ -235,10 +174,7 @@ export async function buildOpenApiDocument() {
     tags: ["Graph"],
     summary: "Create a Board for a Story",
     security: secured,
-    request: {
-      params: graphStoryIdParams,
-      body: { content: json(createBoardRequest) },
-    },
+    request: { params: graphStoryIdParams, body: { content: json(createBoardRequest) } },
     responses: {
       201: { description: "Created Board", content: json(boardResponse) },
       400: errorResponse,
@@ -268,14 +204,11 @@ export async function buildOpenApiDocument() {
     method: "post",
     path: "/api/v1/boards/{boardId}/nodes",
     tags: ["Graph"],
-    summary: "Create a Node and place it on a Board",
+    summary: "Create a Board Node",
     security: secured,
-    request: {
-      params: boardIdParams,
-      body: { content: json(createNodeRequest) },
-    },
+    request: { params: boardIdParams, body: { content: json(createNodeRequest) } },
     responses: {
-      201: { description: "Created Node and Board placement", content: json(createNodeResponse) },
+      201: { description: "Created Node", content: json(graphNodeResponse) },
       400: errorResponse,
       401: errorResponse,
       403: errorResponse,
@@ -287,69 +220,9 @@ export async function buildOpenApiDocument() {
     method: "patch",
     path: "/api/v1/boards/{boardId}/nodes/{nodeId}",
     tags: ["Graph"],
-    summary: "Update Node presentation on a Board",
+    summary: "Update a Board Node",
     security: secured,
-    request: {
-      params: boardNodeParams,
-      body: { content: json(updateBoardNodeRequest) },
-    },
-    responses: {
-      200: { description: "Updated Board Node presentation", content: json(boardNodeResponse) },
-      400: errorResponse,
-      401: errorResponse,
-      403: errorResponse,
-      404: errorResponse,
-    },
-  });
-
-  registry.registerPath({
-    method: "put",
-    path: "/api/v1/boards/{boardId}/nodes/{nodeId}",
-    tags: ["Graph"],
-    summary: "Restore an existing Node and its incident relationships to a Board",
-    security: secured,
-    request: {
-      params: boardNodeParams,
-      body: { content: json(restoreBoardNodeRequest) },
-    },
-    responses: {
-      200: {
-        description: "Restored Node and Board presentation",
-        content: json(restoreBoardNodeResponse),
-      },
-      400: errorResponse,
-      401: errorResponse,
-      403: errorResponse,
-      404: errorResponse,
-    },
-  });
-
-  registry.registerPath({
-    method: "delete",
-    path: "/api/v1/boards/{boardId}/nodes/{nodeId}",
-    tags: ["Graph"],
-    summary: "Remove a Node from a Board",
-    security: secured,
-    request: { params: boardNodeParams, query: workspaceQuerySchema },
-    responses: {
-      204: { description: "Node removed from Board" },
-      400: errorResponse,
-      401: errorResponse,
-      403: errorResponse,
-      404: errorResponse,
-    },
-  });
-
-  registry.registerPath({
-    method: "patch",
-    path: "/api/v1/nodes/{nodeId}",
-    tags: ["Graph"],
-    summary: "Update a canonical Node",
-    security: secured,
-    request: {
-      params: nodeIdParams,
-      body: { content: json(updateNodeRequest) },
-    },
+    request: { params: boardNodeParams, body: { content: json(updateNodeRequest) } },
     responses: {
       200: { description: "Updated Node", content: json(graphNodeResponse) },
       400: errorResponse,
@@ -361,55 +234,30 @@ export async function buildOpenApiDocument() {
   });
 
   registry.registerPath({
+    method: "delete",
+    path: "/api/v1/boards/{boardId}/nodes/{nodeId}",
+    tags: ["Graph"],
+    summary: "Delete a Board Node",
+    security: secured,
+    request: { params: boardNodeParams, query: workspaceQuerySchema },
+    responses: {
+      204: { description: "Node deleted" },
+      400: errorResponse,
+      401: errorResponse,
+      403: errorResponse,
+      404: errorResponse,
+    },
+  });
+
+  registry.registerPath({
     method: "post",
     path: "/api/v1/boards/{boardId}/edges",
     tags: ["Graph"],
-    summary: "Create a directed Edge and represent it on a Board",
+    summary: "Create a Board Edge",
     security: secured,
-    request: {
-      params: boardIdParams,
-      body: { content: json(createEdgeRequest) },
-    },
+    request: { params: boardIdParams, body: { content: json(createEdgeRequest) } },
     responses: {
-      201: { description: "Created Edge and Board membership", content: json(createEdgeResponse) },
-      400: errorResponse,
-      401: errorResponse,
-      403: errorResponse,
-      404: errorResponse,
-    },
-  });
-
-  registry.registerPath({
-    method: "put",
-    path: "/api/v1/boards/{boardId}/edges/{edgeId}",
-    tags: ["Graph"],
-    summary: "Restore an existing Edge to a Board",
-    security: secured,
-    request: {
-      params: boardEdgeParams,
-      body: { content: json(restoreBoardEdgeRequest) },
-    },
-    responses: {
-      200: {
-        description: "Restored Edge and Board membership",
-        content: json(createEdgeResponse),
-      },
-      400: errorResponse,
-      401: errorResponse,
-      403: errorResponse,
-      404: errorResponse,
-    },
-  });
-
-  registry.registerPath({
-    method: "delete",
-    path: "/api/v1/boards/{boardId}/edges/{edgeId}",
-    tags: ["Graph"],
-    summary: "Remove an Edge from a Board",
-    security: secured,
-    request: { params: boardEdgeParams, query: workspaceQuerySchema },
-    responses: {
-      204: { description: "Edge removed from Board" },
+      201: { description: "Created Edge", content: json(graphEdgeResponse) },
       400: errorResponse,
       401: errorResponse,
       403: errorResponse,
@@ -419,14 +267,11 @@ export async function buildOpenApiDocument() {
 
   registry.registerPath({
     method: "patch",
-    path: "/api/v1/edges/{edgeId}",
+    path: "/api/v1/boards/{boardId}/edges/{edgeId}",
     tags: ["Graph"],
-    summary: "Update a canonical Edge",
+    summary: "Update a Board Edge",
     security: secured,
-    request: {
-      params: edgeIdParams,
-      body: { content: json(updateEdgeRequest) },
-    },
+    request: { params: boardEdgeParams, body: { content: json(updateEdgeRequest) } },
     responses: {
       200: { description: "Updated Edge", content: json(graphEdgeResponse) },
       400: errorResponse,
@@ -434,6 +279,22 @@ export async function buildOpenApiDocument() {
       403: errorResponse,
       404: errorResponse,
       409: errorResponse,
+    },
+  });
+
+  registry.registerPath({
+    method: "delete",
+    path: "/api/v1/boards/{boardId}/edges/{edgeId}",
+    tags: ["Graph"],
+    summary: "Delete a Board Edge",
+    security: secured,
+    request: { params: boardEdgeParams, query: workspaceQuerySchema },
+    responses: {
+      204: { description: "Edge deleted" },
+      400: errorResponse,
+      401: errorResponse,
+      403: errorResponse,
+      404: errorResponse,
     },
   });
 
