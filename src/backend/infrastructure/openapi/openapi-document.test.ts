@@ -31,24 +31,39 @@ describe("buildOpenApiDocument", () => {
     expect(paths["/api/v1/stories/{storyId}"]?.delete).toBeDefined();
   });
 
-  it("documents Graph Core routes and optimistic conflict responses", async () => {
+  it("documents only the Board-owned Graph V1 surface", async () => {
     const document = await buildOpenApiDocument();
     const paths = document.paths ?? {};
 
     expect(paths["/api/v1/stories/{storyId}/boards"]?.get).toBeDefined();
     expect(paths["/api/v1/stories/{storyId}/boards"]?.post).toBeDefined();
+
+    expect(paths["/api/v1/boards/{boardId}"]?.patch).toBeDefined();
     expect(paths["/api/v1/boards/{boardId}/snapshot"]?.get).toBeDefined();
+
     expect(paths["/api/v1/boards/{boardId}/nodes"]?.post).toBeDefined();
     expect(paths["/api/v1/boards/{boardId}/nodes/{nodeId}"]?.patch).toBeDefined();
-    expect(paths["/api/v1/boards/{boardId}/nodes/{nodeId}"]?.put).toBeDefined();
     expect(paths["/api/v1/boards/{boardId}/nodes/{nodeId}"]?.delete).toBeDefined();
-    expect(paths["/api/v1/nodes/{nodeId}"]?.patch).toBeDefined();
-    expect(paths["/api/v1/boards/{boardId}/edges"]?.post).toBeDefined();
-    expect(paths["/api/v1/boards/{boardId}/edges/{edgeId}"]?.put).toBeDefined();
-    expect(paths["/api/v1/boards/{boardId}/edges/{edgeId}"]?.delete).toBeDefined();
-    expect(paths["/api/v1/edges/{edgeId}"]?.patch).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/nodes/{nodeId}/restore"]?.post).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/nodes/{nodeId}"]?.put).toBeUndefined();
 
-    expect(paths["/api/v1/nodes/{nodeId}"]?.patch?.responses?.["409"]).toBeDefined();
-    expect(paths["/api/v1/edges/{edgeId}"]?.patch?.responses?.["409"]).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/edges"]?.post).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/edges/{edgeId}"]?.patch).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/edges/{edgeId}"]?.delete).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/edges/{edgeId}/restore"]?.post).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/edges/{edgeId}"]?.put).toBeUndefined();
+
+    expect(paths["/api/v1/boards/{boardId}/nodes/{nodeId}"]?.patch?.responses?.["409"]).toBeDefined();
+    expect(paths["/api/v1/boards/{boardId}/edges/{edgeId}"]?.patch?.responses?.["409"]).toBeDefined();
+
+    expect(paths).not.toHaveProperty("/api/v1/stories/{storyId}/nodes");
+    expect(paths).not.toHaveProperty("/api/v1/stories/{storyId}/scopes");
+    expect(paths).not.toHaveProperty("/api/v1/scopes/{scopeId}/nodes/{nodeId}/state");
+    expect(paths).not.toHaveProperty("/api/v1/scopes/{scopeId}/edges/{edgeId}/state");
+    expect(paths).not.toHaveProperty("/api/v1/nodes/{nodeId}");
+    expect(paths).not.toHaveProperty("/api/v1/edges/{edgeId}");
+    expect(paths).not.toHaveProperty(
+      "/api/v1/boards/{boardId}/nodes/{nodeId}/presentation",
+    );
   });
 });

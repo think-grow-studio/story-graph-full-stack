@@ -15,10 +15,8 @@ describe("AddNodeDialog", () => {
     render(
       <AddNodeDialog
         busy={false}
-        existingNodes={[]}
         onClose={onClose}
         onCreate={onCreate}
-        onPlace={vi.fn()}
         open
       />,
     );
@@ -29,26 +27,18 @@ describe("AddNodeDialog", () => {
     expect(onCreate).toHaveBeenCalledWith("Alice");
   });
 
-  it("offers only supplied existing Nodes for placement", async () => {
-    const onPlace = vi.fn();
-    const user = userEvent.setup();
-
+  it("has no API for placing Nodes from other Boards", () => {
     render(
       <AddNodeDialog
         busy={false}
-        existingNodes={[{ id: "node-3", name: "Carol" }]}
         onClose={vi.fn()}
         onCreate={vi.fn()}
-        onPlace={onPlace}
         open
       />,
     );
 
-    expect(screen.getByRole("option", { name: "Carol" })).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("기존 노드"), "node-3");
-    await user.click(screen.getByRole("button", { name: "보드에 추가" }));
-
-    expect(onPlace).toHaveBeenCalledWith("node-3");
+    expect(screen.queryByLabelText("기존 노드")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "보드에 추가" })).not.toBeInTheDocument();
   });
 
   it("closes without submitting when cancelled", async () => {
@@ -59,10 +49,8 @@ describe("AddNodeDialog", () => {
     render(
       <AddNodeDialog
         busy={false}
-        existingNodes={[]}
         onClose={onClose}
         onCreate={onCreate}
-        onPlace={vi.fn()}
         open
       />,
     );

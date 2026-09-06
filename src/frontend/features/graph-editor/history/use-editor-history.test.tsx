@@ -23,39 +23,30 @@ function createStore() {
       storyId,
       name: "Characters",
       description: "",
-      revision: 1,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
     nodes: [
       {
         id: nodeId,
-        storyId,
+        boardId,
         name: "Alice",
         description: "Original",
         iconKey: null,
         properties: { role: "lead" },
-        version: 3,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    edges: [],
-    boardNodes: [
-      {
-        boardId,
-        nodeId,
         x: 100,
         y: 100,
         width: null,
         height: null,
         zIndex: 0,
         style: {},
+        version: 3,
         createdAt: now,
         updatedAt: now,
       },
     ],
-    boardEdges: [],
+    edges: [],
   });
   return store;
 }
@@ -66,7 +57,7 @@ function updateNode(name: string): EditorCommand {
     boardId,
     workspaceId,
     nodeId,
-    version: 3,
+    expectedVersion: 3,
     name,
     description: "Original",
     properties: { role: "lead" },
@@ -144,7 +135,7 @@ describe("useEditorHistory", () => {
     expect(result.current.snapshot).toMatchObject({ undoCount: 0, redoCount: 0 });
   });
 
-  it("passes unsupported normal commands through while clearing the Redo branch", () => {
+  it("passes non-undoable create commands through while clearing the Redo branch", () => {
     const store = createStore();
     const dispatchToSaveQueue = applyingDispatch(store);
     const { result } = renderHook(() =>
@@ -167,7 +158,6 @@ describe("useEditorHistory", () => {
         type: "create-node",
         boardId,
         workspaceId,
-        storyId,
         nodeId: "44444444-4444-4444-8444-444444444444",
         name: "Bob",
         position: { x: 0, y: 0 },

@@ -1,54 +1,28 @@
 export type JsonObject = Record<string, unknown>;
 
-export interface Scope {
-  id: string;
-  storyId: string;
-  name: string;
-  description: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface NodeState {
-  scopeId: string;
-  nodeId: string;
-  name: string | null;
-  description: string | null;
-  properties: JsonObject | null;
-  version: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface EdgeState {
-  scopeId: string;
-  edgeId: string;
-  name: string | null;
-  description: string | null;
-  properties: JsonObject | null;
-  version: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface Board {
   id: string;
   storyId: string;
-  scopeId: string | null;
   name: string;
   description: string;
-  revision: number;
+  tags: string[];
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface GraphNode {
   id: string;
-  storyId: string;
+  boardId: string;
   name: string;
   description: string;
   iconKey: string | null;
   properties: JsonObject;
+  x: number;
+  y: number;
+  width: number | null;
+  height: number | null;
+  zIndex: number;
+  style: JsonObject;
   version: number;
   createdAt: Date;
   updatedAt: Date;
@@ -56,47 +30,41 @@ export interface GraphNode {
 
 export interface GraphEdge {
   id: string;
-  storyId: string;
+  boardId: string;
   sourceNodeId: string;
   targetNodeId: string;
   name: string;
   description: string;
   iconKey: string | null;
   properties: JsonObject;
-  version: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface BoardNode {
-  boardId: string;
-  nodeId: string;
-  x: number;
-  y: number;
-  width: number | null;
-  height: number | null;
-  zIndex: number;
-  style: JsonObject;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface BoardEdge {
-  boardId: string;
-  edgeId: string;
   style: JsonObject;
   labelPresentation: JsonObject;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface BoardSnapshot {
   board: Board;
-  scope: Scope | null;
   nodes: GraphNode[];
-  nodeStates: NodeState[];
   edges: GraphEdge[];
-  edgeStates: EdgeState[];
-  boardNodes: BoardNode[];
-  boardEdges: BoardEdge[];
+}
+
+export type CreateGraphNode = Omit<
+  GraphNode,
+  "version" | "createdAt" | "updatedAt"
+>;
+
+export type RestorableGraphNode = Omit<GraphNode, "createdAt" | "updatedAt">;
+
+export type CreateGraphEdge = Omit<
+  GraphEdge,
+  "version" | "createdAt" | "updatedAt"
+>;
+
+export type RestorableGraphEdge = Omit<GraphEdge, "createdAt" | "updatedAt">;
+
+export interface DeletedNodeSnapshot {
+  node: GraphNode;
+  edges: GraphEdge[];
 }

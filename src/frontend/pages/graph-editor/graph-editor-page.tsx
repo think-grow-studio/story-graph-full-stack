@@ -11,16 +11,16 @@ import {
 } from "react";
 
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
-import {
-  useBoardSnapshotQuery,
-  useStoryNodesQuery,
-} from "@/frontend/api/graph/graph.queries";
+import { useBoardSnapshotQuery } from "@/frontend/api/graph/graph.queries";
 import { AddNodeDialog } from "@/frontend/features/graph-editor/actions/add-node-dialog";
 import { RelationshipDialog } from "@/frontend/features/graph-editor/actions/relationship-dialog";
 import type { EditorCommand } from "@/frontend/features/graph-editor/commands/editor-command";
 import type { UndoableEditorCommand } from "@/frontend/features/graph-editor/history/editor-history-entry";
 import { useEditorHistory } from "@/frontend/features/graph-editor/history/use-editor-history";
-import { GraphInspector, type GraphInspectorSelection } from "@/frontend/features/graph-editor/inspector/graph-inspector";
+import {
+  GraphInspector,
+  type GraphInspectorSelection,
+} from "@/frontend/features/graph-editor/inspector/graph-inspector";
 import {
   combineEditorSaveState,
   evaluateInspectorDraft,
@@ -31,14 +31,6 @@ import {
   useInspectorAutosave,
   useInspectorDraftState,
 } from "@/frontend/features/graph-editor/inspector/use-inspector-autosave";
-import {
-  findEdgeState,
-  resolveEffectiveEdge,
-} from "@/frontend/features/graph-editor/model/effective-edge";
-import {
-  findNodeState,
-  resolveEffectiveNode,
-} from "@/frontend/features/graph-editor/model/effective-node";
 import { useEditorPersistence } from "@/frontend/features/graph-editor/persistence/use-editor-persistence";
 import { useEditorSaveQueue } from "@/frontend/features/graph-editor/save-queue/use-editor-save-queue";
 import {
@@ -92,7 +84,6 @@ function GraphEditorContent({
   const bootstrap = useBootstrapQuery();
   const workspaceId = bootstrap.data?.workspace.id;
   const snapshot = useBoardSnapshotQuery(workspaceId, boardId);
-  const storyNodes = useStoryNodesQuery(workspaceId, storyId);
   const { persistence } = useEditorPersistence(workspaceId, boardId);
   const store = useGraphEditorStoreApi();
   const state = useGraphEditorStore((current) => current);
@@ -117,28 +108,12 @@ function GraphEditorContent({
     const node = state.nodes.find(
       (candidate) => candidate.id === selectedEntity.id,
     );
-    if (node) {
-      const nodeState = state.scope
-        ? findNodeState(state.scope.id, node.id, state.nodeStates)
-        : null;
-      inspectorSelection = {
-        kind: "node",
-        entity: resolveEffectiveNode(node, nodeState),
-      };
-    }
+    if (node) inspectorSelection = { kind: "node", entity: node };
   } else if (selectedEntity?.kind === "edge") {
     const edge = state.edges.find(
       (candidate) => candidate.id === selectedEntity.id,
     );
-    if (edge) {
-      const edgeState = state.scope
-        ? findEdgeState(state.scope.id, edge.id, state.edgeStates)
-        : null;
-      inspectorSelection = {
-        kind: "edge",
-        entity: resolveEffectiveEdge(edge, edgeState),
-      };
-    }
+    if (edge) inspectorSelection = { kind: "edge", entity: edge };
   }
 
   const selectedDraftKey = inspectorSelection
@@ -174,26 +149,12 @@ function GraphEditorContent({
       if (key.startsWith("node:")) {
         const nodeId = key.slice("node:".length);
         const node = state.nodes.find((candidate) => candidate.id === nodeId);
-        if (!node) return true;
-        const nodeState = state.scope
-          ? findNodeState(state.scope.id, node.id, state.nodeStates)
-          : null;
-        return evaluateInspectorDraft(
-          draft,
-          resolveEffectiveNode(node, nodeState),
-        ).dirty;
+        return node ? evaluateInspectorDraft(draft, node).dirty : true;
       }
 
       const edgeId = key.slice("edge:".length);
       const edge = state.edges.find((candidate) => candidate.id === edgeId);
-      if (!edge) return true;
-      const edgeState = state.scope
-        ? findEdgeState(state.scope.id, edge.id, state.edgeStates)
-        : null;
-      return evaluateInspectorDraft(
-        draft,
-        resolveEffectiveEdge(edge, edgeState),
-      ).dirty;
+      return edge ? evaluateInspectorDraft(draft, edge).dirty : true;
     },
   );
   const editorSaveState = combineEditorSaveState(
@@ -217,25 +178,6 @@ function GraphEditorContent({
         return;
       }
 
-      if (command.type === "update-node-state") {
-        const currentState = store.getState();
-        const node = currentState.nodes.find(
-          (candidate) => candidate.id === command.nodeId,
-        );
-        if (node) {
-          const nodeState = findNodeState(
-            command.scopeId,
-            command.nodeId,
-            currentState.nodeStates,
-          );
-          draftStore.getState().replaceDraft(
-            toInspectorEntityKey("node", command.nodeId),
-            resolveEffectiveNode(node, nodeState),
-          );
-        }
-        return;
-      }
-
       if (command.type === "update-edge") {
         const edge = store
           .getState()
@@ -244,25 +186,6 @@ function GraphEditorContent({
           draftStore
             .getState()
             .replaceDraft(toInspectorEntityKey("edge", command.edgeId), edge);
-        }
-        return;
-      }
-
-      if (command.type === "update-edge-state") {
-        const currentState = store.getState();
-        const edge = currentState.edges.find(
-          (candidate) => candidate.id === command.edgeId,
-        );
-        if (edge) {
-          const edgeState = findEdgeState(
-            command.scopeId,
-            command.edgeId,
-            currentState.edgeStates,
-          );
-          draftStore.getState().replaceDraft(
-            toInspectorEntityKey("edge", command.edgeId),
-            resolveEffectiveEdge(edge, edgeState),
-          );
         }
       }
     },
@@ -296,14 +219,13 @@ function GraphEditorContent({
   }
 
   function handleCreateNode(name: string) {
-    if (!workspaceId || !snapshot.data) return;
+    if (!workspaceId) return;
 
     const position = canvasRef.current?.getCenterPosition() ?? { x: 0, y: 0 };
     const operationId = history.dispatch({
       type: "create-node",
       boardId,
       workspaceId,
-      storyId: snapshot.data.story.id,
       nodeId: crypto.randomUUID(),
       name,
       position,
@@ -313,41 +235,17 @@ function GraphEditorContent({
     if (operationId) setNodeDialogOpen(false);
   }
 
-  function handleAddExistingNode(nodeId: string) {
-    if (!workspaceId || !storyNodes.data) return;
-
-    const node = storyNodes.data.find((candidate) => candidate.id === nodeId);
-    if (!node) return;
-
-    const isAlreadyRepresented = store
-      .getState()
-      .boardNodes.some((candidate) => candidate.nodeId === node.id);
-    if (isAlreadyRepresented) return;
-
-    const position = canvasRef.current?.getCenterPosition() ?? { x: 0, y: 0 };
-    const operationId = history.dispatch({
-      type: "place-board-node",
-      boardId,
-      workspaceId,
-      node,
-      position,
-      createdAt: new Date().toISOString(),
-    });
-    if (operationId) setNodeDialogOpen(false);
-  }
-
   function handleConnectNodes(sourceNodeId: string, targetNodeId: string) {
     setPendingConnection({ sourceNodeId, targetNodeId });
   }
 
   function handleCreateRelationship(name: string) {
-    if (!workspaceId || !snapshot.data || !pendingConnection) return;
+    if (!workspaceId || !pendingConnection) return;
 
     const operationId = history.dispatch({
       type: "create-edge",
       boardId,
       workspaceId,
-      storyId: snapshot.data.story.id,
       edgeId: crypto.randomUUID(),
       sourceNodeId: pendingConnection.sourceNodeId,
       targetNodeId: pendingConnection.targetNodeId,
@@ -359,15 +257,12 @@ function GraphEditorContent({
   }
 
   function handleNodeDragStart(nodeId: string) {
-    const boardNode = store
+    const node = store
       .getState()
-      .boardNodes.find((candidate) => candidate.nodeId === nodeId);
-    if (!boardNode) return;
+      .nodes.find((candidate) => candidate.id === nodeId);
+    if (!node) return;
 
-    dragStartPositionsRef.current.set(nodeId, {
-      x: boardNode.x,
-      y: boardNode.y,
-    });
+    dragStartPositionsRef.current.set(nodeId, { x: node.x, y: node.y });
     history.boundary();
   }
 
@@ -383,10 +278,10 @@ function GraphEditorContent({
     dragStartPositionsRef.current.delete(nodeId);
     if (!workspaceId) return;
 
-    const boardNode = store
+    const node = store
       .getState()
-      .boardNodes.find((candidate) => candidate.nodeId === nodeId);
-    if (!boardNode) return;
+      .nodes.find((candidate) => candidate.id === nodeId);
+    if (!node) return;
 
     history.dispatch(
       {
@@ -394,23 +289,22 @@ function GraphEditorContent({
         boardId,
         nodeId,
         workspaceId,
-        position: { x: boardNode.x, y: boardNode.y },
+        expectedVersion: node.version,
+        position: { x: node.x, y: node.y },
       },
       { moveStartPosition },
     );
   }
 
-  function handleRemoveFromBoard() {
+  function handleDeleteSelected() {
     if (!workspaceId || !selectedEntity) return;
 
     if (selectedEntity.kind === "node") {
-      const isRepresented = store
-        .getState()
-        .boardNodes.some((candidate) => candidate.nodeId === selectedEntity.id);
-      if (!isRepresented) return;
-
+      if (!store.getState().nodes.some((node) => node.id === selectedEntity.id)) {
+        return;
+      }
       const operationId = history.dispatch({
-        type: "remove-board-node",
+        type: "delete-node",
         boardId,
         nodeId: selectedEntity.id,
         workspaceId,
@@ -419,13 +313,11 @@ function GraphEditorContent({
       return;
     }
 
-    const isRepresented = store
-      .getState()
-      .boardEdges.some((candidate) => candidate.edgeId === selectedEntity.id);
-    if (!isRepresented) return;
-
+    if (!store.getState().edges.some((edge) => edge.id === selectedEntity.id)) {
+      return;
+    }
     const operationId = history.dispatch({
-      type: "remove-board-edge",
+      type: "delete-edge",
       boardId,
       edgeId: selectedEntity.id,
       workspaceId,
@@ -441,45 +333,17 @@ function GraphEditorContent({
     return <main className="p-8">Unable to load Board.</main>;
   }
 
-  const placementByNodeId = new Map(
-    state.boardNodes.map((boardNode) => [boardNode.nodeId, boardNode]),
-  );
-  const representedNodeIds = new Set(state.boardNodes.map((boardNode) => boardNode.nodeId));
-  const availableExistingNodes = (storyNodes.data ?? []).filter(
-    (node) => !representedNodeIds.has(node.id),
-  );
-  const canvasNodes = state.nodes.flatMap((node) => {
-    const placement = placementByNodeId.get(node.id);
-    if (!placement) return [];
-    const nodeState = state.scope
-      ? findNodeState(state.scope.id, node.id, state.nodeStates)
-      : null;
-    const effectiveNode = resolveEffectiveNode(node, nodeState);
-    return [
-      {
-        id: node.id,
-        name: effectiveNode.name,
-        position: { x: placement.x, y: placement.y },
-      },
-    ];
-  });
-  const representedEdgeIds = new Set(
-    state.boardEdges.map((boardEdge) => boardEdge.edgeId),
-  );
-  const canvasEdges = state.edges
-    .filter((edge) => representedEdgeIds.has(edge.id))
-    .map((edge) => {
-      const edgeState = state.scope
-        ? findEdgeState(state.scope.id, edge.id, state.edgeStates)
-        : null;
-      const effectiveEdge = resolveEffectiveEdge(edge, edgeState);
-      return {
-        id: edge.id,
-        name: effectiveEdge.name,
-        sourceNodeId: edge.sourceNodeId,
-        targetNodeId: edge.targetNodeId,
-      };
-    });
+  const canvasNodes = state.nodes.map((node) => ({
+    id: node.id,
+    name: node.name,
+    position: { x: node.x, y: node.y },
+  }));
+  const canvasEdges = state.edges.map((edge) => ({
+    id: edge.id,
+    name: edge.name,
+    sourceNodeId: edge.sourceNodeId,
+    targetNodeId: edge.targetNodeId,
+  }));
 
   const pendingSourceLabel = pendingConnection
     ? canvasNodes.find((node) => node.id === pendingConnection.sourceNodeId)?.name ?? "출발 노드"
@@ -501,9 +365,7 @@ function GraphEditorContent({
           (failure) =>
             failure.laneKey === selectedLaneKey &&
             (failure.command.type === "update-node" ||
-              failure.command.type === "update-node-state" ||
-              failure.command.type === "update-edge" ||
-              failure.command.type === "update-edge-state"),
+              failure.command.type === "update-edge"),
         )
     : undefined;
   const inspectorError = selectedInspectorFailure
@@ -531,11 +393,6 @@ function GraphEditorContent({
               {snapshot.data.board.name}
             </h1>
             <p className="text-sm text-[var(--sg-muted)]">{snapshot.data.story.name}</p>
-            {state.scope ? (
-              <span className="rounded-full bg-[color-mix(in_srgb,var(--sg-brand)_8%,white)] px-2 py-1 text-xs font-semibold text-[var(--sg-brand-strong)]">
-                컨텍스트 · {state.scope.name}
-              </span>
-            ) : null}
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -578,11 +435,6 @@ function GraphEditorContent({
 
       <div className="grid min-h-0 gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="grid min-h-0 gap-3">
-          {storyNodes.isError ? (
-            <p className="text-sm text-[var(--sg-danger)]">
-              기존 노드 목록을 불러오지 못했습니다. 새 노드는 계속 만들 수 있습니다.
-            </p>
-          ) : null}
           {actionFailures.length ? (
             <div className="grid gap-1" role="status">
               {actionFailures.map((failure) => (
@@ -614,10 +466,10 @@ function GraphEditorContent({
             isLaneBusy={selectedLaneBusy}
             isRemoving={false}
             key={selectedDraftKey}
+            onDelete={handleDeleteSelected}
             onDraftChange={(patch) =>
               draftStore.getState().updateDraft(selectedDraftKey, patch)
             }
-            onRemoveFromBoard={handleRemoveFromBoard}
             selection={inspectorSelection}
             validationError={inspectorValidationError}
           />
@@ -630,10 +482,8 @@ function GraphEditorContent({
 
       <AddNodeDialog
         busy={false}
-        existingNodes={availableExistingNodes}
         onClose={() => setNodeDialogOpen(false)}
         onCreate={handleCreateNode}
-        onPlace={handleAddExistingNode}
         open={isNodeDialogOpen}
       />
 
@@ -653,35 +503,25 @@ function getEditorFailureMessage(command: EditorCommand, error: unknown): string
   switch (command.type) {
     case "create-node":
       return "Unable to create Node.";
-    case "place-board-node":
-      return "Unable to add Node to Board.";
     case "move-node":
       return "Unable to save Node position.";
-    case "create-edge":
-      return "Unable to create Relationship.";
     case "update-node":
       return isAxiosError(error) && error.response?.status === 409
         ? "This Node changed elsewhere. Reload before saving again."
         : "Unable to save Node.";
-    case "update-node-state":
-      return isAxiosError(error) && error.response?.status === 409
-        ? "This scoped Node state changed elsewhere. Reload before saving again."
-        : "Unable to save scoped Node state.";
+    case "delete-node":
+      return "Unable to delete Node.";
+    case "restore-node":
+      return "Unable to restore Node.";
+    case "create-edge":
+      return "Unable to create Relationship.";
     case "update-edge":
       return isAxiosError(error) && error.response?.status === 409
         ? "This Relationship changed elsewhere. Reload before saving again."
         : "Unable to save Relationship.";
-    case "update-edge-state":
-      return isAxiosError(error) && error.response?.status === 409
-        ? "This scoped Relationship state changed elsewhere. Reload before saving again."
-        : "Unable to save scoped Relationship state.";
-    case "remove-board-node":
-      return "Unable to remove Node from Board.";
-    case "restore-board-node":
-      return "Unable to restore Node to Board.";
-    case "remove-board-edge":
-      return "Unable to remove Relationship from Board.";
-    case "restore-board-edge":
-      return "Unable to restore Relationship to Board.";
+    case "delete-edge":
+      return "Unable to delete Relationship.";
+    case "restore-edge":
+      return "Unable to restore Relationship.";
   }
 }

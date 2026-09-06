@@ -9,7 +9,7 @@ Story Graph is a calm authoring workspace for understanding a story world throug
 - Easy before clever: the next useful action is always visible.
 - Graph first: use connection/node motifs only where they explain the product.
 - Quiet workspace: content and canvas dominate over navigation chrome.
-- Progressive disclosure: advanced concepts such as Scope appear as contextual configuration, not primary navigation.
+- Board-first simplicity: alternate views are expressed as independent Boards and Board tags, not Scope/State configuration.
 - Consistent operations: create, cancel, retry, loading, empty, error, and disabled states use the same visual and behavioral language.
 - Korean-first: interface copy is Korean-first while implementation/domain identifiers remain English.
 - Accessible by default: WCAG 2.2 AA target, semantic controls, visible focus, keyboard access, reduced motion.

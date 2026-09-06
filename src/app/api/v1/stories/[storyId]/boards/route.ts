@@ -55,9 +55,9 @@ export async function POST(
         actorId: actor.id,
         workspaceId: body.workspaceId,
         storyId: validatedStoryId,
-        scopeId: body.scopeId,
         name: body.name,
         description: body.description,
+        tags: body.tags,
       },
       graphDependencies,
     );

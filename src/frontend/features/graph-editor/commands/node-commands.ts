@@ -1,21 +1,14 @@
-import type { GraphNodeResponse } from "@/contracts/graph/graph.contract";
+import type {
+  GraphEdgeResponse,
+  GraphNodeResponse,
+} from "@/contracts/graph/graph.contract";
 
 export type CreateNodeCommand = {
   type: "create-node";
   boardId: string;
   workspaceId: string;
-  storyId: string;
   nodeId: string;
   name: string;
-  position: { x: number; y: number };
-  createdAt: string;
-};
-
-export type PlaceBoardNodeCommand = {
-  type: "place-board-node";
-  boardId: string;
-  workspaceId: string;
-  node: GraphNodeResponse;
   position: { x: number; y: number };
   createdAt: string;
 };
@@ -25,6 +18,7 @@ export type MoveNodeCommand = {
   boardId: string;
   workspaceId: string;
   nodeId: string;
+  expectedVersion: number;
   position: { x: number; y: number };
 };
 
@@ -33,54 +27,24 @@ export type UpdateNodeCommand = {
   boardId: string;
   workspaceId: string;
   nodeId: string;
-  version: number;
+  expectedVersion: number;
   name: string;
   description: string;
   properties: Record<string, unknown>;
 };
 
-export type UpdateNodeStateCommand = {
-  type: "update-node-state";
-  boardId: string;
-  workspaceId: string;
-  scopeId: string;
-  nodeId: string;
-  version: number | null;
-  name: string | null;
-  description: string | null;
-  properties: Record<string, unknown> | null;
-};
-
-export type RemoveBoardNodeCommand = {
-  type: "remove-board-node";
+export type DeleteNodeCommand = {
+  type: "delete-node";
   boardId: string;
   workspaceId: string;
   nodeId: string;
 };
 
-export type RestoreBoardNodeCommand = {
-  type: "restore-board-node";
+export type RestoreNodeCommand = {
+  type: "restore-node";
   boardId: string;
   workspaceId: string;
   nodeId: string;
-  boardNode: {
-    boardId: string;
-    nodeId: string;
-    x: number;
-    y: number;
-    width: number | null;
-    height: number | null;
-    zIndex: number;
-    style: Record<string, unknown>;
-    createdAt: string;
-    updatedAt: string;
-  };
-  boardEdges: Array<{
-    boardId: string;
-    edgeId: string;
-    style: Record<string, unknown>;
-    labelPresentation: Record<string, unknown>;
-    createdAt: string;
-    updatedAt: string;
-  }>;
+  node: GraphNodeResponse;
+  edges: GraphEdgeResponse[];
 };

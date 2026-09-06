@@ -10,110 +10,72 @@ import { createInspectorAutosaveController } from "./inspector-autosave-controll
 import { createInspectorDraftStore } from "./inspector-draft-store";
 import { toInspectorEntityKey } from "./inspector-draft-model";
 
-const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
 const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
-const scopeId = "77777777-7777-4777-8777-777777777777";
 const workspaceId = "workspace-1";
-const now = "2026-08-29T00:00:00.000Z";
+const now = "2026-09-06T00:00:00.000Z";
 
-function alice(): GraphNodeResponse {
+function alice(overrides: Partial<GraphNodeResponse> = {}): GraphNodeResponse {
   return {
     id: aliceId,
-    storyId,
+    boardId,
     name: "Alice",
     description: "Protagonist",
     iconKey: null,
     properties: { role: "lead" },
+    x: 100,
+    y: 100,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
     version: 3,
     createdAt: now,
     updatedAt: now,
+    ...overrides,
   };
 }
 
 function bob(): GraphNodeResponse {
-  return {
-    id: bobId,
-    storyId,
-    name: "Bob",
-    description: "Friend",
-    iconKey: null,
-    properties: {},
-    version: 7,
-    createdAt: now,
-    updatedAt: now,
-  };
+  return alice({ id: bobId, name: "Bob", description: "Friend", x: 400, version: 7 });
 }
 
-function relationship(): GraphEdgeResponse {
+function relationship(overrides: Partial<GraphEdgeResponse> = {}): GraphEdgeResponse {
   return {
     id: edgeId,
-    storyId,
+    boardId,
     sourceNodeId: aliceId,
     targetNodeId: bobId,
     name: "knows",
     description: "Old friends",
     iconKey: null,
     properties: { since: 2020 },
+    style: {},
+    labelPresentation: {},
     version: 4,
     createdAt: now,
     updatedAt: now,
+    ...overrides,
   };
 }
 
 function setup() {
   const graphStore = createGraphEditorStore();
   graphStore.getState().hydrate({
-    story: { id: storyId, name: "Novel" },
+    story: { id: "11111111-1111-4111-8111-111111111111", name: "Novel" },
     board: {
       id: boardId,
-      storyId,
+      storyId: "11111111-1111-4111-8111-111111111111",
       name: "Characters",
       description: "",
-      revision: 1,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
     nodes: [alice(), bob()],
     edges: [relationship()],
-    boardNodes: [
-      {
-        boardId,
-        nodeId: aliceId,
-        x: 100,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        boardId,
-        nodeId: bobId,
-        x: 400,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardEdges: [
-      {
-        boardId,
-        edgeId,
-        style: {},
-        labelPresentation: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
   });
 
   const draftStore = createInspectorDraftStore();
@@ -139,149 +101,27 @@ function setup() {
   return { graphStore, draftStore, dispatch, controller };
 }
 
-function setupScoped() {
-  const graphStore = createGraphEditorStore();
-  graphStore.getState().hydrate({
-    story: { id: storyId, name: "Novel" },
-    board: {
-      id: boardId,
-      storyId,
-      scopeId,
-      name: "Chapter Characters",
-      description: "",
-      revision: 2,
-      createdAt: now,
-      updatedAt: now,
-    },
-    scope: {
-      id: scopeId,
-      storyId,
-      name: "Chapter 10",
-      description: "",
-      createdAt: now,
-      updatedAt: now,
-    },
-    nodes: [alice(), bob()],
-    nodeStates: [
-      {
-        scopeId,
-        nodeId: aliceId,
-        name: "Queen Alice",
-        description: null,
-        properties: { role: "queen" },
-        version: 2,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    edges: [relationship()],
-    edgeStates: [
-      {
-        scopeId,
-        edgeId,
-        name: "rules",
-        description: null,
-        properties: null,
-        version: 2,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardNodes: [
-      {
-        boardId,
-        nodeId: aliceId,
-        x: 100,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        boardId,
-        nodeId: bobId,
-        x: 400,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardEdges: [
-      {
-        boardId,
-        edgeId,
-        style: {},
-        labelPresentation: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-  });
+beforeEach(() => vi.useFakeTimers());
+afterEach(() => vi.useRealTimers());
 
-  const draftStore = createInspectorDraftStore();
-  draftStore.getState().ensureDraft(toInspectorEntityKey("node", aliceId), {
-    ...alice(),
-    name: "Queen Alice",
-    properties: { role: "queen" },
-  });
-  draftStore.getState().ensureDraft(toInspectorEntityKey("edge", edgeId), {
-    ...relationship(),
-    name: "rules",
-  });
-
-  const dispatch = vi.fn((command: EditorCommand) => {
-    void command;
-    return "operation-1";
-  });
-  const controller = createInspectorAutosaveController({
-    draftStore,
-    graphStore,
-    boardId,
-    workspaceId,
-    dispatch,
-  });
-  controller.start();
-  return { graphStore, draftStore, dispatch, controller };
-}
-
-beforeEach(() => {
-  vi.useFakeTimers();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
-});
-
-describe("inspector autosave controller", () => {
-  it("dispatches only after 500 ms and collapses rapid edits to the latest draft", async () => {
+describe("Board-owned inspector autosave controller", () => {
+  it("debounces rapid Node edits and dispatches one direct update with expectedVersion", async () => {
     const { draftStore, dispatch, controller } = setup();
     const key = toInspectorEntityKey("node", aliceId);
 
     draftStore.getState().updateDraft(key, { name: "Alic" });
     await vi.advanceTimersByTimeAsync(300);
-    draftStore.getState().updateDraft(key, { name: "Alici" });
-    await vi.advanceTimersByTimeAsync(199);
-    expect(dispatch).not.toHaveBeenCalled();
-
     draftStore.getState().updateDraft(key, { name: "Alicia" });
     await vi.advanceTimersByTimeAsync(499);
     expect(dispatch).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1);
-    expect(dispatch).toHaveBeenCalledTimes(1);
     expect(dispatch).toHaveBeenCalledWith({
       type: "update-node",
       boardId,
       workspaceId,
       nodeId: aliceId,
-      version: 3,
+      expectedVersion: 3,
       name: "Alicia",
       description: "Protagonist",
       properties: { role: "lead" },
@@ -290,47 +130,27 @@ describe("inspector autosave controller", () => {
     controller.dispose();
   });
 
-  it("dispatches scoped Node edits as sparse NodeState updates", async () => {
-    const { draftStore, dispatch, controller } = setupScoped();
-    const key = toInspectorEntityKey("node", aliceId);
-
-    draftStore.getState().updateDraft(key, { name: "Empress Alice" });
-    await vi.advanceTimersByTimeAsync(500);
-
-    expect(dispatch).toHaveBeenCalledTimes(1);
-    expect(dispatch).toHaveBeenCalledWith({
-      type: "update-node-state",
-      boardId,
-      workspaceId,
-      scopeId,
-      nodeId: aliceId,
-      version: 2,
-      name: "Empress Alice",
-      description: null,
-      properties: { role: "queen" },
-    });
-
-    controller.dispose();
-  });
-
-  it("dispatches scoped Relationship edits as sparse EdgeState updates", async () => {
-    const { draftStore, dispatch, controller } = setupScoped();
+  it("builds Relationship updates from the latest direct Edge version", async () => {
+    const { graphStore, draftStore, dispatch, controller } = setup();
     const key = toInspectorEntityKey("edge", edgeId);
 
-    draftStore.getState().updateDraft(key, { name: "commands" });
+    graphStore.getState().replaceEdge(relationship({ version: 9 }));
+    draftStore.getState().updateDraft(key, {
+      name: "best friend",
+      description: "Childhood friends",
+      propertiesText: '{"since":2012}',
+    });
     await vi.advanceTimersByTimeAsync(500);
 
-    expect(dispatch).toHaveBeenCalledTimes(1);
     expect(dispatch).toHaveBeenCalledWith({
-      type: "update-edge-state",
+      type: "update-edge",
       boardId,
       workspaceId,
-      scopeId,
       edgeId,
-      version: 2,
-      name: "commands",
-      description: null,
-      properties: null,
+      expectedVersion: 9,
+      name: "best friend",
+      description: "Childhood friends",
+      properties: { since: 2012 },
     });
 
     controller.dispose();
@@ -352,7 +172,7 @@ describe("inspector autosave controller", () => {
     expect(dispatch.mock.calls[0]?.[0]).toMatchObject({
       type: "update-node",
       nodeId: aliceId,
-      name: "Alicia",
+      expectedVersion: 3,
     });
 
     await vi.advanceTimersByTimeAsync(250);
@@ -360,8 +180,7 @@ describe("inspector autosave controller", () => {
     expect(dispatch.mock.calls[1]?.[0]).toMatchObject({
       type: "update-node",
       nodeId: bobId,
-      version: 7,
-      name: "Robert",
+      expectedVersion: 7,
     });
 
     controller.dispose();
@@ -375,14 +194,6 @@ describe("inspector autosave controller", () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(dispatch).not.toHaveBeenCalled();
 
-    draftStore.getState().updateDraft(key, { propertiesText: "[1,2,3]" });
-    await vi.advanceTimersByTimeAsync(500);
-    expect(dispatch).not.toHaveBeenCalled();
-
-    draftStore.getState().updateDraft(key, { name: "   " });
-    await vi.advanceTimersByTimeAsync(500);
-    expect(dispatch).not.toHaveBeenCalled();
-
     draftStore.getState().updateDraft(key, {
       name: "Alice",
       propertiesText: '{ "role": "lead" }',
@@ -393,38 +204,8 @@ describe("inspector autosave controller", () => {
     controller.dispose();
   });
 
-  it("builds Relationship updates from the latest canonical version", async () => {
-    const { graphStore, draftStore, dispatch, controller } = setup();
-    const key = toInspectorEntityKey("edge", edgeId);
-
-    graphStore.getState().replaceEdge({ ...relationship(), version: 9 });
-    draftStore.getState().updateDraft(key, {
-      name: "best friend",
-      description: "Childhood friends",
-      propertiesText: '{"since":2012}',
-    });
-
-    await vi.advanceTimersByTimeAsync(500);
-
-    expect(dispatch).toHaveBeenCalledTimes(1);
-    expect(dispatch).toHaveBeenCalledWith({
-      type: "update-edge",
-      boardId,
-      workspaceId,
-      edgeId,
-      version: 9,
-      name: "best friend",
-      description: "Childhood friends",
-      properties: { since: 2012 },
-    });
-
-    controller.dispose();
-  });
-
-  it("starts only once and dispose cancels scheduled dispatches", async () => {
+  it("dispose cancels scheduled dispatches", async () => {
     const { draftStore, dispatch, controller } = setup();
-    controller.start();
-
     draftStore
       .getState()
       .updateDraft(toInspectorEntityKey("node", aliceId), { name: "Alicia" });

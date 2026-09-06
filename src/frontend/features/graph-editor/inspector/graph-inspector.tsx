@@ -23,7 +23,7 @@ export function GraphInspector({
   isRemoving,
   isLaneBusy,
   onDraftChange,
-  onRemoveFromBoard,
+  onDelete,
 }: {
   selection: GraphInspectorSelection;
   draft: InspectorDraft;
@@ -32,7 +32,7 @@ export function GraphInspector({
   isRemoving: boolean;
   isLaneBusy: boolean;
   onDraftChange: (patch: InspectorDraftPatch) => void;
-  onRemoveFromBoard: () => Promise<void> | void;
+  onDelete: () => Promise<void> | void;
 }) {
   const isNode = selection.kind === "node";
 
@@ -86,7 +86,9 @@ export function GraphInspector({
 
       <div className="mt-6 border-t border-[var(--sg-line)] pt-5">
         <p className="mb-3 text-xs leading-5 text-[var(--sg-muted)]">
-          현재 보드에서만 제거합니다. 이야기의 원본 노드와 관계 데이터는 유지됩니다.
+          {isNode
+            ? "이 노드를 삭제하면 이 보드의 연결된 관계도 함께 삭제됩니다. 현재 세션에서 Undo할 수 있습니다."
+            : "이 관계를 이 보드에서 삭제합니다. 현재 세션에서 Undo할 수 있습니다."}
         </p>
         <Button
           busy={isRemoving}
@@ -94,9 +96,9 @@ export function GraphInspector({
           disabled={isLaneBusy}
           emphasis="outline"
           intent="danger"
-          onClick={onRemoveFromBoard}
+          onClick={onDelete}
         >
-          보드에서 제거
+          {isNode ? "노드 삭제" : "관계 삭제"}
         </Button>
       </div>
     </aside>

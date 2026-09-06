@@ -5,7 +5,6 @@ import { createEditorSaveQueue } from "./editor-save-queue";
 
 const boardId = "22222222-2222-4222-8222-222222222222";
 const workspaceId = "workspace-1";
-const storyId = "11111111-1111-4111-8111-111111111111";
 const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 
@@ -45,6 +44,7 @@ function moveNode(nodeId: string, x: number): EditorCommand {
     boardId,
     workspaceId,
     nodeId,
+    expectedVersion: 1,
     position: { x, y: x },
   };
 }
@@ -55,7 +55,7 @@ function updateNode(nodeId: string, name: string): EditorCommand {
     boardId,
     workspaceId,
     nodeId,
-    version: 1,
+    expectedVersion: 1,
     name,
     description: "",
     properties: {},
@@ -67,7 +67,6 @@ function createNode(nodeId: string): EditorCommand {
     type: "create-node",
     boardId,
     workspaceId,
-    storyId,
     nodeId,
     name: "New Node",
     position: { x: 100, y: 100 },
@@ -80,7 +79,6 @@ function createEdge(edgeId: string, sourceNodeId: string, targetNodeId: string):
     type: "create-edge",
     boardId,
     workspaceId,
-    storyId,
     edgeId,
     sourceNodeId,
     targetNodeId,

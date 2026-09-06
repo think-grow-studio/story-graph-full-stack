@@ -5,6 +5,11 @@ import {
   closeE2EAuthDatabase,
   createE2EIdentity,
 } from "./helpers/e2e-auth";
+import {
+  createE2EBoard,
+  createE2ENode,
+  createE2EStory,
+} from "./helpers/graph-fixtures";
 
 test.afterAll(async () => {
   await closeE2EAuthDatabase();
@@ -20,56 +25,35 @@ async function createStoryBoardAndNode(
 
   const bootstrapResponse = await context.request.get("/api/v1/bootstrap");
   expect(bootstrapResponse.status()).toBe(200);
-  const bootstrap = await bootstrapResponse.json();
-  const workspaceId = bootstrap.workspace.id as string;
+  const { workspace } = await bootstrapResponse.json();
+  const workspaceId = workspace.id as string;
 
-  const storyResponse = await context.request.post("/api/v1/stories", {
-    data: { workspaceId, name: `${identityName} Story` },
+  const story = await createE2EStory(
+    context.request,
+    workspaceId,
+    `${identityName} Story`,
+  );
+  const board = await createE2EBoard(
+    context.request,
+    story.id,
+    workspaceId,
+    `${identityName} Board`,
+  );
+  const node = await createE2ENode(context.request, board.id, workspaceId, {
+    name: nodeName,
+    x: 120,
+    y: 180,
   });
-  expect(storyResponse.status()).toBe(201);
-  const story = await storyResponse.json();
 
-  const boardResponse = await context.request.post(
-    `/api/v1/stories/${story.id}/boards`,
-    { data: { workspaceId, name: `${identityName} Board` } },
-  );
-  expect(boardResponse.status()).toBe(201);
-  const board = await boardResponse.json();
-
-  const nodeId = crypto.randomUUID();
-  const nodeResponse = await context.request.post(
-    `/api/v1/boards/${board.id}/nodes`,
-    {
-      data: {
-        workspaceId,
-        id: nodeId,
-        name: nodeName,
-        position: { x: 120, y: 180 },
-      },
-    },
-  );
-  expect(nodeResponse.status()).toBe(201);
-
-  return { identity, workspaceId, story, board, nodeId };
+  return { identity, workspaceId, story, board, node };
 }
 
-function waitForNodePatch(page: Page, nodeId: string) {
-  return page.waitForResponse((response) => {
-    return (
-      response.request().method() === "PATCH" &&
-      new URL(response.url()).pathname === `/api/v1/nodes/${nodeId}`
-    );
-  });
-}
-
-function waitForBoardNodePatch(page: Page, boardId: string, nodeId: string) {
-  return page.waitForResponse((response) => {
-    return (
-      response.request().method() === "PATCH" &&
-      new URL(response.url()).pathname ===
-        `/api/v1/boards/${boardId}/nodes/${nodeId}`
-    );
-  });
+function waitForNodePatch(page: Page, boardId: string, nodeId: string) {
+  return page.waitForResponse((response) =>
+    response.request().method() === "PATCH" &&
+    new URL(response.url()).pathname ===
+      `/api/v1/boards/${boardId}/nodes/${nodeId}`,
+  );
 }
 
 test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload", async ({
@@ -85,29 +69,30 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
     await page.goto(`/stories/${setup.story.id}/boards/${setup.board.id}`);
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
 
-    const node = page.locator(`.react-flow__node[data-id="${setup.nodeId}"]`);
+    const node = page.locator(`.react-flow__node[data-id="${setup.node.id}"]`);
     await expect(node).toContainText("Alice");
     await node.click();
     await expect(page.getByRole("heading", { name: "노드" })).toBeVisible();
 
-    const forwardPromise = waitForNodePatch(page, setup.nodeId);
+    const forwardPromise = waitForNodePatch(page, setup.board.id, setup.node.id);
     await page.getByLabel("이름").fill("Alicia");
     const forward = await forwardPromise;
     expect(forward.status()).toBe(200);
     expect(await forward.json()).toMatchObject({
-      id: setup.nodeId,
+      id: setup.node.id,
+      boardId: setup.board.id,
       name: "Alicia",
       version: 2,
     });
     await expect(page.getByText("저장됨")).toBeVisible();
     await expect(node).toContainText("Alicia");
 
-    const undoPromise = waitForNodePatch(page, setup.nodeId);
+    const undoPromise = waitForNodePatch(page, setup.board.id, setup.node.id);
     await page.getByRole("button", { name: "Undo" }).click();
     const undo = await undoPromise;
     expect(undo.status()).toBe(200);
     expect(await undo.json()).toMatchObject({
-      id: setup.nodeId,
+      id: setup.node.id,
       name: "Alice",
       version: 3,
     });
@@ -115,12 +100,12 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
     await expect(node).toContainText("Alice");
     await expect(page.getByText("저장됨")).toBeVisible();
 
-    const redoPromise = waitForNodePatch(page, setup.nodeId);
+    const redoPromise = waitForNodePatch(page, setup.board.id, setup.node.id);
     await page.getByRole("button", { name: "Redo" }).click();
     const redo = await redoPromise;
     expect(redo.status()).toBe(200);
     expect(await redo.json()).toMatchObject({
-      id: setup.nodeId,
+      id: setup.node.id,
       name: "Alicia",
       version: 4,
     });
@@ -128,12 +113,12 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
     await expect(node).toContainText("Alicia");
     await expect(page.getByText("저장됨")).toBeVisible();
 
-    const finalUndoPromise = waitForNodePatch(page, setup.nodeId);
+    const finalUndoPromise = waitForNodePatch(page, setup.board.id, setup.node.id);
     await page.getByRole("button", { name: "Undo" }).click();
     const finalUndo = await finalUndoPromise;
     expect(finalUndo.status()).toBe(200);
     expect(await finalUndo.json()).toMatchObject({
-      id: setup.nodeId,
+      id: setup.node.id,
       name: "Alice",
       version: 5,
     });
@@ -142,7 +127,7 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
     await page.reload();
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
     await expect(
-      page.locator(`.react-flow__node[data-id="${setup.nodeId}"]`),
+      page.locator(`.react-flow__node[data-id="${setup.node.id}"]`),
     ).toContainText("Alice");
     await expect(page.getByRole("button", { name: "Redo" })).toBeDisabled();
 
@@ -153,7 +138,8 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
     const snapshot = await snapshotResponse.json();
     expect(snapshot.nodes).toContainEqual(
       expect.objectContaining({
-        id: setup.nodeId,
+        id: setup.node.id,
+        boardId: setup.board.id,
         name: "Alice",
         version: 5,
       }),
@@ -163,7 +149,7 @@ test("Graph Editor persists Node edit Undo, Redo, and final Undo across reload",
   }
 });
 
-test("Graph Editor persists drag Undo back to the original Board position", async ({
+test("Graph Editor persists drag Undo back to the original Node position", async ({
   context,
   page,
 }) => {
@@ -179,28 +165,25 @@ test("Graph Editor persists drag Undo back to the original Board position", asyn
     );
     expect(initialSnapshotResponse.status()).toBe(200);
     const initialSnapshot = await initialSnapshotResponse.json();
-    const initialPlacement = initialSnapshot.boardNodes.find(
-      (boardNode: { nodeId: string }) => boardNode.nodeId === setup.nodeId,
+    const initialNode = initialSnapshot.nodes.find(
+      (candidate: { id: string }) => candidate.id === setup.node.id,
     );
-    expect(initialPlacement).toMatchObject({
-      nodeId: setup.nodeId,
+    expect(initialNode).toMatchObject({
+      id: setup.node.id,
       x: 120,
       y: 180,
+      version: 1,
     });
 
     await page.goto(`/stories/${setup.story.id}/boards/${setup.board.id}`);
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
-    const node = page.locator(`.react-flow__node[data-id="${setup.nodeId}"]`);
+    const node = page.locator(`.react-flow__node[data-id="${setup.node.id}"]`);
     await expect(node).toContainText("Drag Node");
 
     const box = await node.boundingBox();
     expect(box).not.toBeNull();
 
-    const movePromise = waitForBoardNodePatch(
-      page,
-      setup.board.id,
-      setup.nodeId,
-    );
+    const movePromise = waitForNodePatch(page, setup.board.id, setup.node.id);
     await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
     await page.mouse.down();
     await page.mouse.move(
@@ -212,25 +195,27 @@ test("Graph Editor persists drag Undo back to the original Board position", asyn
 
     const move = await movePromise;
     expect(move.status()).toBe(200);
-    const movedPlacement = await move.json();
-    expect({ x: movedPlacement.x, y: movedPlacement.y }).not.toEqual({
-      x: initialPlacement.x,
-      y: initialPlacement.y,
+    const movedNode = await move.json();
+    expect(movedNode).toMatchObject({
+      id: setup.node.id,
+      boardId: setup.board.id,
+      version: 2,
+    });
+    expect({ x: movedNode.x, y: movedNode.y }).not.toEqual({
+      x: initialNode.x,
+      y: initialNode.y,
     });
     await expect(page.getByText("저장됨")).toBeVisible();
 
-    const undoPromise = waitForBoardNodePatch(
-      page,
-      setup.board.id,
-      setup.nodeId,
-    );
+    const undoPromise = waitForNodePatch(page, setup.board.id, setup.node.id);
     await page.getByRole("button", { name: "Undo" }).click();
     const undo = await undoPromise;
     expect(undo.status()).toBe(200);
     expect(await undo.json()).toMatchObject({
-      nodeId: setup.nodeId,
-      x: initialPlacement.x,
-      y: initialPlacement.y,
+      id: setup.node.id,
+      x: initialNode.x,
+      y: initialNode.y,
+      version: 3,
     });
     await expect(page.getByText("저장됨")).toBeVisible();
 
@@ -242,11 +227,12 @@ test("Graph Editor persists drag Undo back to the original Board position", asyn
     );
     expect(finalSnapshotResponse.status()).toBe(200);
     const finalSnapshot = await finalSnapshotResponse.json();
-    expect(finalSnapshot.boardNodes).toContainEqual(
+    expect(finalSnapshot.nodes).toContainEqual(
       expect.objectContaining({
-        nodeId: setup.nodeId,
-        x: initialPlacement.x,
-        y: initialPlacement.y,
+        id: setup.node.id,
+        x: initialNode.x,
+        y: initialNode.y,
+        version: 3,
       }),
     );
   } finally {

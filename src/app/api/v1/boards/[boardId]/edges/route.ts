@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { createEdgeOnBoard } from "@/backend/modules/graph/application/create-edge-on-board/create-edge-on-board";
+import { createEdge } from "@/backend/modules/graph/application/create-edge/create-edge";
 import { requireCurrentActor } from "@/backend/modules/identity/application/get-current-actor/get-current-actor";
 import {
   createEdgeRequestSchema,
-  createEdgeResponseSchema,
   graphIdSchema,
 } from "@/contracts/graph/graph.contract";
 import { graphDependencies } from "../../../_shared/graph-dependencies";
-import { toBoardEdgeResponse, toGraphEdgeResponse } from "../../../_shared/graph-http";
+import { toGraphEdgeResponse } from "../../../_shared/graph-http";
 import { identityDependencies } from "../../../_shared/identity-dependencies";
 import { routeErrorResponse } from "../../../_shared/route-error";
 
@@ -21,7 +20,7 @@ export async function POST(
     const { boardId } = await context.params;
     const validatedBoardId = graphIdSchema.parse(boardId);
     const body = createEdgeRequestSchema.parse(await request.json());
-    const result = await createEdgeOnBoard(
+    const created = await createEdge(
       {
         actorId: actor.id,
         workspaceId: body.workspaceId,
@@ -33,16 +32,12 @@ export async function POST(
         description: body.description,
         iconKey: body.iconKey,
         properties: body.properties,
+        style: body.style,
+        labelPresentation: body.labelPresentation,
       },
       graphDependencies,
     );
-    return NextResponse.json(
-      createEdgeResponseSchema.parse({
-        edge: toGraphEdgeResponse(result.edge),
-        boardEdge: toBoardEdgeResponse(result.boardEdge),
-      }),
-      { status: 201 },
-    );
+    return NextResponse.json(toGraphEdgeResponse(created), { status: 201 });
   } catch (error) {
     return routeErrorResponse(error);
   }

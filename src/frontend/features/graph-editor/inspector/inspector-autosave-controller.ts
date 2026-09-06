@@ -1,14 +1,4 @@
 import type { EditorCommand } from "../commands/editor-command";
-import {
-  findEdgeState,
-  normalizeEdgeStateOverrides,
-  resolveEffectiveEdge,
-} from "../model/effective-edge";
-import {
-  findNodeState,
-  normalizeNodeStateOverrides,
-  resolveEffectiveNode,
-} from "../model/effective-node";
 import type { GraphEditorStore } from "../store/graph-editor-store";
 import type { InspectorDraftStore } from "./inspector-draft-store";
 import {
@@ -37,7 +27,8 @@ export function createInspectorAutosaveController({
   dispatch(command: EditorCommand): string | null;
 }): InspectorAutosaveController {
   const timers = new Map<InspectorEntityKey, ReturnType<typeof setTimeout>>();
-  let unsubscribe: (() => void) | null = null;
+  let unsubscribeDrafts: (() => void) | null = null;
+  let unsubscribeGraph: (() => void) | null = null;
 
   function schedule(key: InspectorEntityKey) {
     const existing = timers.get(key);
@@ -56,27 +47,10 @@ export function createInspectorAutosaveController({
 
     if (key.startsWith("node:")) {
       const nodeId = key.slice("node:".length);
-      const state = graphStore.getState();
-      const node = state.nodes.find((candidate) => candidate.id === nodeId);
+      const node = graphStore
+        .getState()
+        .nodes.find((candidate) => candidate.id === nodeId);
       if (!node) return;
-
-      if (state.scope) {
-        const nodeState = findNodeState(state.scope.id, nodeId, state.nodeStates);
-        const effectiveNode = resolveEffectiveNode(node, nodeState);
-        const evaluation = evaluateInspectorDraft(draft, effectiveNode);
-        if (evaluation.status !== "saveable" || !evaluation.dirty) return;
-
-        dispatch({
-          type: "update-node-state",
-          boardId,
-          workspaceId,
-          scopeId: state.scope.id,
-          nodeId,
-          version: nodeState?.version ?? null,
-          ...normalizeNodeStateOverrides(node, evaluation.input),
-        });
-        return;
-      }
 
       const evaluation = evaluateInspectorDraft(draft, node);
       if (evaluation.status !== "saveable" || !evaluation.dirty) return;
@@ -86,34 +60,17 @@ export function createInspectorAutosaveController({
         boardId,
         workspaceId,
         nodeId,
-        version: node.version,
+        expectedVersion: node.version,
         ...evaluation.input,
       });
       return;
     }
 
     const edgeId = key.slice("edge:".length);
-    const state = graphStore.getState();
-    const edge = state.edges.find((candidate) => candidate.id === edgeId);
+    const edge = graphStore
+      .getState()
+      .edges.find((candidate) => candidate.id === edgeId);
     if (!edge) return;
-
-    if (state.scope) {
-      const edgeState = findEdgeState(state.scope.id, edgeId, state.edgeStates);
-      const effectiveEdge = resolveEffectiveEdge(edge, edgeState);
-      const evaluation = evaluateInspectorDraft(draft, effectiveEdge);
-      if (evaluation.status !== "saveable" || !evaluation.dirty) return;
-
-      dispatch({
-        type: "update-edge-state",
-        boardId,
-        workspaceId,
-        scopeId: state.scope.id,
-        edgeId,
-        version: edgeState?.version ?? null,
-        ...normalizeEdgeStateOverrides(edge, evaluation.input),
-      });
-      return;
-    }
 
     const evaluation = evaluateInspectorDraft(draft, edge);
     if (evaluation.status !== "saveable" || !evaluation.dirty) return;
@@ -123,16 +80,39 @@ export function createInspectorAutosaveController({
       boardId,
       workspaceId,
       edgeId,
-      version: edge.version,
+      expectedVersion: edge.version,
       ...evaluation.input,
     });
   }
 
+  function discardMissingDrafts() {
+    const graphState = graphStore.getState();
+    const draftKeys = Object.keys(
+      draftStore.getState().drafts,
+    ) as InspectorEntityKey[];
+
+    for (const key of draftKeys) {
+      const exists = key.startsWith("node:")
+        ? graphState.nodes.some(
+            (node) => node.id === key.slice("node:".length),
+          )
+        : graphState.edges.some(
+            (edge) => edge.id === key.slice("edge:".length),
+          );
+      if (exists) continue;
+
+      const timer = timers.get(key);
+      if (timer) clearTimeout(timer);
+      timers.delete(key);
+      draftStore.getState().discardDraft(key);
+    }
+  }
+
   return {
     start() {
-      if (unsubscribe) return;
+      if (unsubscribeDrafts || unsubscribeGraph) return;
 
-      unsubscribe = draftStore.subscribe((state, previousState) => {
+      unsubscribeDrafts = draftStore.subscribe((state, previousState) => {
         const keys = Object.keys(state.drafts) as InspectorEntityKey[];
         for (const key of keys) {
           const current = state.drafts[key];
@@ -141,10 +121,13 @@ export function createInspectorAutosaveController({
           schedule(key);
         }
       });
+      unsubscribeGraph = graphStore.subscribe(discardMissingDrafts);
     },
     dispose() {
-      unsubscribe?.();
-      unsubscribe = null;
+      unsubscribeDrafts?.();
+      unsubscribeDrafts = null;
+      unsubscribeGraph?.();
+      unsubscribeGraph = null;
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();
     },

@@ -5,15 +5,22 @@ import type { GraphNodeResponse } from "@/contracts/graph/graph.contract";
 import { createInspectorDraftStore } from "./inspector-draft-store";
 
 const now = "2026-08-29T00:00:00.000Z";
+const boardId = "22222222-2222-4222-8222-222222222222";
 
 function node(id: string, name: string): GraphNodeResponse {
   return {
     id,
-    storyId: "11111111-1111-4111-8111-111111111111",
+    boardId,
     name,
     description: "",
     iconKey: null,
     properties: {},
+    x: 0,
+    y: 0,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
     version: 1,
     createdAt: now,
     updatedAt: now,

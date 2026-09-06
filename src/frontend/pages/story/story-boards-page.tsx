@@ -5,40 +5,63 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import type { BoardResponse } from "@/contracts/graph/graph.contract";
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
 import {
   useBoardsQuery,
   useCreateBoardMutation,
-  useCreateScopeMutation,
-  useScopesQuery,
+  useUpdateBoardMutation,
 } from "@/frontend/api/graph/graph.queries";
 import { useStoryQuery } from "@/frontend/api/story/story.queries";
 import { Button } from "@/frontend/shared/ui/button";
 import { Dialog } from "@/frontend/shared/ui/dialog";
 import { EmptyState } from "@/frontend/shared/ui/empty-state";
-import { SelectField, TextField } from "@/frontend/shared/ui/form-field";
+import { TextField } from "@/frontend/shared/ui/form-field";
 import { StatusMessage } from "@/frontend/shared/ui/status-message";
 import { AppShell } from "@/frontend/widgets/app-shell/app-shell";
+
+import {
+  BoardTagsValidationError,
+  formatBoardTags,
+  parseBoardTags,
+} from "./board-tags";
 
 export function StoryBoardsPage({ storyId }: { storyId: string }) {
   const router = useRouter();
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
-  const [contextDialogOpen, setContextDialogOpen] = useState(false);
-  const [scopeName, setScopeName] = useState("");
   const [boardName, setBoardName] = useState("");
-  const [selectedScopeId, setSelectedScopeId] = useState("");
+  const [boardTags, setBoardTags] = useState("");
   const [boardNameError, setBoardNameError] = useState<string | null>(null);
-  const [scopeNameError, setScopeNameError] = useState<string | null>(null);
+  const [boardTagsError, setBoardTagsError] = useState<string | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [editingBoard, setEditingBoard] = useState<BoardResponse | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editTags, setEditTags] = useState("");
+  const [editNameError, setEditNameError] = useState<string | null>(null);
+  const [editTagsError, setEditTagsError] = useState<string | null>(null);
+
   const bootstrap = useBootstrapQuery();
   const workspaceId = bootstrap.data?.workspace.id;
   const story = useStoryQuery(workspaceId, storyId);
-  const scopes = useScopesQuery(workspaceId, storyId);
   const boards = useBoardsQuery(workspaceId, storyId);
-  const createScope = useCreateScopeMutation(workspaceId, storyId);
   const createBoard = useCreateBoardMutation(workspaceId, storyId);
-  const scopeById = useMemo(
-    () => new Map((scopes.data ?? []).map((scope) => [scope.id, scope])),
-    [scopes.data],
+  const updateBoard = useUpdateBoardMutation(workspaceId, storyId);
+
+  const allTags = useMemo(
+    () =>
+      Array.from(new Set((boards.data ?? []).flatMap((board) => board.tags))).sort(
+        (left, right) => left.localeCompare(right),
+      ),
+    [boards.data],
+  );
+  const activeTag = selectedTag && allTags.includes(selectedTag) ? selectedTag : null;
+  const visibleBoards = useMemo(
+    () =>
+      activeTag
+        ? (boards.data ?? []).filter((board) => board.tags.includes(activeTag))
+        : (boards.data ?? []),
+    [activeTag, boards.data],
   );
 
   useEffect(() => {
@@ -53,33 +76,37 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
 
   function openBoardDialog() {
     setBoardName("");
-    setSelectedScopeId("");
+    setBoardTags("");
     setBoardNameError(null);
+    setBoardTagsError(null);
     createBoard.reset();
     setBoardDialogOpen(true);
   }
 
-  function openContextDialog() {
-    setScopeName("");
-    setScopeNameError(null);
-    createScope.reset();
-    setContextDialogOpen(true);
+  function openEditDialog(board: BoardResponse) {
+    setEditingBoard(board);
+    setEditName(board.name);
+    setEditDescription(board.description);
+    setEditTags(formatBoardTags(board.tags));
+    setEditNameError(null);
+    setEditTagsError(null);
+    updateBoard.reset();
   }
 
-  async function handleCreateScope(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const name = scopeName.trim();
-    if (!name) {
-      setScopeNameError("컨텍스트 이름을 입력해 주세요.");
-      return;
-    }
-
-    setScopeNameError(null);
+  function parseTagsOrSetError(
+    value: string,
+    setError: (message: string | null) => void,
+  ) {
     try {
-      await createScope.mutateAsync({ name, description: "" });
-      setContextDialogOpen(false);
-    } catch {
-      // Mutation state renders the recovery message.
+      const tags = parseBoardTags(value);
+      setError(null);
+      return tags;
+    } catch (error) {
+      if (error instanceof BoardTagsValidationError) {
+        setError(error.message);
+        return null;
+      }
+      throw error;
     }
   }
 
@@ -90,16 +117,43 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
       setBoardNameError("보드 이름을 입력해 주세요.");
       return;
     }
+    const tags = parseTagsOrSetError(boardTags, setBoardTagsError);
+    if (!tags) return;
 
     setBoardNameError(null);
     try {
       const created = await createBoard.mutateAsync({
         name,
         description: "",
-        scopeId: selectedScopeId || null,
+        tags,
       });
       setBoardDialogOpen(false);
       router.push(`/stories/${storyId}/boards/${created.id}`);
+    } catch {
+      // Mutation state renders the recovery message.
+    }
+  }
+
+  async function handleUpdateBoard(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingBoard) return;
+    const name = editName.trim();
+    if (!name) {
+      setEditNameError("보드 이름을 입력해 주세요.");
+      return;
+    }
+    const tags = parseTagsOrSetError(editTags, setEditTagsError);
+    if (!tags) return;
+
+    setEditNameError(null);
+    try {
+      await updateBoard.mutateAsync({
+        boardId: editingBoard.id,
+        name,
+        description: editDescription,
+        tags,
+      });
+      setEditingBoard(null);
     } catch {
       // Mutation state renders the recovery message.
     }
@@ -154,9 +208,34 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
             보드
           </h2>
           <p className="mt-1 text-sm leading-6 text-[var(--sg-muted)]">
-            노드와 관계를 배치하며 실제로 작업하는 이야기 화면입니다.
+            각 보드는 서로 독립적인 그래프입니다. 태그로 필요한 보드만 묶어 보세요.
           </p>
         </div>
+
+        {allTags.length ? (
+          <div className="flex flex-wrap gap-2" aria-label="보드 태그 필터">
+            <button
+              aria-pressed={activeTag === null}
+              className="rounded-full border border-[var(--sg-line)] bg-[var(--sg-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--sg-muted)] aria-pressed:border-[var(--sg-brand)] aria-pressed:text-[var(--sg-brand-strong)]"
+              onClick={() => setSelectedTag(null)}
+              type="button"
+            >
+              전체 보기
+            </button>
+            {allTags.map((tag) => (
+              <button
+                aria-label={`#${tag}`}
+                aria-pressed={activeTag === tag}
+                className="rounded-full border border-[var(--sg-line)] bg-[var(--sg-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--sg-muted)] aria-pressed:border-[var(--sg-brand)] aria-pressed:text-[var(--sg-brand-strong)]"
+                key={tag}
+                onClick={() => setSelectedTag(tag)}
+                type="button"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {boards.isPending ? (
           <div aria-busy="true" className="h-28 animate-pulse rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)]" />
@@ -174,62 +253,68 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
         {boards.data?.length === 0 ? (
           <EmptyState
             action={<Button onClick={openBoardDialog}>첫 보드 시작하기</Button>}
-            description="보드는 인물과 사건을 배치하고 관계를 연결하는 작업 화면입니다."
+            description="보드는 인물과 사건을 배치하고 관계를 연결하는 독립적인 작업 화면입니다."
             title="아직 보드가 없습니다"
           />
         ) : null}
 
         {boards.data?.length ? (
-          <ul className="grid gap-3 md:grid-cols-2">
-            {boards.data.map((board) => {
-              const scope = board.scopeId ? scopeById.get(board.scopeId) : null;
-              return (
+          visibleBoards.length ? (
+            <ul className="grid gap-3 md:grid-cols-2">
+              {visibleBoards.map((board) => (
                 <li key={board.id}>
-                  <Link
-                    aria-label={board.name}
-                    className="group block min-h-32 rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] p-5 transition-[border-color,box-shadow] duration-150 hover:border-[color-mix(in_srgb,var(--sg-brand)_35%,var(--sg-line))] hover:shadow-[0_10px_28px_rgba(23,25,29,0.05)]"
-                    href={`/stories/${storyId}/boards/${board.id}`}
-                  >
-                    <p className="text-xs font-semibold text-[var(--sg-muted)]">보드</p>
-                    <h3 className="mt-2 text-lg font-bold tracking-[-0.02em] group-hover:text-[var(--sg-brand-strong)]">
-                      {board.name}
-                    </h3>
-                    <p className="mt-3 text-sm text-[var(--sg-muted)]">
-                      {scope ? `컨텍스트: ${scope.name}` : "기본 이야기 상태"}
-                    </p>
-                  </Link>
+                  <article className="relative min-h-32 rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] transition-[border-color,box-shadow] duration-150 hover:border-[color-mix(in_srgb,var(--sg-brand)_35%,var(--sg-line))] hover:shadow-[0_10px_28px_rgba(23,25,29,0.05)]">
+                    <Link
+                      aria-label={board.name}
+                      className="group block min-h-32 p-5 pr-20"
+                      href={`/stories/${storyId}/boards/${board.id}`}
+                    >
+                      <p className="text-xs font-semibold text-[var(--sg-muted)]">보드</p>
+                      <h3 className="mt-2 text-lg font-bold tracking-[-0.02em] group-hover:text-[var(--sg-brand-strong)]">
+                        {board.name}
+                      </h3>
+                      {board.description ? (
+                        <p className="mt-2 line-clamp-2 text-sm text-[var(--sg-muted)]">
+                          {board.description}
+                        </p>
+                      ) : null}
+                      {board.tags.length ? (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {board.tags.map((tag) => (
+                            <span
+                              className="rounded-full bg-[var(--sg-canvas)] px-2.5 py-1 text-xs font-medium text-[var(--sg-muted)]"
+                              key={tag}
+                            >
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-[var(--sg-muted)]">태그 없음</p>
+                      )}
+                    </Link>
+                    <button
+                      aria-label={`${board.name} 보드 편집`}
+                      className="absolute right-4 top-4 rounded-[var(--sg-radius-sm)] border border-[var(--sg-line)] px-2.5 py-1.5 text-xs font-semibold text-[var(--sg-muted)] hover:border-[var(--sg-brand)] hover:text-[var(--sg-brand-strong)]"
+                      onClick={() => openEditDialog(board)}
+                      type="button"
+                    >
+                      편집
+                    </button>
+                  </article>
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          ) : (
+            <p className="rounded-[var(--sg-radius-md)] border border-dashed border-[var(--sg-line)] p-5 text-sm text-[var(--sg-muted)]">
+              선택한 태그가 붙은 보드가 없습니다.
+            </p>
+          )
         ) : null}
       </section>
 
-      <section className="mt-10 border-t border-[var(--sg-line)] pt-7" aria-labelledby="contexts-heading">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="max-w-2xl">
-            <h2 className="text-base font-bold" id="contexts-heading">컨텍스트</h2>
-            <p className="mt-1 text-sm leading-6 text-[var(--sg-muted)]">
-              같은 인물과 관계를 장이나 시점에 따라 다르게 보이게 할 때 사용합니다.
-            </p>
-            {scopes.data?.length ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {scopes.data.map((scope) => (
-                  <span className="rounded-full border border-[var(--sg-line)] bg-[var(--sg-surface)] px-3 py-1 text-xs font-medium text-[var(--sg-muted)]" key={scope.id}>
-                    {scope.name}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <Button emphasis="outline" intent="neutral" onClick={openContextDialog}>
-            컨텍스트 관리
-          </Button>
-        </div>
-      </section>
-
       <Dialog
-        description="컨텍스트를 선택하지 않으면 이야기의 기본 상태를 사용하는 보드가 만들어집니다."
+        description="보드는 서로 독립적으로 저장됩니다. 태그는 나중에 보드를 쉽게 찾는 데 사용합니다."
         onClose={() => {
           if (!createBoard.isPending) setBoardDialogOpen(false);
         }}
@@ -248,19 +333,17 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
             placeholder="예: 인물 관계도"
             value={boardName}
           />
-          <SelectField
-            helpText="장, 시점, 타임라인처럼 다른 상태가 필요할 때만 선택하세요."
-            label="컨텍스트"
-            onChange={(event) => setSelectedScopeId(event.target.value)}
-            value={selectedScopeId}
-          >
-            <option value="">선택 안 함</option>
-            {(scopes.data ?? []).map((scope) => (
-              <option key={scope.id} value={scope.id}>
-                {scope.name}
-              </option>
-            ))}
-          </SelectField>
+          <TextField
+            error={boardTagsError}
+            helpText="쉼표로 구분하세요. 예: 인물, 1부"
+            label="태그"
+            onChange={(event) => {
+              setBoardTags(event.target.value);
+              setBoardTagsError(null);
+            }}
+            placeholder="예: 인물, 전체"
+            value={boardTags}
+          />
           {createBoard.isError ? (
             <StatusMessage tone="danger">보드를 만들지 못했습니다. 다시 시도해 주세요.</StatusMessage>
           ) : null}
@@ -274,33 +357,47 @@ export function StoryBoardsPage({ storyId }: { storyId: string }) {
       </Dialog>
 
       <Dialog
-        description="컨텍스트는 장, 시점, 타임라인처럼 같은 요소의 상태가 달라질 때 사용합니다."
+        description="이름, 설명, 태그만 바뀝니다. 보드 안의 그래프는 그대로 유지됩니다."
         onClose={() => {
-          if (!createScope.isPending) setContextDialogOpen(false);
+          if (!updateBoard.isPending) setEditingBoard(null);
         }}
-        open={contextDialogOpen}
-        title="컨텍스트 관리"
+        open={Boolean(editingBoard)}
+        title="보드 편집"
       >
-        <form className="grid gap-4" onSubmit={handleCreateScope}>
+        <form className="grid gap-4" onSubmit={handleUpdateBoard}>
           <TextField
             autoFocus
-            error={scopeNameError}
-            label="컨텍스트 이름"
+            error={editNameError}
+            label="보드 이름"
             onChange={(event) => {
-              setScopeName(event.target.value);
-              if (event.target.value.trim()) setScopeNameError(null);
+              setEditName(event.target.value);
+              if (event.target.value.trim()) setEditNameError(null);
             }}
-            placeholder="예: Chapter 10"
-            value={scopeName}
+            value={editName}
           />
-          {createScope.isError ? (
-            <StatusMessage tone="danger">컨텍스트를 만들지 못했습니다. 다시 시도해 주세요.</StatusMessage>
+          <TextField
+            label="설명"
+            onChange={(event) => setEditDescription(event.target.value)}
+            value={editDescription}
+          />
+          <TextField
+            error={editTagsError}
+            helpText="쉼표로 구분하세요. 저장하면 태그 전체가 교체됩니다."
+            label="태그"
+            onChange={(event) => {
+              setEditTags(event.target.value);
+              setEditTagsError(null);
+            }}
+            value={editTags}
+          />
+          {updateBoard.isError ? (
+            <StatusMessage tone="danger">보드를 수정하지 못했습니다. 다시 시도해 주세요.</StatusMessage>
           ) : null}
           <div className="flex justify-end gap-2 pt-1">
-            <Button disabled={createScope.isPending} emphasis="ghost" intent="neutral" onClick={() => setContextDialogOpen(false)} type="button">
+            <Button disabled={updateBoard.isPending} emphasis="ghost" intent="neutral" onClick={() => setEditingBoard(null)} type="button">
               취소
             </Button>
-            <Button busy={createScope.isPending} type="submit">컨텍스트 만들기</Button>
+            <Button busy={updateBoard.isPending} type="submit">저장</Button>
           </div>
         </form>
       </Dialog>

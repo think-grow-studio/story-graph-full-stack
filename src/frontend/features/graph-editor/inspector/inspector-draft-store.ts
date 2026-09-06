@@ -23,6 +23,7 @@ export type InspectorDraftState = {
     key: InspectorEntityKey,
     input: InspectorDraftReplacement,
   ) => void;
+  discardDraft: (key: InspectorEntityKey) => void;
 };
 
 export type InspectorDraftStore = StoreApi<InspectorDraftState>;
@@ -84,6 +85,14 @@ export function createInspectorDraftStore(): InspectorDraftStore {
           },
         },
       }));
+    },
+    discardDraft: (key) => {
+      if (!get().drafts[key]) return;
+      set((state) => {
+        const nextDrafts = { ...state.drafts };
+        delete nextDrafts[key];
+        return { drafts: nextDrafts };
+      });
     },
   }));
 }
