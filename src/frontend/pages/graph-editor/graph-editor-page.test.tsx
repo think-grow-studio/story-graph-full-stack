@@ -7,11 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getBootstrap: vi.fn(),
   getBoardSnapshot: vi.fn(),
-  listStoryNodes: vi.fn(),
-  createNodeOnBoard: vi.fn(),
-  placeNodeOnBoard: vi.fn(),
-  updateBoardNode: vi.fn(),
-  createEdgeOnBoard: vi.fn(),
+  createNode: vi.fn(),
+  updateNode: vi.fn(),
+  deleteNode: vi.fn(),
+  restoreNode: vi.fn(),
+  createEdge: vi.fn(),
+  updateEdge: vi.fn(),
+  deleteEdge: vi.fn(),
+  restoreEdge: vi.fn(),
 }));
 
 vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
@@ -20,11 +23,14 @@ vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
 
 vi.mock("@/frontend/api/graph/graph.api", () => ({
   getBoardSnapshot: mocks.getBoardSnapshot,
-  listStoryNodes: mocks.listStoryNodes,
-  createNodeOnBoard: mocks.createNodeOnBoard,
-  placeNodeOnBoard: mocks.placeNodeOnBoard,
-  updateBoardNode: mocks.updateBoardNode,
-  createEdgeOnBoard: mocks.createEdgeOnBoard,
+  createNode: mocks.createNode,
+  updateNode: mocks.updateNode,
+  deleteNode: mocks.deleteNode,
+  restoreNode: mocks.restoreNode,
+  createEdge: mocks.createEdge,
+  updateEdge: mocks.updateEdge,
+  deleteEdge: mocks.deleteEdge,
+  restoreEdge: mocks.restoreEdge,
 }));
 
 vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
@@ -91,19 +97,25 @@ const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
 const nodeId = "33333333-3333-4333-8333-333333333333";
 const secondNodeId = "44444444-4444-4444-8444-444444444444";
-const thirdNodeId = "55555555-5555-4555-8555-555555555555";
+const now = "2026-09-06T00:00:00.000Z";
 
-function graphNode(id: string, name: string) {
+function graphNode(id: string, name: string, x: number, y: number, version = 3) {
   return {
     id,
-    storyId,
+    boardId,
     name,
     description: "",
     iconKey: null,
     properties: {},
-    version: 1,
-    createdAt: "2026-08-28T00:00:00.000Z",
-    updatedAt: "2026-08-28T00:00:00.000Z",
+    x,
+    y,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
+    version,
+    createdAt: now,
+    updatedAt: now,
   };
 }
 
@@ -113,45 +125,17 @@ function snapshot() {
     board: {
       id: boardId,
       storyId,
-      scopeId: null,
       name: "Characters",
       description: "",
-      revision: 1,
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
+      tags: [],
+      createdAt: now,
+      updatedAt: now,
     },
-    scope: null,
-    nodes: [graphNode(nodeId, "Alice"), graphNode(secondNodeId, "Bob")],
-    nodeStates: [],
-    edgeStates: [],
-    edges: [],
-    boardNodes: [
-      {
-        boardId,
-        nodeId,
-        x: 120,
-        y: 80,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: "2026-08-28T00:00:00.000Z",
-        updatedAt: "2026-08-28T00:00:00.000Z",
-      },
-      {
-        boardId,
-        nodeId: secondNodeId,
-        x: 420,
-        y: 240,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: "2026-08-28T00:00:00.000Z",
-        updatedAt: "2026-08-28T00:00:00.000Z",
-      },
+    nodes: [
+      graphNode(nodeId, "Alice", 120, 80),
+      graphNode(secondNodeId, "Bob", 420, 240),
     ],
-    boardEdges: [],
+    edges: [],
   };
 }
 
@@ -173,75 +157,66 @@ beforeEach(() => {
     workspace: { id: "workspace-1", name: "Writer's Workspace", slug: "personal-user-1" },
   });
   mocks.getBoardSnapshot.mockResolvedValue(snapshot());
-  mocks.listStoryNodes.mockResolvedValue([
-    graphNode(nodeId, "Alice"),
-    graphNode(secondNodeId, "Bob"),
-    graphNode(thirdNodeId, "Carol"),
-  ]);
-  mocks.createNodeOnBoard.mockImplementation(async (input) => ({
-    node: graphNode(input.id, input.name),
-    boardNode: {
+  mocks.createNode.mockImplementation(async (input) =>
+    graphNode(input.id, input.name, input.x, input.y, 1),
+  );
+  mocks.updateNode.mockImplementation(async (input) => {
+    const current = snapshot().nodes.find((node) => node.id === input.nodeId)!;
+    return {
+      ...current,
+      ...input,
       boardId,
-      nodeId: input.id,
-      x: input.position.x,
-      y: input.position.y,
-      width: null,
-      height: null,
-      zIndex: 0,
-      style: {},
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
-    },
-  }));
-  mocks.placeNodeOnBoard.mockImplementation(async (input) => ({
-    node: graphNode(input.nodeId, "Carol"),
-    boardNode: {
-      boardId,
-      nodeId: input.nodeId,
-      x: input.position.x,
-      y: input.position.y,
-      width: null,
-      height: null,
-      zIndex: 0,
-      style: {},
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
-    },
-  }));
-  mocks.updateBoardNode.mockResolvedValue({
-    ...snapshot().boardNodes[0],
-    x: 240,
-    y: 160,
+      version: current.version + 1,
+      updatedAt: "2026-09-06T00:01:00.000Z",
+    };
   });
-  mocks.createEdgeOnBoard.mockImplementation(async (input) => ({
-    edge: {
-      id: input.id,
-      storyId,
-      sourceNodeId: input.sourceNodeId,
-      targetNodeId: input.targetNodeId,
-      name: input.name,
-      description: "",
-      iconKey: null,
-      properties: {},
-      version: 1,
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
-    },
-    boardEdge: {
-      boardId,
-      edgeId: input.id,
-      style: {},
-      labelPresentation: {},
-      createdAt: "2026-08-28T00:00:00.000Z",
-      updatedAt: "2026-08-28T00:00:00.000Z",
-    },
+  mocks.deleteNode.mockResolvedValue(undefined);
+  mocks.restoreNode.mockImplementation(async (input) => ({
+    node: { ...input.node, createdAt: now, updatedAt: now },
+    edges: input.edges.map((edge) => ({ ...edge, createdAt: now, updatedAt: now })),
+  }));
+  mocks.createEdge.mockImplementation(async (input) => ({
+    id: input.id,
+    boardId,
+    sourceNodeId: input.sourceNodeId,
+    targetNodeId: input.targetNodeId,
+    name: input.name,
+    description: "",
+    iconKey: null,
+    properties: {},
+    style: {},
+    labelPresentation: {},
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  }));
+  mocks.updateEdge.mockImplementation(async (input) => ({
+    id: input.edgeId,
+    boardId,
+    sourceNodeId: nodeId,
+    targetNodeId: secondNodeId,
+    name: input.name ?? "knows",
+    description: input.description ?? "",
+    iconKey: null,
+    properties: input.properties ?? {},
+    style: {},
+    labelPresentation: {},
+    version: input.expectedVersion + 1,
+    createdAt: now,
+    updatedAt: now,
+  }));
+  mocks.deleteEdge.mockResolvedValue(undefined);
+  mocks.restoreEdge.mockImplementation(async (input) => ({
+    ...input.edge,
+    createdAt: now,
+    updatedAt: now,
   }));
 });
 
 afterEach(cleanup);
 
-describe("GraphEditorPage", () => {
-  it("hydrates and renders the represented snapshot", async () => {
+describe("GraphEditorPage Board-owned graph", () => {
+  it("renders direct Node rows at their own positions", async () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Characters" })).toBeInTheDocument();
@@ -250,111 +225,65 @@ describe("GraphEditorPage", () => {
     expect(mocks.getBoardSnapshot).toHaveBeenCalledWith(boardId, "workspace-1");
   });
 
-  it("creates a new Node from the single add-node dialog", async () => {
+  it("creates a new Board-owned Node from the single add-node dialog", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Alice");
 
     await user.click(screen.getByRole("button", { name: "노드 추가" }));
-    expect(await screen.findByRole("dialog", { name: "노드 추가" })).toBeInTheDocument();
-    await user.type(screen.getByLabelText("노드 이름"), "Charlie");
+    await user.type(await screen.findByLabelText("노드 이름"), "Charlie");
     await user.click(screen.getByRole("button", { name: "새 노드 만들기" }));
 
-    await waitFor(() => expect(mocks.createNodeOnBoard).toHaveBeenCalledTimes(1));
-    const input = mocks.createNodeOnBoard.mock.calls[0][0];
-    expect(input).toMatchObject({
+    await waitFor(() => expect(mocks.createNode).toHaveBeenCalledTimes(1));
+    expect(mocks.createNode.mock.calls[0][0]).toMatchObject({
       boardId,
       workspaceId: "workspace-1",
       name: "Charlie",
-      position: { x: 320, y: 240 },
+      x: 320,
+      y: 240,
     });
-    expect(input.id).toMatch(/^[0-9a-f-]{36}$/i);
     expect(await screen.findByText("Charlie")).toBeInTheDocument();
-    expect(screen.queryByLabelText("노드 이름")).not.toBeInTheDocument();
   });
 
-  it("keeps the add-node dialog creation-only without querying Story Nodes", async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await screen.findByText("Alice");
-
-    await user.click(screen.getByRole("button", { name: "노드 추가" }));
-    expect(await screen.findByRole("dialog", { name: "노드 추가" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("기존 노드")).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Carol" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "보드에 추가" })).not.toBeInTheDocument();
-    expect(mocks.listStoryNodes).not.toHaveBeenCalled();
-    expect(mocks.placeNodeOnBoard).not.toHaveBeenCalled();
-  });
-
-  it("keeps drag movement local and persists only when drag stops", async () => {
+  it("moves the direct Node locally and persists x/y with current expectedVersion on drag stop", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Alice");
 
     await user.click(screen.getByRole("button", { name: "Drag Alice" }));
     expect(screen.getByText("240,160")).toBeInTheDocument();
-    expect(mocks.updateBoardNode).not.toHaveBeenCalled();
+    expect(mocks.updateNode).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Stop Alice" }));
 
-    await waitFor(() => expect(mocks.updateBoardNode).toHaveBeenCalledTimes(1));
-    expect(mocks.updateBoardNode.mock.calls[0][0]).toEqual({
+    await waitFor(() => expect(mocks.updateNode).toHaveBeenCalledTimes(1));
+    expect(mocks.updateNode.mock.calls[0][0]).toMatchObject({
       boardId,
       nodeId,
       workspaceId: "workspace-1",
+      expectedVersion: 3,
       x: 240,
       y: 160,
     });
   });
 
-  it("preserves local drag position and shows an inline error when persistence fails", async () => {
-    mocks.updateBoardNode.mockRejectedValueOnce(new Error("offline"));
-    const user = userEvent.setup();
-    renderPage();
-    await screen.findByText("Alice");
-
-    await user.click(screen.getByRole("button", { name: "Drag Alice" }));
-    await user.click(screen.getByRole("button", { name: "Stop Alice" }));
-
-    expect(await screen.findByText("Unable to save Node position.")).toBeInTheDocument();
-    expect(screen.getByText("240,160")).toBeInTheDocument();
-  });
-
-  it("names a Relationship in a focused dialog after connecting Nodes", async () => {
+  it("creates a direct Relationship after naming a connection", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Alice");
 
     await user.click(screen.getByRole("button", { name: "Connect Alice to Bob" }));
-    expect(await screen.findByRole("dialog", { name: "관계 만들기" })).toBeInTheDocument();
-    await user.type(screen.getByLabelText("관계 이름"), "sister");
+    await user.type(await screen.findByLabelText("관계 이름"), "sister");
     await user.click(screen.getByRole("button", { name: "관계 만들기" }));
 
-    await waitFor(() => expect(mocks.createEdgeOnBoard).toHaveBeenCalledTimes(1));
-    const input = mocks.createEdgeOnBoard.mock.calls[0][0];
-    expect(input).toMatchObject({
+    await waitFor(() => expect(mocks.createEdge).toHaveBeenCalledTimes(1));
+    expect(mocks.createEdge.mock.calls[0][0]).toMatchObject({
       boardId,
       workspaceId: "workspace-1",
       sourceNodeId: nodeId,
       targetNodeId: secondNodeId,
       name: "sister",
     });
-    expect(input.id).toMatch(/^[0-9a-f-]{36}$/i);
     expect(await screen.findByText("sister")).toBeInTheDocument();
-    expect(screen.queryByLabelText("관계 이름")).not.toBeInTheDocument();
-  });
-
-  it("cancels Relationship naming without writing durable state", async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await screen.findByText("Alice");
-
-    await user.click(screen.getByRole("button", { name: "Connect Alice to Bob" }));
-    expect(await screen.findByRole("dialog", { name: "관계 만들기" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "취소" }));
-
-    expect(screen.queryByRole("dialog", { name: "관계 만들기" })).not.toBeInTheDocument();
-    expect(mocks.createEdgeOnBoard).not.toHaveBeenCalled();
   });
 });
