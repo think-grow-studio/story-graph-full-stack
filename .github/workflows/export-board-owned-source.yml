@@ -1,0 +1,28 @@
+name: Export Board-Owned Source
+
+on:
+  push:
+    branches:
+      - tool/board-owned-source-snapshot
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/board-owned-graph
+      - uses: actions/upload-artifact@v4
+        with:
+          name: board-owned-source
+          path: |
+            .github
+            drizzle
+            src
+            tests
+            package.json
+            pnpm-lock.yaml
+            tsconfig.json
+            vitest.config.*
+            playwright.config.*
+          if-no-files-found: error
