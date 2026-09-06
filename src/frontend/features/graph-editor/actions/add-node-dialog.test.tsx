@@ -15,10 +15,8 @@ describe("AddNodeDialog", () => {
     render(
       <AddNodeDialog
         busy={false}
-        existingNodes={[]}
         onClose={onClose}
         onCreate={onCreate}
-        onPlace={vi.fn()}
         open
       />,
     );
@@ -29,20 +27,17 @@ describe("AddNodeDialog", () => {
     expect(onCreate).toHaveBeenCalledWith("Alice");
   });
 
-  it("does not expose existing Nodes from other Boards for placement", () => {
+  it("has no API for placing Nodes from other Boards", () => {
     render(
       <AddNodeDialog
         busy={false}
-        existingNodes={[{ id: "node-3", name: "Carol" }]}
         onClose={vi.fn()}
         onCreate={vi.fn()}
-        onPlace={vi.fn()}
         open
       />,
     );
 
     expect(screen.queryByLabelText("기존 노드")).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Carol" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "보드에 추가" })).not.toBeInTheDocument();
   });
 
@@ -54,10 +49,8 @@ describe("AddNodeDialog", () => {
     render(
       <AddNodeDialog
         busy={false}
-        existingNodes={[]}
         onClose={onClose}
         onCreate={onCreate}
-        onPlace={vi.fn()}
         open
       />,
     );
