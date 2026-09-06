@@ -1,16 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Board, BoardEdge, GraphEdge, GraphNode } from "../domain/graph";
+import type { Board, GraphEdge, GraphNode } from "../domain/graph";
 import type { GraphRepository } from "../domain/graph.repository";
 import type { Story } from "@/backend/modules/story/domain/story";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
 import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
-import { createEdgeOnBoard } from "./create-edge-on-board/create-edge-on-board";
-import { removeEdgeFromBoard } from "./remove-edge-from-board/remove-edge-from-board";
+import { createEdge } from "./create-edge/create-edge";
+import { deleteEdge } from "./delete-edge/delete-edge";
+import { restoreEdge } from "./restore-edge/restore-edge";
 import { updateEdge } from "./update-edge/update-edge";
 
+const now = new Date("2026-09-06T00:00:00.000Z");
+const sourceId = "00000000-0000-4000-8000-000000000001";
+const targetId = "00000000-0000-4000-8000-000000000002";
+const edgeId = "00000000-0000-4000-8000-000000000010";
+
 function storyFixture(overrides: Partial<Story> = {}): Story {
-  const now = new Date("2026-08-28T00:00:00.000Z");
   return {
     id: "story-1",
     workspaceId: "workspace-1",
@@ -23,14 +28,12 @@ function storyFixture(overrides: Partial<Story> = {}): Story {
 }
 
 function boardFixture(overrides: Partial<Board> = {}): Board {
-  const now = new Date("2026-08-28T00:00:00.000Z");
   return {
     id: "board-1",
     storyId: "story-1",
-    scopeId: null,
     name: "Main",
     description: "",
-    revision: 0,
+    tags: [],
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -38,14 +41,19 @@ function boardFixture(overrides: Partial<Board> = {}): Board {
 }
 
 function nodeFixture(id: string, overrides: Partial<GraphNode> = {}): GraphNode {
-  const now = new Date("2026-08-28T00:00:00.000Z");
   return {
     id,
-    storyId: "story-1",
+    boardId: "board-1",
     name: id,
     description: "",
     iconKey: null,
     properties: {},
+    x: 0,
+    y: 0,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
     version: 1,
     createdAt: now,
     updatedAt: now,
@@ -53,34 +61,19 @@ function nodeFixture(id: string, overrides: Partial<GraphNode> = {}): GraphNode 
   };
 }
 
-const source = nodeFixture("00000000-0000-4000-8000-000000000001");
-const target = nodeFixture("00000000-0000-4000-8000-000000000002");
-
 function edgeFixture(overrides: Partial<GraphEdge> = {}): GraphEdge {
-  const now = new Date("2026-08-28T00:00:00.000Z");
   return {
-    id: "00000000-0000-4000-8000-000000000010",
-    storyId: "story-1",
-    sourceNodeId: source.id,
-    targetNodeId: target.id,
+    id: edgeId,
+    boardId: "board-1",
+    sourceNodeId: sourceId,
+    targetNodeId: targetId,
     name: "trusts",
     description: "",
     iconKey: null,
     properties: {},
-    version: 1,
-    createdAt: now,
-    updatedAt: now,
-    ...overrides,
-  };
-}
-
-function boardEdgeFixture(overrides: Partial<BoardEdge> = {}): BoardEdge {
-  const now = new Date("2026-08-28T00:00:00.000Z");
-  return {
-    boardId: "board-1",
-    edgeId: "00000000-0000-4000-8000-000000000010",
     style: {},
     labelPresentation: {},
+    version: 1,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -100,41 +93,34 @@ function createStories(stories: Story[] = [storyFixture()]): StoryRepository {
 
 function createGraph(): GraphRepository {
   const board = boardFixture();
+  const source = nodeFixture(sourceId);
+  const target = nodeFixture(targetId);
   const edge = edgeFixture();
   return {
-    createScope: vi.fn(),
-    listScopes: vi.fn(),
-    findScope: vi.fn(),
     createBoard: vi.fn(),
+    updateBoard: vi.fn(),
     listBoards: vi.fn(),
     findBoard: vi.fn(async (id) => (id === board.id ? board : null)),
-    listNodes: vi.fn(async () => [source, target]),
-    findNode: vi.fn(async (id) => {
+    getBoardSnapshot: vi.fn(),
+    createNode: vi.fn(),
+    findNode: vi.fn(async (boardId, id) => {
+      if (boardId !== board.id) return null;
       if (id === source.id) return source;
       if (id === target.id) return target;
       return null;
     }),
-    findEdge: vi.fn(async (id) => (id === edge.id ? edge : null)),
-    getBoardSnapshot: vi.fn(),
-    createNodeOnBoard: vi.fn(),
-    placeNodeOnBoard: vi.fn(),
-    putNodeState: vi.fn(),
-    putEdgeState: vi.fn(),
     updateNode: vi.fn(),
-    updateBoardNode: vi.fn(),
-    removeNodeFromBoard: vi.fn(),
-    restoreNodeToBoard: vi.fn(),
-    createEdgeOnBoard: vi.fn(async (input) => ({
-      edge: input.edge,
-      boardEdge: {
-        ...boardEdgeFixture(),
-        boardId: input.boardId,
-        edgeId: input.edge.id,
-      },
-    })),
+    deleteNode: vi.fn(),
+    restoreNode: vi.fn(),
+    createEdge: vi.fn(async (input) => ({ ...input, version: 1, createdAt: now, updatedAt: now })),
+    findEdge: vi.fn(async (boardId, id) =>
+      boardId === board.id && id === edge.id ? edge : null,
+    ),
     updateEdge: vi.fn(async (input) => ({ ...edge, ...input, version: edge.version + 1 })),
-    removeEdgeFromBoard: vi.fn(async () => true),
-    restoreEdgeToBoard: vi.fn(),
+    deleteEdge: vi.fn(async (boardId, id) =>
+      boardId === board.id && id === edge.id ? edge : null,
+    ),
+    restoreEdge: vi.fn(async (input) => ({ ...input.edge, createdAt: now, updatedAt: now })),
   };
 }
 
@@ -145,7 +131,7 @@ function createAccess(): WorkspaceAccessService {
   };
 }
 
-describe("Edge use-cases", () => {
+describe("Board-owned Edge use-cases", () => {
   let stories: StoryRepository;
   let graph: GraphRepository;
   let access: WorkspaceAccessService;
@@ -156,147 +142,119 @@ describe("Edge use-cases", () => {
     access = createAccess();
   });
 
-  it("creates a directed Edge after Board/endpoints ownership validation and graph:update", async () => {
-    const result = await createEdgeOnBoard(
+  it("creates an Edge only when both endpoints belong to the Board", async () => {
+    const result = await createEdge(
       {
         actorId: "user-1",
         workspaceId: "workspace-1",
         boardId: "board-1",
-        id: "00000000-0000-4000-8000-000000000099",
-        sourceNodeId: source.id,
-        targetNodeId: target.id,
+        id: edgeId,
+        sourceNodeId: sourceId,
+        targetNodeId: targetId,
         name: "protects",
         description: "",
         iconKey: null,
         properties: { since: 2024 },
+        style: { dashed: true },
+        labelPresentation: { offset: 10 },
       },
       { stories, graph, access },
     );
 
-    expect(access.requireCapability).toHaveBeenCalledWith({
-      userId: "user-1",
-      workspaceId: "workspace-1",
-      capability: "graph:update",
-    });
-    expect(graph.createEdgeOnBoard).toHaveBeenCalledWith({
+    expect(graph.findNode).toHaveBeenCalledWith("board-1", sourceId);
+    expect(graph.findNode).toHaveBeenCalledWith("board-1", targetId);
+    expect(graph.createEdge).toHaveBeenCalledWith({
+      id: edgeId,
       boardId: "board-1",
-      edge: expect.objectContaining({
-        id: "00000000-0000-4000-8000-000000000099",
-        storyId: "story-1",
-        sourceNodeId: source.id,
-        targetNodeId: target.id,
-        name: "protects",
-        properties: { since: 2024 },
-        version: 1,
-      }),
+      sourceNodeId: sourceId,
+      targetNodeId: targetId,
+      name: "protects",
+      description: "",
+      iconKey: null,
+      properties: { since: 2024 },
+      style: { dashed: true },
+      labelPresentation: { offset: 10 },
     });
-    expect(result.edge.sourceNodeId).toBe(source.id);
-    expect(result.edge.targetNodeId).toBe(target.id);
+    expect(result.boardId).toBe("board-1");
   });
 
-  it("does not reject a second Edge with the same source and target", async () => {
-    await createEdgeOnBoard(
-      {
-        actorId: "user-1",
-        workspaceId: "workspace-1",
-        boardId: "board-1",
-        id: "00000000-0000-4000-8000-000000000091",
-        sourceNodeId: source.id,
-        targetNodeId: target.id,
-        name: "trusts",
-        description: "",
-        iconKey: null,
-        properties: {},
-      },
-      { stories, graph, access },
-    );
-    await createEdgeOnBoard(
-      {
-        actorId: "user-1",
-        workspaceId: "workspace-1",
-        boardId: "board-1",
-        id: "00000000-0000-4000-8000-000000000092",
-        sourceNodeId: source.id,
-        targetNodeId: target.id,
-        name: "protects",
-        description: "",
-        iconKey: null,
-        properties: {},
-      },
-      { stories, graph, access },
-    );
-
-    expect(graph.createEdgeOnBoard).toHaveBeenCalledTimes(2);
-  });
-
-  it("returns 404 before authorization when an endpoint belongs to another Story", async () => {
-    vi.mocked(graph.findNode).mockImplementation(async (id) => {
-      if (id === source.id) return source;
-      if (id === target.id) return nodeFixture(target.id, { storyId: "story-2" });
+  it("rejects cross-Board endpoints without creating an Edge", async () => {
+    vi.mocked(graph.findNode).mockImplementation(async (boardId, id) => {
+      if (id === sourceId && boardId === "board-1") return nodeFixture(sourceId);
       return null;
     });
 
     await expect(
-      createEdgeOnBoard(
+      createEdge(
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
           boardId: "board-1",
-          id: "00000000-0000-4000-8000-000000000099",
-          sourceNodeId: source.id,
-          targetNodeId: target.id,
+          id: edgeId,
+          sourceNodeId: sourceId,
+          targetNodeId: targetId,
           name: "invalid",
           description: "",
           iconKey: null,
           properties: {},
+          style: {},
+          labelPresentation: {},
         },
         { stories, graph, access },
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
-    expect(access.requireCapability).not.toHaveBeenCalled();
-    expect(graph.createEdgeOnBoard).not.toHaveBeenCalled();
+
+    expect(graph.createEdge).not.toHaveBeenCalled();
   });
 
-  it("hides a cross-workspace Board before graph:update", async () => {
+  it("hides a cross-workspace Board before graph:update capability checks", async () => {
     stories = createStories([storyFixture({ workspaceId: "workspace-2" })]);
 
     await expect(
-      createEdgeOnBoard(
+      createEdge(
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
           boardId: "board-1",
-          id: "00000000-0000-4000-8000-000000000099",
-          sourceNodeId: source.id,
-          targetNodeId: target.id,
+          id: edgeId,
+          sourceNodeId: sourceId,
+          targetNodeId: targetId,
           name: "invalid",
           description: "",
           iconKey: null,
           properties: {},
+          style: {},
+          labelPresentation: {},
         },
         { stories, graph, access },
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
+
     expect(access.requireCapability).not.toHaveBeenCalled();
+    expect(graph.findNode).not.toHaveBeenCalled();
   });
 
-  it("updates a canonical Edge with compare-and-swap and maps stale writes to 409", async () => {
-    const updated = await updateEdge(
+  it("updates semantic and presentation fields in one CAS write", async () => {
+    const result = await updateEdge(
       {
         actorId: "user-1",
         workspaceId: "workspace-1",
-        edgeId: edgeFixture().id,
-        version: 1,
+        boardId: "board-1",
+        edgeId,
+        expectedVersion: 1,
         name: "protects",
+        style: { dashed: true },
       },
       { stories, graph, access },
     );
 
-    expect(updated.version).toBe(2);
+    expect(result).toMatchObject({ name: "protects", style: { dashed: true }, version: 2 });
     expect(graph.updateEdge).toHaveBeenCalledWith({
-      id: edgeFixture().id,
+      boardId: "board-1",
+      id: edgeId,
       expectedVersion: 1,
       name: "protects",
+      style: { dashed: true },
     });
 
     vi.mocked(graph.updateEdge).mockResolvedValueOnce(null);
@@ -305,8 +263,9 @@ describe("Edge use-cases", () => {
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
-          edgeId: edgeFixture().id,
-          version: 1,
+          boardId: "board-1",
+          edgeId,
+          expectedVersion: 1,
           description: "stale",
         },
         { stories, graph, access },
@@ -314,24 +273,60 @@ describe("Edge use-cases", () => {
     ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
   });
 
-  it("removes only Board membership and preserves the canonical Edge contract", async () => {
+  it("deletes and returns the actual Edge row for Undo", async () => {
+    const result = await deleteEdge(
+      {
+        actorId: "user-1",
+        workspaceId: "workspace-1",
+        boardId: "board-1",
+        edgeId,
+      },
+      { stories, graph, access },
+    );
+
+    expect(result.id).toBe(edgeId);
+    expect(graph.deleteEdge).toHaveBeenCalledWith("board-1", edgeId);
+  });
+
+  it("restores the same Edge UUID/version and rejects route identity mismatch", async () => {
+    const captured = edgeFixture({ version: 4, style: { dashed: true } });
+    const edge = {
+      id: captured.id,
+      boardId: captured.boardId,
+      sourceNodeId: captured.sourceNodeId,
+      targetNodeId: captured.targetNodeId,
+      name: captured.name,
+      description: captured.description,
+      iconKey: captured.iconKey,
+      properties: captured.properties,
+      style: captured.style,
+      labelPresentation: captured.labelPresentation,
+      version: captured.version,
+    };
+
+    const restored = await restoreEdge(
+      {
+        actorId: "user-1",
+        workspaceId: "workspace-1",
+        boardId: "board-1",
+        edgeId,
+        edge,
+      },
+      { stories, graph, access },
+    );
+    expect(restored).toMatchObject({ id: edgeId, boardId: "board-1", version: 4 });
+
     await expect(
-      removeEdgeFromBoard(
+      restoreEdge(
         {
           actorId: "user-1",
           workspaceId: "workspace-1",
           boardId: "board-1",
-          edgeId: edgeFixture().id,
+          edgeId: "00000000-0000-4000-8000-000000000099",
+          edge,
         },
         { stories, graph, access },
       ),
-    ).resolves.toBeUndefined();
-
-    expect(access.requireCapability).toHaveBeenCalledWith({
-      userId: "user-1",
-      workspaceId: "workspace-1",
-      capability: "graph:update",
-    });
-    expect(graph.removeEdgeFromBoard).toHaveBeenCalledWith("board-1", edgeFixture().id);
+    ).rejects.toMatchObject({ code: "BAD_REQUEST", status: 400 });
   });
 });
