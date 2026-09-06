@@ -1,0 +1,44 @@
+name: Board-Owned Backend GREEN 2
+
+on:
+  push:
+    branches:
+      - test/board-owned-backend-green-2
+
+jobs:
+  focused-backend:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
+      BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: story_graph
+          POSTGRES_USER: story_graph
+          POSTGRES_PASSWORD: story_graph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U story_graph -d story_graph"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      - run: pnpm vitest run src/backend/modules/graph/application src/backend/infrastructure/openapi/openapi-document.test.ts
+      - run: pnpm vitest run --config vitest.integration.config.ts tests/integration/graph
