@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  GraphEdgeResponse,
+  GraphNodeResponse,
+} from "@/contracts/graph/graph.contract";
 import { applyEditorCommand } from "../commands/editor-command-runtime";
 import { getEditorCommandLaneKey } from "../save-queue/editor-save-queue";
 import { createGraphEditorStore } from "../store/graph-editor-store";
@@ -14,7 +18,45 @@ const aliceId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
 const workspaceId = "workspace-1";
-const now = "2026-08-30T00:00:00.000Z";
+const now = "2026-09-06T00:00:00.000Z";
+
+function node(id: string, name: string, x: number): GraphNodeResponse {
+  return {
+    id,
+    boardId,
+    name,
+    description: "",
+    iconKey: null,
+    properties: {},
+    x,
+    y: 0,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function relationship(): GraphEdgeResponse {
+  return {
+    id: edgeId,
+    boardId,
+    sourceNodeId: aliceId,
+    targetNodeId: bobId,
+    name: "knows",
+    description: "",
+    iconKey: null,
+    properties: {},
+    style: { stroke: "dashed" },
+    labelPresentation: { hidden: false },
+    version: 4,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 function hydratedStore() {
   const store = createGraphEditorStore();
@@ -25,102 +67,29 @@ function hydratedStore() {
       storyId,
       name: "Characters",
       description: "",
-      revision: 3,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
-    nodes: [
-      {
-        id: aliceId,
-        storyId,
-        name: "Alice",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: bobId,
-        storyId,
-        name: "Bob",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    edges: [
-      {
-        id: edgeId,
-        storyId,
-        sourceNodeId: aliceId,
-        targetNodeId: bobId,
-        name: "knows",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardNodes: [
-      {
-        boardId,
-        nodeId: aliceId,
-        x: 0,
-        y: 0,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        boardId,
-        nodeId: bobId,
-        x: 200,
-        y: 0,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardEdges: [
-      {
-        boardId,
-        edgeId,
-        style: { stroke: "dashed" },
-        labelPresentation: { hidden: false },
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
+    nodes: [node(aliceId, "Alice", 0), node(bobId, "Bob", 200)],
+    edges: [relationship()],
   });
   return store;
 }
 
-function removeCommand() {
+function deleteCommand() {
   return {
-    type: "remove-board-edge" as const,
+    type: "delete-edge" as const,
     boardId,
     workspaceId,
     edgeId,
   };
 }
 
-describe("relationship Board removal history", () => {
-  it("captures the exact BoardEdge presentation as a restore inverse", () => {
+describe("relationship delete history", () => {
+  it("captures the exact direct Edge row as a restore inverse", () => {
     const store = hydratedStore();
-    const forward = removeCommand();
+    const forward = deleteCommand();
 
     expect(isUndoableEditorCommand(forward)).toBe(true);
     expect(
@@ -128,14 +97,11 @@ describe("relationship Board removal history", () => {
     ).toEqual({
       forward,
       inverse: {
-        type: "restore-board-edge",
+        type: "restore-edge",
         boardId,
         workspaceId,
         edgeId,
-        style: { stroke: "dashed" },
-        labelPresentation: { hidden: false },
-        createdAt: now,
-        updatedAt: now,
+        edge: relationship(),
       },
       coalescingKey: null,
       createdAtMs: 1_000,
@@ -143,29 +109,20 @@ describe("relationship Board removal history", () => {
     });
   });
 
-  it("applies remove and restore locally without touching the canonical Edge", () => {
+  it("deletes and restores the same Board-owned Edge locally", () => {
     const store = hydratedStore();
     const entry = createEditorHistoryEntry({
       store,
-      command: removeCommand(),
+      command: deleteCommand(),
       nowMs: 1_000,
     });
     expect(entry).not.toBeNull();
 
-    expect(applyEditorCommand(store, removeCommand())).toBe(true);
-    expect(store.getState().edges.some((edge) => edge.id === edgeId)).toBe(true);
-    expect(store.getState().boardEdges.some((edge) => edge.edgeId === edgeId)).toBe(false);
+    expect(applyEditorCommand(store, deleteCommand())).toBe(true);
+    expect(store.getState().edges.some((edge) => edge.id === edgeId)).toBe(false);
 
     expect(applyEditorCommand(store, entry!.inverse)).toBe(true);
-    expect(store.getState().edges.some((edge) => edge.id === edgeId)).toBe(true);
-    expect(store.getState().boardEdges).toContainEqual(
-      expect.objectContaining({
-        boardId,
-        edgeId,
-        style: { stroke: "dashed" },
-        labelPresentation: { hidden: false },
-      }),
-    );
+    expect(store.getState().edges).toContainEqual(relationship());
     expect(getEditorCommandLaneKey(entry!.inverse)).toBe(`edge:${edgeId}`);
   });
 });
