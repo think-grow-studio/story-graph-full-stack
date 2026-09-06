@@ -466,10 +466,10 @@ function GraphEditorContent({
             isLaneBusy={selectedLaneBusy}
             isRemoving={false}
             key={selectedDraftKey}
+            onDelete={handleDeleteSelected}
             onDraftChange={(patch) =>
               draftStore.getState().updateDraft(selectedDraftKey, patch)
             }
-            onRemoveFromBoard={handleDeleteSelected}
             selection={inspectorSelection}
             validationError={inspectorValidationError}
           />
