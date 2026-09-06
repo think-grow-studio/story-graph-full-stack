@@ -1,45 +1,36 @@
 import type {
   CreateEdgeCommand,
-  RemoveBoardEdgeCommand,
-  RestoreBoardEdgeCommand,
+  DeleteEdgeCommand,
+  RestoreEdgeCommand,
   UpdateEdgeCommand,
-  UpdateEdgeStateCommand,
 } from "./edge-commands";
 import type {
   CreateNodeCommand,
+  DeleteNodeCommand,
   MoveNodeCommand,
-  PlaceBoardNodeCommand,
-  RemoveBoardNodeCommand,
-  RestoreBoardNodeCommand,
+  RestoreNodeCommand,
   UpdateNodeCommand,
-  UpdateNodeStateCommand,
 } from "./node-commands";
 
 export type EditorCommand =
   | CreateNodeCommand
-  | PlaceBoardNodeCommand
   | MoveNodeCommand
-  | CreateEdgeCommand
   | UpdateNodeCommand
-  | UpdateNodeStateCommand
+  | DeleteNodeCommand
+  | RestoreNodeCommand
+  | CreateEdgeCommand
   | UpdateEdgeCommand
-  | UpdateEdgeStateCommand
-  | RemoveBoardNodeCommand
-  | RestoreBoardNodeCommand
-  | RemoveBoardEdgeCommand
-  | RestoreBoardEdgeCommand;
+  | DeleteEdgeCommand
+  | RestoreEdgeCommand;
 
 export type {
   CreateEdgeCommand,
   CreateNodeCommand,
+  DeleteEdgeCommand,
+  DeleteNodeCommand,
   MoveNodeCommand,
-  PlaceBoardNodeCommand,
-  RemoveBoardEdgeCommand,
-  RemoveBoardNodeCommand,
-  RestoreBoardEdgeCommand,
-  RestoreBoardNodeCommand,
+  RestoreEdgeCommand,
+  RestoreNodeCommand,
   UpdateEdgeCommand,
-  UpdateEdgeStateCommand,
   UpdateNodeCommand,
-  UpdateNodeStateCommand,
 };
