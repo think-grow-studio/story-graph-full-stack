@@ -59,9 +59,9 @@ export function createInspectorAutosaveController({
         boardId,
         workspaceId,
         nodeId,
-        version: node.version,
+        expectedVersion: node.version,
         ...evaluation.input,
-      } as unknown as EditorCommand);
+      });
       return;
     }
 
@@ -79,9 +79,9 @@ export function createInspectorAutosaveController({
       boardId,
       workspaceId,
       edgeId,
-      version: edge.version,
+      expectedVersion: edge.version,
       ...evaluation.input,
-    } as unknown as EditorCommand);
+    });
   }
 
   return {
