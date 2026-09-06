@@ -5,10 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getBootstrap: vi.fn(),
   getBoardSnapshot: vi.fn(),
-  createNodeOnBoard: vi.fn(),
-  updateBoardNode: vi.fn(),
-  createEdgeOnBoard: vi.fn(),
+  createNode: vi.fn(),
   updateNode: vi.fn(),
+  deleteNode: vi.fn(),
+  restoreNode: vi.fn(),
+  createEdge: vi.fn(),
+  updateEdge: vi.fn(),
+  deleteEdge: vi.fn(),
+  restoreEdge: vi.fn(),
 }));
 
 vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
@@ -17,10 +21,14 @@ vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
 
 vi.mock("@/frontend/api/graph/graph.api", () => ({
   getBoardSnapshot: mocks.getBoardSnapshot,
-  createNodeOnBoard: mocks.createNodeOnBoard,
-  updateBoardNode: mocks.updateBoardNode,
-  createEdgeOnBoard: mocks.createEdgeOnBoard,
+  createNode: mocks.createNode,
   updateNode: mocks.updateNode,
+  deleteNode: mocks.deleteNode,
+  restoreNode: mocks.restoreNode,
+  createEdge: mocks.createEdge,
+  updateEdge: mocks.updateEdge,
+  deleteEdge: mocks.deleteEdge,
+  restoreEdge: mocks.restoreEdge,
 }));
 
 vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
@@ -39,10 +47,7 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
       {nodes.map((node) => (
         <div key={node.id}>
           <span>{`${node.position.x},${node.position.y}`}</span>
-          <button
-            onClick={() => onSelectNode?.(node.id)}
-            type="button"
-          >
+          <button onClick={() => onSelectNode?.(node.id)} type="button">
             Select {node.name}
           </button>
           <button
@@ -66,7 +71,7 @@ const storyId = "11111111-1111-4111-8111-111111111111";
 const boardId = "22222222-2222-4222-8222-222222222222";
 const nodeId = "33333333-3333-4333-8333-333333333333";
 const bobId = "44444444-4444-4444-8444-444444444444";
-const now = "2026-08-29T00:00:00.000Z";
+const now = "2026-09-06T00:00:00.000Z";
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -78,16 +83,33 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function boardNode() {
+function graphNode({
+  id = nodeId,
+  name = "Alice",
+  x = 100,
+  y = 100,
+  version = 1,
+}: {
+  id?: string;
+  name?: string;
+  x?: number;
+  y?: number;
+  version?: number;
+} = {}) {
   return {
+    id,
     boardId,
-    nodeId,
-    x: 250,
-    y: 300,
+    name,
+    description: "",
+    iconKey: null,
+    properties: {},
+    x,
+    y,
     width: null,
     height: null,
     zIndex: 0,
     style: {},
+    version,
     createdAt: now,
     updatedAt: now,
   };
@@ -106,40 +128,15 @@ beforeEach(() => {
       storyId,
       name: "Characters",
       description: "",
-      revision: 1,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
     nodes: [
-      {
-        id: nodeId,
-        storyId,
-        name: "Alice",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: bobId,
-        storyId,
-        name: "Bob",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
+      graphNode(),
+      graphNode({ id: bobId, name: "Bob", x: 400, y: 100 }),
     ],
     edges: [],
-    boardNodes: [
-      { ...boardNode(), x: 100, y: 100 },
-      { ...boardNode(), nodeId: bobId, x: 400, y: 100 },
-    ],
-    boardEdges: [],
   });
 });
 
@@ -147,9 +144,9 @@ afterEach(cleanup);
 
 describe("GraphEditorPage save state", () => {
   it("shows 저장됨, 저장되지 않음, 저장 중, 저장 오류/다시 시도, then 저장됨", async () => {
-    const first = deferred<ReturnType<typeof boardNode>>();
-    const retry = deferred<ReturnType<typeof boardNode>>();
-    mocks.updateBoardNode
+    const first = deferred<ReturnType<typeof graphNode>>();
+    const retry = deferred<ReturnType<typeof graphNode>>();
+    mocks.updateNode
       .mockImplementationOnce(() => first.promise)
       .mockImplementationOnce(() => retry.promise);
     const queryClient = new QueryClient({
@@ -169,6 +166,14 @@ describe("GraphEditorPage save state", () => {
     expect(screen.getByText("저장되지 않음")).toBeInTheDocument();
 
     expect(await screen.findByText("저장 중…")).toBeInTheDocument();
+    expect(mocks.updateNode.mock.calls[0]?.[0]).toMatchObject({
+      boardId,
+      workspaceId: "workspace-1",
+      nodeId,
+      expectedVersion: 1,
+      x: 250,
+      y: 300,
+    });
     first.reject(new Error("offline"));
 
     expect(await screen.findByText("저장 오류")).toBeInTheDocument();
@@ -176,8 +181,8 @@ describe("GraphEditorPage save state", () => {
     expect(screen.getByText("250,300")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
-    await waitFor(() => expect(mocks.updateBoardNode).toHaveBeenCalledTimes(2));
-    retry.resolve(boardNode());
+    await waitFor(() => expect(mocks.updateNode).toHaveBeenCalledTimes(2));
+    retry.resolve(graphNode({ x: 250, y: 300, version: 2 }));
 
     expect(await screen.findByText("저장됨")).toBeInTheDocument();
     expect(screen.getByText("250,300")).toBeInTheDocument();
