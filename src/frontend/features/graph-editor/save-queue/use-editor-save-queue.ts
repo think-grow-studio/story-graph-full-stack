@@ -64,7 +64,7 @@ export function useEditorSaveQueue(
   const dispatch = useCallback(
     (command: EditorCommand) => {
       const waitForLaneKeys =
-        command.type === "remove-board-node"
+        command.type === "delete-node"
           ? incidentEdgeLaneKeys(store, command.nodeId)
           : [];
       if (!applyEditorCommand(store, command)) return null;
