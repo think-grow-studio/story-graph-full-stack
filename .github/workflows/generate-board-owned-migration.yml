@@ -33,7 +33,7 @@ jobs:
           journal.entries = journal.entries.filter((entry) => entry.idx < 2);
           fs.writeFileSync(path, JSON.stringify(journal, null, 2) + '\n');
           NODE
-          pnpm db:generate -- --name board_owned_graph
+          pnpm db:generate --name board_owned_graph
       - uses: actions/upload-artifact@v4
         with:
           name: board-owned-migration
