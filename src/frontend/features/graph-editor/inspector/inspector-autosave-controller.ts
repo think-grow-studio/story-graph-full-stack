@@ -27,7 +27,8 @@ export function createInspectorAutosaveController({
   dispatch(command: EditorCommand): string | null;
 }): InspectorAutosaveController {
   const timers = new Map<InspectorEntityKey, ReturnType<typeof setTimeout>>();
-  let unsubscribe: (() => void) | null = null;
+  let unsubscribeDrafts: (() => void) | null = null;
+  let unsubscribeGraph: (() => void) | null = null;
 
   function schedule(key: InspectorEntityKey) {
     const existing = timers.get(key);
@@ -84,11 +85,34 @@ export function createInspectorAutosaveController({
     });
   }
 
+  function discardMissingDrafts() {
+    const graphState = graphStore.getState();
+    const draftKeys = Object.keys(
+      draftStore.getState().drafts,
+    ) as InspectorEntityKey[];
+
+    for (const key of draftKeys) {
+      const exists = key.startsWith("node:")
+        ? graphState.nodes.some(
+            (node) => node.id === key.slice("node:".length),
+          )
+        : graphState.edges.some(
+            (edge) => edge.id === key.slice("edge:".length),
+          );
+      if (exists) continue;
+
+      const timer = timers.get(key);
+      if (timer) clearTimeout(timer);
+      timers.delete(key);
+      draftStore.getState().discardDraft(key);
+    }
+  }
+
   return {
     start() {
-      if (unsubscribe) return;
+      if (unsubscribeDrafts || unsubscribeGraph) return;
 
-      unsubscribe = draftStore.subscribe((state, previousState) => {
+      unsubscribeDrafts = draftStore.subscribe((state, previousState) => {
         const keys = Object.keys(state.drafts) as InspectorEntityKey[];
         for (const key of keys) {
           const current = state.drafts[key];
@@ -97,10 +121,13 @@ export function createInspectorAutosaveController({
           schedule(key);
         }
       });
+      unsubscribeGraph = graphStore.subscribe(discardMissingDrafts);
     },
     dispose() {
-      unsubscribe?.();
-      unsubscribe = null;
+      unsubscribeDrafts?.();
+      unsubscribeDrafts = null;
+      unsubscribeGraph?.();
+      unsubscribeGraph = null;
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();
     },
