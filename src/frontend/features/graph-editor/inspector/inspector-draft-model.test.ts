@@ -14,11 +14,17 @@ const now = "2026-08-29T00:00:00.000Z";
 function alice(overrides: Partial<GraphNodeResponse> = {}): GraphNodeResponse {
   return {
     id: "33333333-3333-4333-8333-333333333333",
-    storyId: "11111111-1111-4111-8111-111111111111",
+    boardId: "22222222-2222-4222-8222-222222222222",
     name: "Alice",
     description: "Protagonist",
     iconKey: null,
     properties: { role: "lead", meta: { age: 31 } },
+    x: 10,
+    y: 20,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
     version: 3,
     createdAt: now,
     updatedAt: now,
@@ -32,7 +38,7 @@ describe("inspector draft model", () => {
     expect(toInspectorEntityKey("edge", "edge-1")).toBe("edge:edge-1");
   });
 
-  it("initializes raw draft text from canonical entity values", () => {
+  it("initializes raw draft text from direct entity values", () => {
     expect(createInspectorDraftFromEntity(alice())).toEqual({
       name: "Alice",
       description: "Protagonist",
