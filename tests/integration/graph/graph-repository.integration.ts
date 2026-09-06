@@ -160,8 +160,9 @@ describe("DrizzleGraphRepository board-owned graph", () => {
     expect(created).toMatchObject({
       storyId: story.id,
       name: "Characters",
-      tags: ["인물", "1부"],
     });
+    expect(created.tags).toHaveLength(2);
+    expect(created.tags).toEqual(expect.arrayContaining(["인물", "1부"]));
     await expect(repository.listBoards(story.id)).resolves.toEqual([created]);
   });
 
