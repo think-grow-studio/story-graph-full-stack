@@ -2,6 +2,10 @@ import { act, renderHook } from "@testing-library/react";
 import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import type {
+  GraphEdgeResponse,
+  GraphNodeResponse,
+} from "@/contracts/graph/graph.contract";
 import type { EditorPersistence } from "../persistence/editor-persistence";
 import { createGraphEditorStore } from "../store/graph-editor-store";
 import { useEditorSaveQueue } from "./use-editor-save-queue";
@@ -12,23 +16,69 @@ const nodeId = "33333333-3333-4333-8333-333333333333";
 const targetNodeId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
 const workspaceId = "workspace-1";
-const now = "2026-08-29T00:00:00.000Z";
+const now = "2026-09-06T00:00:00.000Z";
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 async function flushMicrotasks() {
   await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
+  await Promise.resolve();
 }
 
-function store() {
+function node(
+  id = nodeId,
+  overrides: Partial<GraphNodeResponse> = {},
+): GraphNodeResponse {
+  return {
+    id,
+    boardId,
+    name: id === nodeId ? "Alice" : "Bob",
+    description: "",
+    iconKey: null,
+    properties: {},
+    x: id === nodeId ? 100 : 400,
+    y: 100,
+    width: null,
+    height: null,
+    zIndex: 0,
+    style: {},
+    version: 3,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function edge(overrides: Partial<GraphEdgeResponse> = {}): GraphEdgeResponse {
+  return {
+    id: edgeId,
+    boardId,
+    sourceNodeId: nodeId,
+    targetNodeId,
+    name: "knows",
+    description: "",
+    iconKey: null,
+    properties: {},
+    style: {},
+    labelPresentation: {},
+    version: 4,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+function store(withRelationship = false) {
   const result = createGraphEditorStore();
   result.getState().hydrate({
     story: { id: storyId, name: "Novel" },
@@ -37,157 +87,39 @@ function store() {
       storyId,
       name: "Characters",
       description: "",
-      revision: 1,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     },
-    nodes: [
-      {
-        id: nodeId,
-        storyId,
-        name: "Alice",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    edges: [],
-    boardNodes: [
-      {
-        boardId,
-        nodeId,
-        x: 100,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardEdges: [],
+    nodes: withRelationship ? [node(), node(targetNodeId)] : [node()],
+    edges: withRelationship ? [edge()] : [],
   });
   return result;
 }
 
-function storeWithRelationship() {
-  const result = createGraphEditorStore();
-  result.getState().hydrate({
-    story: { id: storyId, name: "Novel" },
-    board: {
-      id: boardId,
-      storyId,
-      name: "Characters",
-      description: "",
-      revision: 3,
-      createdAt: now,
-      updatedAt: now,
-    },
-    nodes: [
-      {
-        id: nodeId,
-        storyId,
-        name: "Alice",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: targetNodeId,
-        storyId,
-        name: "Bob",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    edges: [
-      {
-        id: edgeId,
-        storyId,
-        sourceNodeId: nodeId,
-        targetNodeId,
-        name: "knows",
-        description: "",
-        iconKey: null,
-        properties: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardNodes: [
-      {
-        boardId,
-        nodeId,
-        x: 100,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        boardId,
-        nodeId: targetNodeId,
-        x: 400,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-    boardEdges: [
-      {
-        boardId,
-        edgeId,
-        style: { stroke: "dashed" },
-        labelPresentation: { hidden: false },
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
-  });
-  return result;
-}
-
-function persistence(moveNode: EditorPersistence["moveNode"]): EditorPersistence {
+function persistence(
+  overrides: Partial<EditorPersistence> = {},
+): EditorPersistence {
   return {
     createNode: vi.fn(),
-    placeBoardNode: vi.fn(),
-    moveNode,
-    createEdge: vi.fn(),
+    moveNode: vi.fn(),
     updateNode: vi.fn(),
-    updateNodeState: vi.fn(),
+    deleteNode: vi.fn(),
+    restoreNode: vi.fn(),
+    createEdge: vi.fn(),
     updateEdge: vi.fn(),
-    updateEdgeState: vi.fn(),
-    removeBoardNode: vi.fn(),
-    restoreBoardNode: vi.fn(),
-    removeBoardEdge: vi.fn(),
-    restoreBoardEdge: vi.fn(),
+    deleteEdge: vi.fn(),
+    restoreEdge: vi.fn(),
+    ...overrides,
   };
 }
 
 describe("useEditorSaveQueue", () => {
-  it("applies working state synchronously and persists through queue state", async () => {
+  it("applies direct Node movement synchronously and reconciles the persisted version", async () => {
     const editorStore = store();
-    const gate = deferred<ReturnType<typeof editorStore.getState>["boardNodes"][number]>();
-    const durable = persistence(vi.fn(() => gate.promise));
+    const gate = deferred<GraphNodeResponse>();
+    const moveNode = vi.fn(() => gate.promise);
+    const durable = persistence({ moveNode });
     const { result } = renderHook(() =>
       useEditorSaveQueue(editorStore, durable, boardId),
     );
@@ -199,39 +131,53 @@ describe("useEditorSaveQueue", () => {
         boardId,
         workspaceId,
         nodeId,
+        expectedVersion: 1,
         position: { x: 250, y: 300 },
       });
     });
 
     expect(operationId).not.toBeNull();
-    expect(editorStore.getState().boardNodes[0]).toMatchObject({ x: 250, y: 300 });
+    expect(editorStore.getState().nodes[0]).toMatchObject({ x: 250, y: 300 });
     expect(result.current.snapshot.saveState).toBe("unsaved");
 
     await act(async () => {
       await flushMicrotasks();
     });
+    expect(moveNode).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedVersion: 3, position: { x: 250, y: 300 } }),
+    );
     expect(result.current.snapshot.saveState).toBe("saving");
 
-    gate.resolve({
-      ...editorStore.getState().boardNodes[0],
-      updatedAt: "2026-08-29T00:01:00.000Z",
-    });
+    gate.resolve(
+      node(nodeId, {
+        x: 250,
+        y: 300,
+        version: 4,
+        updatedAt: "2026-09-06T00:01:00.000Z",
+      }),
+    );
     await act(async () => {
       await flushMicrotasks();
     });
 
     expect(result.current.snapshot.saveState).toBe("saved");
-    expect(editorStore.getState().boardNodes[0]).toMatchObject({ x: 250, y: 300 });
+    expect(editorStore.getState().nodes[0]).toMatchObject({
+      x: 250,
+      y: 300,
+      version: 4,
+    });
   });
 
-  it("keeps the queue live through React StrictMode effect replay", async () => {
+  it("keeps the queue live exactly once through React StrictMode effect replay", async () => {
     const editorStore = store();
-    const moveNode = vi.fn(async (command) => ({
-      ...editorStore.getState().boardNodes[0],
-      x: command.position.x,
-      y: command.position.y,
-    }));
-    const durable = persistence(moveNode);
+    const moveNode = vi.fn(async (command) =>
+      node(nodeId, {
+        x: command.position.x,
+        y: command.position.y,
+        version: 4,
+      }),
+    );
+    const durable = persistence({ moveNode });
     const { result } = renderHook(
       () => useEditorSaveQueue(editorStore, durable, boardId),
       { wrapper: StrictMode },
@@ -243,6 +189,7 @@ describe("useEditorSaveQueue", () => {
         boardId,
         workspaceId,
         nodeId,
+        expectedVersion: 3,
         position: { x: 275, y: 325 },
       });
     });
@@ -255,20 +202,19 @@ describe("useEditorSaveQueue", () => {
     expect(result.current.snapshot.saveState).toBe("saved");
   });
 
-  it("reports lane state and exposes manual retry", async () => {
+  it("keeps optimistic state on failure and retries the failed lane manually", async () => {
     const editorStore = store();
     let attempts = 0;
-    const durable = persistence(
-      vi.fn(async (command) => {
-        attempts += 1;
-        if (attempts === 1) throw new Error("offline");
-        return {
-          ...editorStore.getState().boardNodes[0],
-          x: command.position.x,
-          y: command.position.y,
-        };
-      }),
-    );
+    const moveNode = vi.fn(async (command) => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("offline");
+      return node(nodeId, {
+        x: command.position.x,
+        y: command.position.y,
+        version: 4,
+      });
+    });
+    const durable = persistence({ moveNode });
     const { result } = renderHook(() =>
       useEditorSaveQueue(editorStore, durable, boardId),
     );
@@ -277,6 +223,7 @@ describe("useEditorSaveQueue", () => {
       boardId,
       workspaceId,
       nodeId,
+      expectedVersion: 3,
       position: { x: 400, y: 500 },
     };
 
@@ -287,6 +234,7 @@ describe("useEditorSaveQueue", () => {
       await flushMicrotasks();
     });
 
+    expect(editorStore.getState().nodes[0]).toMatchObject({ x: 400, y: 500 });
     expect(result.current.snapshot.saveState).toBe("error");
     expect(result.current.getLaneState(command)).toBe("error");
 
@@ -301,95 +249,64 @@ describe("useEditorSaveQueue", () => {
     expect(attempts).toBe(2);
     expect(result.current.snapshot.saveState).toBe("saved");
     expect(result.current.getLaneState(command)).toBe("idle");
+    expect(editorStore.getState().nodes[0]).toMatchObject({
+      x: 400,
+      y: 500,
+      version: 4,
+    });
   });
 
-  it("waits for active incident Relationship persistence before persisting Board Node removal", async () => {
-    const editorStore = storeWithRelationship();
-    const restoreGate = deferred<
-      Awaited<ReturnType<EditorPersistence["restoreBoardEdge"]>>
-    >();
-    const removeBoardNode = vi.fn(async () => undefined);
-    const removeBoardEdge = vi.fn(async () => undefined);
-    const restoreBoardEdge = vi.fn(() => restoreGate.promise);
-    const durable: EditorPersistence = {
-      createNode: vi.fn(),
-      placeBoardNode: vi.fn(),
-      moveNode: vi.fn(),
-      createEdge: vi.fn(),
-      updateNode: vi.fn(),
-      updateNodeState: vi.fn(),
-      updateEdge: vi.fn(),
-      updateEdgeState: vi.fn(),
-      removeBoardNode,
-      restoreBoardNode: vi.fn(),
-      removeBoardEdge,
-      restoreBoardEdge,
-    };
+  it("waits for an active incident Edge lane before persisting Node delete without resurrecting rows", async () => {
+    const editorStore = store(true);
+    const edgeGate = deferred<GraphEdgeResponse>();
+    const updateEdge = vi.fn(() => edgeGate.promise);
+    const deleteNode = vi.fn().mockResolvedValue(undefined);
+    const durable = persistence({ updateEdge, deleteNode });
     const { result } = renderHook(() =>
       useEditorSaveQueue(editorStore, durable, boardId),
     );
 
     act(() => {
       result.current.dispatch({
-        type: "remove-board-edge",
+        type: "update-edge",
         boardId,
         workspaceId,
         edgeId,
+        expectedVersion: 4,
+        name: "protects",
+        description: "",
+        properties: {},
       });
     });
     await act(async () => {
       await flushMicrotasks();
-      await flushMicrotasks();
     });
-    expect(removeBoardEdge).toHaveBeenCalledTimes(1);
+    expect(updateEdge).toHaveBeenCalledTimes(1);
 
     act(() => {
       result.current.dispatch({
-        type: "restore-board-edge",
-        boardId,
-        workspaceId,
-        edgeId,
-        style: { stroke: "dashed" },
-        labelPresentation: { hidden: false },
-        createdAt: now,
-        updatedAt: now,
-      });
-    });
-    const restoredBoardEdge = editorStore.getState().boardEdges[0];
-    const canonicalEdge = editorStore.getState().edges[0];
-    expect(restoredBoardEdge).toBeDefined();
-    expect(canonicalEdge).toBeDefined();
-    await act(async () => {
-      await flushMicrotasks();
-    });
-    expect(restoreBoardEdge).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      result.current.dispatch({
-        type: "remove-board-node",
+        type: "delete-node",
         boardId,
         workspaceId,
         nodeId,
       });
     });
-    expect(editorStore.getState().boardNodes.some((node) => node.nodeId === nodeId)).toBe(
-      false,
-    );
+    expect(editorStore.getState().nodes.some((item) => item.id === nodeId)).toBe(false);
+    expect(editorStore.getState().edges.some((item) => item.id === edgeId)).toBe(false);
+
     await act(async () => {
       await flushMicrotasks();
     });
+    expect(deleteNode).not.toHaveBeenCalled();
 
-    expect(removeBoardNode).not.toHaveBeenCalled();
-
-    restoreGate.resolve({
-      edge: canonicalEdge!,
-      boardEdge: restoredBoardEdge!,
-    });
+    edgeGate.resolve(edge({ name: "protects", version: 5 }));
     await act(async () => {
       await flushMicrotasks();
       await flushMicrotasks();
     });
 
-    expect(removeBoardNode).toHaveBeenCalledTimes(1);
+    expect(deleteNode).toHaveBeenCalledTimes(1);
+    expect(editorStore.getState().nodes.some((item) => item.id === nodeId)).toBe(false);
+    expect(editorStore.getState().edges.some((item) => item.id === edgeId)).toBe(false);
   });
 });
