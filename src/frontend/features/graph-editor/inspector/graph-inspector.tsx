@@ -23,7 +23,7 @@ export function GraphInspector({
   isRemoving,
   isLaneBusy,
   onDraftChange,
-  onRemoveFromBoard,
+  onDelete,
 }: {
   selection: GraphInspectorSelection;
   draft: InspectorDraft;
@@ -32,7 +32,7 @@ export function GraphInspector({
   isRemoving: boolean;
   isLaneBusy: boolean;
   onDraftChange: (patch: InspectorDraftPatch) => void;
-  onRemoveFromBoard: () => Promise<void> | void;
+  onDelete: () => Promise<void> | void;
 }) {
   const isNode = selection.kind === "node";
 
@@ -96,7 +96,7 @@ export function GraphInspector({
           disabled={isLaneBusy}
           emphasis="outline"
           intent="danger"
-          onClick={onRemoveFromBoard}
+          onClick={onDelete}
         >
           {isNode ? "노드 삭제" : "관계 삭제"}
         </Button>
