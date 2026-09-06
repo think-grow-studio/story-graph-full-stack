@@ -2,6 +2,7 @@ export type ApplicationErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "NOT_FOUND"
+  | "BAD_REQUEST"
   | "VALIDATION_ERROR"
   | "CONFLICT";
 
