@@ -48,6 +48,7 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
     await page.getByRole("button", { name: "새 보드" }).click();
     await expect(page.getByRole("dialog", { name: "새 보드" })).toBeVisible();
     await page.getByLabel("보드 이름").fill("Main Board");
+    await page.getByLabel("태그").fill("characters, main");
     await page.getByRole("button", { name: "보드 만들기" }).click();
     await expect(page).toHaveURL(
       /\/stories\/[0-9a-f-]+\/boards\/[0-9a-f-]+$/i,
@@ -68,7 +69,8 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
     const createAlice = await createAlicePromise;
     expect(createAlice.status()).toBe(201);
     const aliceCreated = await createAlice.json();
-    const aliceId = aliceCreated.node.id as string;
+    const aliceId = aliceCreated.id as string;
+    expect(aliceCreated).toMatchObject({ boardId, name: "Alice", version: 1 });
     const alice = page.locator(`.react-flow__node[data-id="${aliceId}"]`);
     await expect(alice).toContainText("Alice");
     await expect(page.getByText("저장됨")).toBeVisible();
@@ -91,7 +93,13 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
       { steps: 8 },
     );
     await page.mouse.up();
-    expect((await moveAlicePromise).status()).toBe(200);
+    const moveAlice = await moveAlicePromise;
+    expect(moveAlice.status()).toBe(200);
+    expect(await moveAlice.json()).toMatchObject({
+      id: aliceId,
+      boardId,
+      version: 2,
+    });
     await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.getByRole("button", { name: "노드 추가" }).click();
@@ -105,7 +113,7 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
     const createBob = await createBobPromise;
     expect(createBob.status()).toBe(201);
     const bobCreated = await createBob.json();
-    const bobId = bobCreated.node.id as string;
+    const bobId = bobCreated.id as string;
     const bob = page.locator(`.react-flow__node[data-id="${bobId}"]`);
     await expect(bob).toContainText("Bob");
     await expect(page.getByText("저장됨")).toBeVisible();
@@ -141,7 +149,14 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
     const createEdge = await createEdgePromise;
     expect(createEdge.status()).toBe(201);
     const edgeCreated = await createEdge.json();
-    const edgeId = edgeCreated.edge.id as string;
+    const edgeId = edgeCreated.id as string;
+    expect(edgeCreated).toMatchObject({
+      boardId,
+      sourceNodeId: aliceId,
+      targetNodeId: bobId,
+      name: "knows",
+      version: 1,
+    });
     const edge = page.locator(`.react-flow__edge[data-id="${edgeId}"]`);
     await expect(edge).toBeVisible();
     await expect(page.getByText("knows", { exact: true })).toBeVisible();
@@ -149,7 +164,11 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
 
     await alice.click();
     await expect(page.getByRole("heading", { name: "노드" })).toBeVisible();
-    const updateAlicePromise = waitForPath(page, "PATCH", `/api/v1/nodes/${aliceId}`);
+    const updateAlicePromise = waitForPath(
+      page,
+      "PATCH",
+      `/api/v1/boards/${boardId}/nodes/${aliceId}`,
+    );
     await page.getByLabel("이름").fill("Alicia");
     await page.getByLabel("설명").fill("Main protagonist");
     const updateAlice = await updateAlicePromise;
@@ -159,7 +178,11 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
 
     await edge.locator(".react-flow__edge-path").click({ force: true });
     await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
-    const updateEdgePromise = waitForPath(page, "PATCH", `/api/v1/edges/${edgeId}`);
+    const updateEdgePromise = waitForPath(
+      page,
+      "PATCH",
+      `/api/v1/boards/${boardId}/edges/${edgeId}`,
+    );
     await page.getByLabel("이름").fill("protects");
     await page.getByLabel("설명").fill("Keeps Bob safe");
     const updateEdge = await updateEdgePromise;
@@ -188,19 +211,22 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
     expect(snapshotResponse.status()).toBe(200);
     const snapshot = await snapshotResponse.json();
     expect(snapshot.story).toMatchObject({ id: storyId, name: "UI Acceptance Story" });
+    expect(snapshot.board.tags).toEqual(["characters", "main"]);
     expect(snapshot.nodes).toContainEqual(
       expect.objectContaining({
         id: aliceId,
+        boardId,
         name: "Alicia",
         description: "Main protagonist",
       }),
     );
     expect(snapshot.nodes).toContainEqual(
-      expect.objectContaining({ id: bobId, name: "Bob" }),
+      expect.objectContaining({ id: bobId, boardId, name: "Bob" }),
     );
     expect(snapshot.edges).toContainEqual(
       expect.objectContaining({
         id: edgeId,
+        boardId,
         sourceNodeId: aliceId,
         targetNodeId: bobId,
         name: "protects",
