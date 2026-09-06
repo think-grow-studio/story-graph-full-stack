@@ -1,0 +1,21 @@
+name: Task 8 Delete Copy GREEN
+
+on:
+  push:
+    branches:
+      - test/task8-delete-copy-green
+
+jobs:
+  focused-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm vitest run src/frontend/pages/graph-editor/graph-editor-board-removal.test.tsx
