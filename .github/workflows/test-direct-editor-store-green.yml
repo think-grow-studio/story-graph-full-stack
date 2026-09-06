@@ -1,0 +1,21 @@
+name: Direct Editor Store GREEN
+
+on:
+  push:
+    branches: [test/direct-editor-store-green]
+
+jobs:
+  focused-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm vitest run src/frontend/features/graph-editor/store/graph-editor-store.test.ts
