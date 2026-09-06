@@ -2,22 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   boardResponseSchema,
-  createBoardRequestSchema,
-  graphEdgeResponseSchema,
+  boardSnapshotResponseSchema,
+  createNodeRequestSchema,
   graphNodeResponseSchema,
   updateNodeRequestSchema,
 } from "./graph.contract";
 
-const storyId = "11111111-1111-4111-8111-111111111111";
-const boardId = "22222222-2222-4222-8222-222222222222";
+const boardId = "11111111-1111-4111-8111-111111111111";
+const storyId = "22222222-2222-4222-8222-222222222222";
 const nodeId = "33333333-3333-4333-8333-333333333333";
-const targetNodeId = "44444444-4444-4444-8444-444444444444";
-const edgeId = "55555555-5555-4555-8555-555555555555";
 const now = "2026-09-06T00:00:00.000Z";
 
-describe("board-owned graph contracts", () => {
-  it("accepts Board responses with tags and without Scope or revision fields", () => {
-    const result = boardResponseSchema.safeParse({
+describe("Board-owned Graph contracts", () => {
+  it("exposes Board tags without Scope or revision fields", () => {
+    const board = boardResponseSchema.parse({
       id: boardId,
       storyId,
       name: "Characters",
@@ -27,89 +25,125 @@ describe("board-owned graph contracts", () => {
       updatedAt: now,
     });
 
-    expect(result.success).toBe(true);
-    if (!result.success) return;
-    expect(result.data).toMatchObject({
+    expect(board).toEqual({
       id: boardId,
       storyId,
-      tags: ["인물", "전체"],
-    });
-    expect(result.data).not.toHaveProperty("scopeId");
-    expect(result.data).not.toHaveProperty("revision");
-  });
-
-  it("rejects duplicate Board tags after trimming", () => {
-    const result = createBoardRequestSchema.safeParse({
-      workspaceId: "workspace-1",
       name: "Characters",
       description: "",
-      tags: ["인물", " 인물 "],
+      tags: ["인물", "전체"],
+      createdAt: now,
+      updatedAt: now,
     });
-
-    expect(result.success).toBe(false);
   });
 
-  it("accepts a Board-owned Node with semantic and presentation fields in one row", () => {
-    const result = graphNodeResponseSchema.safeParse({
+  it("requires direct Board ownership and presentation on Node responses", () => {
+    expect(() =>
+      graphNodeResponseSchema.parse({
+        id: nodeId,
+        name: "Alice",
+        description: "",
+        iconKey: null,
+        properties: {},
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ).toThrow();
+
+    expect(
+      graphNodeResponseSchema.parse({
+        id: nodeId,
+        boardId,
+        name: "Alice",
+        description: "",
+        iconKey: null,
+        properties: {},
+        x: 120,
+        y: 180,
+        width: null,
+        height: null,
+        zIndex: 0,
+        style: {},
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ).toMatchObject({ boardId, x: 120, y: 180 });
+  });
+
+  it("uses direct Node create fields instead of a position wrapper", () => {
+    expect(
+      createNodeRequestSchema.parse({
+        workspaceId: "workspace-1",
+        id: nodeId,
+        name: "Alice",
+        x: 10,
+        y: 20,
+      }),
+    ).toMatchObject({ x: 10, y: 20 });
+
+    expect(() =>
+      createNodeRequestSchema.parse({
+        workspaceId: "workspace-1",
+        id: nodeId,
+        name: "Alice",
+        position: { x: 10, y: 20 },
+      }),
+    ).toThrow();
+  });
+
+  it("requires expectedVersion instead of the legacy version alias", () => {
+    expect(
+      updateNodeRequestSchema.parse({
+        workspaceId: "workspace-1",
+        expectedVersion: 1,
+        name: "Alicia",
+      }),
+    ).toMatchObject({ expectedVersion: 1, name: "Alicia" });
+
+    expect(() =>
+      updateNodeRequestSchema.parse({
+        workspaceId: "workspace-1",
+        version: 1,
+        name: "Alicia",
+      }),
+    ).toThrow();
+  });
+
+  it("parses a direct Board snapshot with no Story/Scope/presentation side arrays", () => {
+    const board = boardResponseSchema.parse({
+      id: boardId,
+      storyId,
+      name: "Characters",
+      description: "",
+      tags: [],
+      createdAt: now,
+      updatedAt: now,
+    });
+    const node = graphNodeResponseSchema.parse({
       id: nodeId,
       boardId,
       name: "Alice",
-      description: "Protagonist",
-      iconKey: null,
-      properties: { role: "lead" },
-      x: 120,
-      y: 80,
-      width: null,
-      height: null,
-      zIndex: 0,
-      style: { emphasized: true },
-      version: 3,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    expect(result.success).toBe(true);
-    if (!result.success) return;
-    expect(result.data.boardId).toBe(boardId);
-    expect(result.data).not.toHaveProperty("storyId");
-    expect(result.data).toMatchObject({ x: 120, y: 80, version: 3 });
-  });
-
-  it("uses expectedVersion for Node presentation updates such as movement", () => {
-    const result = updateNodeRequestSchema.safeParse({
-      workspaceId: "workspace-1",
-      expectedVersion: 3,
-      x: 240,
-      y: 160,
-    });
-
-    expect(result.success).toBe(true);
-    if (!result.success) return;
-    expect(result.data).toMatchObject({ expectedVersion: 3, x: 240, y: 160 });
-    expect(result.data).not.toHaveProperty("version");
-  });
-
-  it("accepts a Board-owned Edge with presentation fields in the same row", () => {
-    const result = graphEdgeResponseSchema.safeParse({
-      id: edgeId,
-      boardId,
-      sourceNodeId: nodeId,
-      targetNodeId,
-      name: "knows",
       description: "",
       iconKey: null,
       properties: {},
-      style: { dashed: true },
-      labelPresentation: { hidden: false },
-      version: 2,
+      x: 10,
+      y: 20,
+      width: null,
+      height: null,
+      zIndex: 0,
+      style: {},
+      version: 1,
       createdAt: now,
       updatedAt: now,
     });
 
-    expect(result.success).toBe(true);
-    if (!result.success) return;
-    expect(result.data.boardId).toBe(boardId);
-    expect(result.data).not.toHaveProperty("storyId");
-    expect(result.data.style).toEqual({ dashed: true });
+    expect(
+      boardSnapshotResponseSchema.parse({
+        board,
+        nodes: [node],
+        edges: [],
+      }),
+    ).toEqual({ board, nodes: [node], edges: [] });
   });
 });
