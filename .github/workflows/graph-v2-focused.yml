@@ -1,0 +1,42 @@
+name: Graph V2 Focused
+
+on:
+  push:
+    branches:
+      - feat/graph-editor-v2
+    paths:
+      - .github/workflows/graph-v2-focused.yml
+      - src/backend/modules/graph/application/**
+      - src/app/api/v1/boards/**
+      - src/backend/infrastructure/openapi/**
+      - src/frontend/api/graph/**
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    env:
+      DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
+      BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/graph-editor-v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Focused Graph V2 unit tests
+        run: |
+          pnpm vitest run \
+            src/backend/modules/graph/application/board.use-cases.test.ts \
+            src/backend/modules/graph/application/node.use-cases.test.ts \
+            src/backend/modules/graph/application/edge.use-cases.test.ts \
+            src/backend/infrastructure/openapi/openapi-document.test.ts
