@@ -1,5 +1,5 @@
 {
-  "id": "1318318c-2693-4ba7-b059-0e12fb218e45",
+  "id": "e4ce6d28-933c-47f0-8552-162159a2d851",
   "prevId": "164ed84f-e836-4ef0-93f9-64f13e8a42ee",
   "version": "7",
   "dialect": "postgresql",
@@ -670,11 +670,11 @@
         }
       },
       "indexes": {
-        "board_tag_board_id_idx": {
-          "name": "board_tag_board_id_idx",
+        "board_tag_name_idx": {
+          "name": "board_tag_name_idx",
           "columns": [
             {
-              "expression": "board_id",
+              "expression": "name",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -743,6 +743,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "''"
+        },
+        "graph_settings": {
+          "name": "graph_settings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{\"defaultEdgeRouting\":\"orthogonal\",\"snapToGrid\":false,\"layoutMode\":\"free\"}'::jsonb"
         },
         "created_at": {
           "name": "created_at",
@@ -825,6 +832,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "direction": {
+          "name": "direction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -837,6 +850,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "''"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'relationship'"
         },
         "icon_key": {
           "name": "icon_key",
@@ -851,19 +871,19 @@
           "notNull": true,
           "default": "'{}'::jsonb"
         },
-        "style": {
-          "name": "style",
+        "presentation": {
+          "name": "presentation",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": "'{}'::jsonb"
+          "default": "'{\"strokeColor\":null,\"strokeWidth\":null,\"strokeStyle\":\"solid\",\"labelColor\":null}'::jsonb"
         },
-        "label_presentation": {
-          "name": "label_presentation",
+        "routing": {
+          "name": "routing",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": "'{}'::jsonb"
+          "default": "'{\"type\":\"orthogonal\",\"sourcePort\":\"auto\",\"targetPort\":\"auto\",\"waypoints\":[]}'::jsonb"
         },
         "version": {
           "name": "version",
@@ -991,7 +1011,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "graph_edge_direction_check": {
+          "name": "graph_edge_direction_check",
+          "value": "\"graph_edge\".\"direction\" in ('DIRECTED', 'UNDIRECTED')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.graph_node": {
@@ -1022,6 +1047,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "''"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'entity'"
         },
         "icon_key": {
           "name": "icon_key",
@@ -1069,12 +1101,12 @@
           "notNull": true,
           "default": 0
         },
-        "style": {
-          "name": "style",
+        "presentation": {
+          "name": "presentation",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": "'{}'::jsonb"
+          "default": "'{\"shape\":\"rounded-rect\",\"fillColor\":null,\"borderColor\":null,\"borderWidth\":null,\"textColor\":null}'::jsonb"
         },
         "version": {
           "name": "version",
