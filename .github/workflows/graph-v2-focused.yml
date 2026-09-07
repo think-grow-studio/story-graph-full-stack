@@ -18,6 +18,7 @@ on:
       - src/frontend/features/graph-editor/persistence/**
       - src/frontend/features/graph-editor/inspector/**
       - src/frontend/features/graph-editor/model/**
+      - src/frontend/widgets/graph-editor/**
 
 jobs:
   verify:
@@ -60,3 +61,8 @@ jobs:
             src/frontend/features/graph-editor/store
       - name: Graph V2 pure projection suite
         run: pnpm vitest run src/frontend/features/graph-editor/model
+      - name: Graph V2 magnetic port widget suite
+        run: |
+          pnpm vitest run \
+            src/frontend/widgets/graph-editor/story-graph-node.test.tsx \
+            src/frontend/widgets/graph-editor/graph-canvas.test.tsx
