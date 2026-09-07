@@ -31,6 +31,24 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+type StoryGraphEdgeProps = Parameters<typeof StoryGraphEdge>[0];
+
+function storyGraphEdgeProps(
+  data: NonNullable<StoryGraphFlowEdge["data"]>,
+): StoryGraphEdgeProps {
+  return {
+    id: "edge-1",
+    data,
+    sourceX: 0,
+    sourceY: 0,
+    targetX: 100,
+    targetY: 100,
+    sourcePosition: "right",
+    targetPosition: "left",
+    selected: false,
+  } as unknown as StoryGraphEdgeProps;
+}
+
 function renderEdge(overrides: Partial<StoryGraphFlowEdge["data"]> = {}) {
   const data: NonNullable<StoryGraphFlowEdge["data"]> = {
     label: "친구라고 생각함",
@@ -51,21 +69,7 @@ function renderEdge(overrides: Partial<StoryGraphFlowEdge["data"]> = {}) {
     ...overrides,
   };
 
-  render(
-    <StoryGraphEdge
-      {...({
-        id: "edge-1",
-        data,
-        sourceX: 0,
-        sourceY: 0,
-        targetX: 100,
-        targetY: 100,
-        sourcePosition: "right",
-        targetPosition: "left",
-        selected: false,
-      } as never)}
-    />,
-  );
+  render(<StoryGraphEdge {...storyGraphEdgeProps(data)} />);
 }
 
 describe("StoryGraphEdge", () => {
@@ -80,54 +84,30 @@ describe("StoryGraphEdge", () => {
   });
 
   it("renders a target arrow only for directed semantic relationships", () => {
+    const directed: NonNullable<StoryGraphFlowEdge["data"]> = {
+      label: "knows",
+      direction: "DIRECTED",
+      routingType: "orthogonal",
+      sourcePort: "right",
+      targetPort: "left",
+      waypoints: [],
+      laneIndex: 0,
+      laneCount: 1,
+      visualState: "idle",
+      presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    };
+    const undirected: NonNullable<StoryGraphFlowEdge["data"]> = {
+      ...directed,
+      label: "siblings",
+      direction: "UNDIRECTED",
+    };
+
     const { rerender } = render(
-      <StoryGraphEdge
-        {...({
-          id: "edge-1",
-          data: {
-            label: "knows",
-            direction: "DIRECTED",
-            routingType: "orthogonal",
-            sourcePort: "right",
-            targetPort: "left",
-            waypoints: [],
-            laneIndex: 0,
-            laneCount: 1,
-            visualState: "idle",
-            presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
-          },
-          sourceX: 0,
-          sourceY: 0,
-          targetX: 100,
-          targetY: 0,
-        } as never)}
-      />,
+      <StoryGraphEdge {...storyGraphEdgeProps(directed)} />,
     );
     expect(screen.getByTestId("base-edge")).toHaveAttribute("data-marker-end", "arrowclosed");
 
-    rerender(
-      <StoryGraphEdge
-        {...({
-          id: "edge-1",
-          data: {
-            label: "siblings",
-            direction: "UNDIRECTED",
-            routingType: "orthogonal",
-            sourcePort: "right",
-            targetPort: "left",
-            waypoints: [],
-            laneIndex: 0,
-            laneCount: 1,
-            visualState: "idle",
-            presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
-          },
-          sourceX: 0,
-          sourceY: 0,
-          targetX: 100,
-          targetY: 0,
-        } as never)}
-      />,
-    );
+    rerender(<StoryGraphEdge {...storyGraphEdgeProps(undirected)} />);
     expect(screen.getByTestId("base-edge")).toHaveAttribute("data-marker-end", "");
   });
 
