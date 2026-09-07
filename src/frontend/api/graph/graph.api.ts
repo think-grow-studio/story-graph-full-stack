@@ -15,8 +15,14 @@ import {
   updateNodeRequestSchema,
   type BoardResponse,
   type BoardSnapshotResponse,
+  type EdgeDirection,
+  type EdgePresentation,
+  type EdgeRouting,
   type GraphEdgeResponse,
   type GraphNodeResponse,
+  type GraphProperties,
+  type GraphSettings,
+  type NodePresentation,
   type RestoreNodeResponse,
 } from "@/contracts/graph/graph.contract";
 
@@ -41,6 +47,7 @@ export type CreateBoardInput = {
   name: string;
   description: string;
   tags: string[];
+  graphSettings?: GraphSettings;
 };
 
 export async function createBoard(input: CreateBoardInput): Promise<BoardResponse> {
@@ -49,6 +56,7 @@ export async function createBoard(input: CreateBoardInput): Promise<BoardRespons
     name: input.name,
     description: input.description,
     tags: input.tags,
+    ...(input.graphSettings !== undefined ? { graphSettings: input.graphSettings } : {}),
   });
   const response = await apiClient.post(`/stories/${input.storyId}/boards`, payload);
   return boardResponseSchema.parse(response.data);
@@ -60,6 +68,7 @@ export type UpdateBoardInput = {
   name?: string;
   description?: string;
   tags?: string[];
+  graphSettings?: GraphSettings;
 };
 
 export async function updateBoard(input: UpdateBoardInput): Promise<BoardResponse> {
@@ -68,6 +77,7 @@ export async function updateBoard(input: UpdateBoardInput): Promise<BoardRespons
     ...(input.name !== undefined ? { name: input.name } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
     ...(input.tags !== undefined ? { tags: input.tags } : {}),
+    ...(input.graphSettings !== undefined ? { graphSettings: input.graphSettings } : {}),
   });
   const response = await apiClient.patch(`/boards/${input.boardId}`, payload);
   return boardResponseSchema.parse(response.data);
@@ -89,14 +99,15 @@ export type CreateNodeInput = {
   id: string;
   name: string;
   description?: string;
+  kind?: string;
   iconKey?: string | null;
-  properties?: Record<string, unknown>;
+  properties?: GraphProperties;
   x: number;
   y: number;
   width?: number | null;
   height?: number | null;
   zIndex?: number;
-  style?: Record<string, unknown>;
+  presentation?: NodePresentation;
 };
 
 export async function createNode(input: CreateNodeInput): Promise<GraphNodeResponse> {
@@ -105,6 +116,7 @@ export async function createNode(input: CreateNodeInput): Promise<GraphNodeRespo
     id: input.id,
     name: input.name,
     description: input.description ?? "",
+    ...(input.kind !== undefined ? { kind: input.kind } : {}),
     iconKey: input.iconKey ?? null,
     properties: input.properties ?? {},
     x: input.x,
@@ -112,7 +124,7 @@ export async function createNode(input: CreateNodeInput): Promise<GraphNodeRespo
     width: input.width ?? null,
     height: input.height ?? null,
     zIndex: input.zIndex ?? 0,
-    style: input.style ?? {},
+    ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
   });
   const response = await apiClient.post(`/boards/${input.boardId}/nodes`, payload);
   return graphNodeResponseSchema.parse(response.data);
@@ -125,14 +137,15 @@ export type UpdateNodeInput = {
   expectedVersion: number;
   name?: string;
   description?: string;
+  kind?: string;
   iconKey?: string | null;
-  properties?: Record<string, unknown>;
+  properties?: GraphProperties;
   x?: number;
   y?: number;
   width?: number | null;
   height?: number | null;
   zIndex?: number;
-  style?: Record<string, unknown>;
+  presentation?: NodePresentation;
 };
 
 export async function updateNode(input: UpdateNodeInput): Promise<GraphNodeResponse> {
@@ -141,6 +154,7 @@ export async function updateNode(input: UpdateNodeInput): Promise<GraphNodeRespo
     expectedVersion: input.expectedVersion,
     ...(input.name !== undefined ? { name: input.name } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.kind !== undefined ? { kind: input.kind } : {}),
     ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
     ...(input.properties !== undefined ? { properties: input.properties } : {}),
     ...(input.x !== undefined ? { x: input.x } : {}),
@@ -148,7 +162,7 @@ export async function updateNode(input: UpdateNodeInput): Promise<GraphNodeRespo
     ...(input.width !== undefined ? { width: input.width } : {}),
     ...(input.height !== undefined ? { height: input.height } : {}),
     ...(input.zIndex !== undefined ? { zIndex: input.zIndex } : {}),
-    ...(input.style !== undefined ? { style: input.style } : {}),
+    ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
   });
   const response = await apiClient.patch(
     `/boards/${input.boardId}/nodes/${input.nodeId}`,
@@ -196,12 +210,14 @@ export type CreateEdgeInput = {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
+  direction: EdgeDirection;
   name: string;
   description?: string;
+  kind?: string;
   iconKey?: string | null;
-  properties?: Record<string, unknown>;
-  style?: Record<string, unknown>;
-  labelPresentation?: Record<string, unknown>;
+  properties?: GraphProperties;
+  presentation?: EdgePresentation;
+  routing: EdgeRouting;
 };
 
 export async function createEdge(input: CreateEdgeInput): Promise<GraphEdgeResponse> {
@@ -210,12 +226,14 @@ export async function createEdge(input: CreateEdgeInput): Promise<GraphEdgeRespo
     id: input.id,
     sourceNodeId: input.sourceNodeId,
     targetNodeId: input.targetNodeId,
+    direction: input.direction,
     name: input.name,
     description: input.description ?? "",
+    ...(input.kind !== undefined ? { kind: input.kind } : {}),
     iconKey: input.iconKey ?? null,
     properties: input.properties ?? {},
-    style: input.style ?? {},
-    labelPresentation: input.labelPresentation ?? {},
+    ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
+    routing: input.routing,
   });
   const response = await apiClient.post(`/boards/${input.boardId}/edges`, payload);
   return graphEdgeResponseSchema.parse(response.data);
@@ -226,26 +244,28 @@ export type UpdateEdgeInput = {
   edgeId: string;
   workspaceId: string;
   expectedVersion: number;
+  direction?: EdgeDirection;
   name?: string;
   description?: string;
+  kind?: string;
   iconKey?: string | null;
-  properties?: Record<string, unknown>;
-  style?: Record<string, unknown>;
-  labelPresentation?: Record<string, unknown>;
+  properties?: GraphProperties;
+  presentation?: EdgePresentation;
+  routing?: EdgeRouting;
 };
 
 export async function updateEdge(input: UpdateEdgeInput): Promise<GraphEdgeResponse> {
   const payload = updateEdgeRequestSchema.parse({
     workspaceId: input.workspaceId,
     expectedVersion: input.expectedVersion,
+    ...(input.direction !== undefined ? { direction: input.direction } : {}),
     ...(input.name !== undefined ? { name: input.name } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.kind !== undefined ? { kind: input.kind } : {}),
     ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
     ...(input.properties !== undefined ? { properties: input.properties } : {}),
-    ...(input.style !== undefined ? { style: input.style } : {}),
-    ...(input.labelPresentation !== undefined
-      ? { labelPresentation: input.labelPresentation }
-      : {}),
+    ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
+    ...(input.routing !== undefined ? { routing: input.routing } : {}),
   });
   const response = await apiClient.patch(
     `/boards/${input.boardId}/edges/${input.edgeId}`,
