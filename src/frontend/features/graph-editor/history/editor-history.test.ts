@@ -30,6 +30,10 @@ function nodeUpdateEntry({
       name: to,
       description: "",
       properties: {},
+
+      kind: "entity",
+      iconKey: null,
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     },
     inverse: {
       type: "update-node",
@@ -40,6 +44,10 @@ function nodeUpdateEntry({
       name: from,
       description: "",
       properties: {},
+
+      kind: "entity",
+      iconKey: null,
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     },
     coalescingKey: `update-node:${nodeId}`,
     createdAtMs: at,
@@ -68,6 +76,12 @@ function edgeUpdateEntry({
       name: to,
       description: "",
       properties: {},
+
+      direction: "DIRECTED",
+      kind: "relationship",
+      iconKey: null,
+      presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+      routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     },
     inverse: {
       type: "update-edge",
@@ -78,6 +92,12 @@ function edgeUpdateEntry({
       name: from,
       description: "",
       properties: {},
+
+      direction: "DIRECTED",
+      kind: "relationship",
+      iconKey: null,
+      presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+      routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     },
     coalescingKey: `update-edge:${edgeId}`,
     createdAtMs: at,
@@ -125,13 +145,21 @@ describe("editor history", () => {
 
     expect(history.undo(replay)).toBe(true);
     expect(replay).toHaveBeenLastCalledWith(
-      expect.objectContaining({ type: "update-node", nodeId: "b", name: "B" }),
+      expect.objectContaining({ type: "update-node", nodeId: "b", name: "B" ,
+        kind: "entity",
+        iconKey: null,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
+      }),
     );
     expect(history.getSnapshot()).toMatchObject({ undoCount: 1, redoCount: 1 });
 
     expect(history.redo(replay)).toBe(true);
     expect(replay).toHaveBeenLastCalledWith(
-      expect.objectContaining({ type: "update-node", nodeId: "b", name: "B1" }),
+      expect.objectContaining({ type: "update-node", nodeId: "b", name: "B1" ,
+        kind: "entity",
+        iconKey: null,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
+      }),
     );
     expect(history.getSnapshot()).toMatchObject({ undoCount: 2, redoCount: 0 });
   });
@@ -167,6 +195,15 @@ describe("editor history", () => {
       name: "New",
       position: { x: 0, y: 0 },
       createdAt: "2026-08-30T00:00:00.000Z",
+
+      description: "",
+      kind: "entity",
+      iconKey: null,
+      properties: {},
+      width: null,
+      height: null,
+      zIndex: 0,
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     });
     expect(history.getSnapshot().canRedo).toBe(false);
   });
@@ -208,11 +245,19 @@ describe("editor history", () => {
     const replay = vi.fn(() => true);
     history.undo(replay);
     expect(replay).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "update-node", nodeId: "a", name: "Alice" }),
+      expect.objectContaining({ type: "update-node", nodeId: "a", name: "Alice" ,
+        kind: "entity",
+        iconKey: null,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
+      }),
     );
     history.redo(replay);
     expect(replay).toHaveBeenLastCalledWith(
-      expect.objectContaining({ type: "update-node", nodeId: "a", name: "Alicia V." }),
+      expect.objectContaining({ type: "update-node", nodeId: "a", name: "Alicia V." ,
+        kind: "entity",
+        iconKey: null,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
+      }),
     );
   });
 

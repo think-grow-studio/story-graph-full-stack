@@ -34,10 +34,12 @@ function node(id: string, name: string, x: number): GraphNodeResponse {
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 2,
     createdAt: now,
     updatedAt: now,
+
+    kind: "entity",
   };
 }
 
@@ -51,11 +53,14 @@ function relationship(): GraphEdgeResponse {
     description: "",
     iconKey: null,
     properties: {},
-    style: {},
-    labelPresentation: {},
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     version: 3,
     createdAt: now,
     updatedAt: now,
+
+    direction: "DIRECTED",
+    kind: "relationship",
   };
 }
 
@@ -71,6 +76,8 @@ function createStore() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: [node(aliceId, "Alice", 0), node(bobId, "Bob", 200)],
     edges: [relationship()],

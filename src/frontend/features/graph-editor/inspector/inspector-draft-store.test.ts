@@ -20,10 +20,12 @@ function node(id: string, name: string): GraphNodeResponse {
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 1,
     createdAt: now,
     updatedAt: now,
+
+    kind: "entity",
   };
 }
 

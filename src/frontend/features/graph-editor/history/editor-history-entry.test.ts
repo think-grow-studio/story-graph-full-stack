@@ -31,11 +31,13 @@ function alice(overrides: Partial<GraphNodeResponse> = {}): GraphNodeResponse {
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 3,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    kind: "entity",
   };
 }
 
@@ -52,13 +54,16 @@ function relationship(overrides: Partial<GraphEdgeResponse> = {}): GraphEdgeResp
     name: "knows",
     description: "Old friends",
     iconKey: null,
-    properties: { since: 2020 },
-    style: { dashed: true },
-    labelPresentation: { placement: "center" },
+    properties: { since: "2020" },
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     version: 4,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    direction: "DIRECTED",
+    kind: "relationship",
   };
 }
 
@@ -74,6 +79,8 @@ function setup() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: [alice(), bob()],
     edges: [relationship()],
@@ -110,6 +117,10 @@ describe("Board-owned editor history entries", () => {
         name: "Alicia",
         description: "Lead",
         properties: { role: "lead" },
+
+        kind: "entity",
+        iconKey: null,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
       },
       { type: "delete-node", boardId, workspaceId, nodeId: aliceId },
       {
@@ -129,6 +140,12 @@ describe("Board-owned editor history entries", () => {
         name: "protects",
         description: "",
         properties: {},
+
+        direction: "DIRECTED",
+        kind: "relationship",
+        iconKey: null,
+        presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+        routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
       },
       { type: "delete-edge", boardId, workspaceId, edgeId },
       {
@@ -150,6 +167,15 @@ describe("Board-owned editor history entries", () => {
         name: "New",
         position: { x: 0, y: 0 },
         createdAt: now,
+
+        description: "",
+        kind: "entity",
+        iconKey: null,
+        properties: {},
+        width: null,
+        height: null,
+        zIndex: 0,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
       }),
     ).toBe(false);
   });
@@ -182,6 +208,10 @@ describe("Board-owned editor history entries", () => {
       name: "Alicia",
       description: "New",
       properties: {},
+
+      kind: "entity",
+      iconKey: null,
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     });
     expect(nodeEntry?.inverse).toMatchObject({
       type: "update-node",
@@ -190,6 +220,10 @@ describe("Board-owned editor history entries", () => {
       name: "Alice",
       description: "Lead",
       properties: { role: "lead" },
+
+      kind: "entity",
+      iconKey: null,
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     });
 
     const edgeEntry = history(store, {
@@ -201,6 +235,12 @@ describe("Board-owned editor history entries", () => {
       name: "protects",
       description: "New",
       properties: {},
+
+      direction: "DIRECTED",
+      kind: "relationship",
+      iconKey: null,
+      presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+      routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     });
     expect(edgeEntry?.inverse).toMatchObject({
       type: "update-edge",
@@ -208,7 +248,13 @@ describe("Board-owned editor history entries", () => {
       expectedVersion: 4,
       name: "knows",
       description: "Old friends",
-      properties: { since: 2020 },
+      properties: { since: "2020" },
+
+      direction: "DIRECTED",
+      kind: "relationship",
+      iconKey: null,
+      presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+      routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     });
   });
 

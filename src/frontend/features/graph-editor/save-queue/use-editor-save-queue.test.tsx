@@ -51,11 +51,13 @@ function node(
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 3,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    kind: "entity",
   };
 }
 
@@ -69,12 +71,15 @@ function edge(overrides: Partial<GraphEdgeResponse> = {}): GraphEdgeResponse {
     description: "",
     iconKey: null,
     properties: {},
-    style: {},
-    labelPresentation: {},
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     version: 4,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    direction: "DIRECTED",
+    kind: "relationship",
   };
 }
 
@@ -90,6 +95,8 @@ function store(withRelationship = false) {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: withRelationship ? [node(), node(targetNodeId)] : [node()],
     edges: withRelationship ? [edge()] : [],
@@ -276,6 +283,12 @@ describe("useEditorSaveQueue", () => {
         name: "protects",
         description: "",
         properties: {},
+
+        direction: "DIRECTED",
+        kind: "relationship",
+        iconKey: null,
+        presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+        routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
       });
     });
     await act(async () => {

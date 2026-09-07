@@ -367,6 +367,9 @@ function GraphEditorContent({
     name: edge.name,
     sourceNodeId: edge.sourceNodeId,
     targetNodeId: edge.targetNodeId,
+    direction: edge.direction,
+    presentation: edge.presentation,
+    routing: edge.routing,
   }));
 
   const pendingSourceLabel = pendingConnection

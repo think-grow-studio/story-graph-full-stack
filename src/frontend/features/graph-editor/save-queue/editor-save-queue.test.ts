@@ -59,6 +59,10 @@ function updateNode(nodeId: string, name: string): EditorCommand {
     name,
     description: "",
     properties: {},
+
+    kind: "entity",
+    iconKey: null,
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
   };
 }
 
@@ -71,6 +75,15 @@ function createNode(nodeId: string): EditorCommand {
     name: "New Node",
     position: { x: 100, y: 100 },
     createdAt: "2026-08-29T00:00:00.000Z",
+
+    description: "",
+    kind: "entity",
+    iconKey: null,
+    properties: {},
+    width: null,
+    height: null,
+    zIndex: 0,
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
   };
 }
 
@@ -84,6 +97,14 @@ function createEdge(edgeId: string, sourceNodeId: string, targetNodeId: string):
     targetNodeId,
     name: "knows",
     createdAt: "2026-08-29T00:00:00.000Z",
+
+    direction: "DIRECTED",
+    description: "",
+    kind: "relationship",
+    iconKey: null,
+    properties: {},
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
   };
 }
 

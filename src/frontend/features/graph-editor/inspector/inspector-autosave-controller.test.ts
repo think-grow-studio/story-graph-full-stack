@@ -30,11 +30,13 @@ function alice(overrides: Partial<GraphNodeResponse> = {}): GraphNodeResponse {
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 3,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    kind: "entity",
   };
 }
 
@@ -51,13 +53,16 @@ function relationship(overrides: Partial<GraphEdgeResponse> = {}): GraphEdgeResp
     name: "knows",
     description: "Old friends",
     iconKey: null,
-    properties: { since: 2020 },
-    style: {},
-    labelPresentation: {},
+    properties: { since: "2020" },
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     version: 4,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    direction: "DIRECTED",
+    kind: "relationship",
   };
 }
 
@@ -73,6 +78,8 @@ function setup() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: [alice(), bob()],
     edges: [relationship()],
@@ -125,6 +132,10 @@ describe("Board-owned inspector autosave controller", () => {
       name: "Alicia",
       description: "Protagonist",
       properties: { role: "lead" },
+
+      kind: "entity",
+      iconKey: null,
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     });
 
     controller.dispose();
@@ -138,7 +149,7 @@ describe("Board-owned inspector autosave controller", () => {
     draftStore.getState().updateDraft(key, {
       name: "best friend",
       description: "Childhood friends",
-      propertiesText: '{"since":2012}',
+      propertiesText: "{\"since\":\"2012\"}",
     });
     await vi.advanceTimersByTimeAsync(500);
 
@@ -150,7 +161,13 @@ describe("Board-owned inspector autosave controller", () => {
       expectedVersion: 9,
       name: "best friend",
       description: "Childhood friends",
-      properties: { since: 2012 },
+      properties: { since: "2012" },
+
+      direction: "DIRECTED",
+      kind: "relationship",
+      iconKey: null,
+      presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+      routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     });
 
     controller.dispose();
@@ -173,6 +190,10 @@ describe("Board-owned inspector autosave controller", () => {
       type: "update-node",
       nodeId: aliceId,
       expectedVersion: 3,
+
+      kind: "entity",
+      iconKey: null,
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     });
 
     await vi.advanceTimersByTimeAsync(250);
@@ -181,6 +202,10 @@ describe("Board-owned inspector autosave controller", () => {
       type: "update-node",
       nodeId: bobId,
       expectedVersion: 7,
+
+      kind: "entity",
+      iconKey: null,
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     });
 
     controller.dispose();

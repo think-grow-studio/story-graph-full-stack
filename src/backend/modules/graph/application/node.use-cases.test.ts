@@ -119,7 +119,7 @@ function createGraph(): GraphRepository {
     ),
     restoreNode: vi.fn(async (input) => ({
       node: { ...input.node, createdAt: now, updatedAt: now },
-      edges: input.edges.map((edge) => ({
+      edges: input.edges.map((edge: DeletedNodeSnapshot["edges"][number]) => ({
         ...edge,
         createdAt: now,
         updatedAt: now,

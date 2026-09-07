@@ -102,6 +102,8 @@ function snapshot() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: [
       {
@@ -116,10 +118,12 @@ function snapshot() {
         width: null,
         height: null,
         zIndex: 0,
-        style: {},
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
         version: 3,
         createdAt: now,
         updatedAt: now,
+
+        kind: "entity",
       },
       {
         id: bobId,
@@ -133,10 +137,12 @@ function snapshot() {
         width: null,
         height: null,
         zIndex: 0,
-        style: {},
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
         version: 1,
         createdAt: now,
         updatedAt: now,
+
+        kind: "entity",
       },
     ],
     edges: [
@@ -148,12 +154,15 @@ function snapshot() {
         name: "knows",
         description: "Old friends",
         iconKey: null,
-        properties: { since: 2020 },
-        style: {},
-        labelPresentation: {},
+        properties: { since: "2020" },
+        presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+        routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
         version: 4,
         createdAt: now,
         updatedAt: now,
+
+        direction: "DIRECTED",
+        kind: "relationship",
       },
     ],
   };
@@ -188,14 +197,14 @@ beforeEach(() => {
     ...snapshot().nodes[0],
     name: "Alicia",
     description: "Main protagonist",
-    properties: { role: "lead", age: 31 },
+    properties: { role: "lead", age: "31" },
     version: 4,
   });
   mocks.updateEdge.mockResolvedValue({
     ...snapshot().edges[0],
     name: "best friend",
     description: "Childhood friends",
-    properties: { since: 2012 },
+    properties: { since: "2012" },
     version: 5,
   });
 });
@@ -230,7 +239,7 @@ describe("Graph Editor inspector", () => {
       target: { value: "Main protagonist" },
     });
     fireEvent.change(screen.getByLabelText("속성 JSON"), {
-      target: { value: '{"role":"lead","age":31}' },
+      target: { value: "{\"role\":\"lead\",\"age\":\"31\"}" },
     });
 
     await advanceAutosave(499);
@@ -246,7 +255,16 @@ describe("Graph Editor inspector", () => {
       expectedVersion: 3,
       name: "Alicia",
       description: "Main protagonist",
-      properties: { role: "lead", age: 31 },
+      kind: "entity",
+      iconKey: null,
+      properties: { role: "lead", age: "31" },
+      presentation: {
+        shape: "rounded-rect",
+        fillColor: null,
+        borderColor: null,
+        borderWidth: null,
+        textColor: null,
+      },
     });
     expect(screen.getByLabelText("이름")).toHaveValue("Alicia");
     expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent("999,888");
@@ -282,7 +300,7 @@ describe("Graph Editor inspector", () => {
       target: { value: "Childhood friends" },
     });
     fireEvent.change(screen.getByLabelText("속성 JSON"), {
-      target: { value: '{"since":2012}' },
+      target: { value: "{\"since\":\"2012\"}" },
     });
 
     await advanceAutosave(500);
@@ -295,8 +313,23 @@ describe("Graph Editor inspector", () => {
       workspaceId: "workspace-1",
       expectedVersion: 4,
       name: "best friend",
+      direction: "DIRECTED",
       description: "Childhood friends",
-      properties: { since: 2012 },
+      kind: "relationship",
+      iconKey: null,
+      properties: { since: "2012" },
+      presentation: {
+        strokeColor: null,
+        strokeWidth: null,
+        strokeStyle: "solid",
+        labelColor: null,
+      },
+      routing: {
+        type: "orthogonal",
+        sourcePort: "auto",
+        targetPort: "auto",
+        waypoints: [],
+      },
     });
 
     await waitFor(() => {

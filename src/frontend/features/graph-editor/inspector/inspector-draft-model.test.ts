@@ -18,17 +18,19 @@ function alice(overrides: Partial<GraphNodeResponse> = {}): GraphNodeResponse {
     name: "Alice",
     description: "Protagonist",
     iconKey: null,
-    properties: { role: "lead", meta: { age: 31 } },
+    properties: { role: "lead", meta: { age: "31" } },
     x: 10,
     y: 20,
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 3,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    kind: "entity",
   };
 }
 
@@ -43,7 +45,7 @@ describe("inspector draft model", () => {
       name: "Alice",
       description: "Protagonist",
       propertiesText: JSON.stringify(
-        { role: "lead", meta: { age: 31 } },
+        { role: "lead", meta: { age: "31" } },
         null,
         2,
       ),
@@ -102,7 +104,7 @@ describe("inspector draft model", () => {
     const draft = {
       name: "  Alicia  ",
       description: "Main protagonist",
-      propertiesText: '{"role":"lead","meta":{"age":31},"job":"writer"}',
+      propertiesText: "{\"role\":\"lead\",\"meta\":{\"age\":\"31\"},\"job\":\"writer\"}",
       revision: 4,
     };
 
@@ -114,7 +116,7 @@ describe("inspector draft model", () => {
         description: "Main protagonist",
         properties: {
           role: "lead",
-          meta: { age: 31 },
+          meta: { age: "31" },
           job: "writer",
         },
       },
@@ -125,7 +127,7 @@ describe("inspector draft model", () => {
   it("treats object key order and JSON whitespace as semantically unchanged", () => {
     const draft = {
       ...createInspectorDraftFromEntity(alice()),
-      propertiesText: '{ "meta": { "age": 31 }, "role": "lead" }',
+      propertiesText: "{ \"meta\": { \"age\": \"31\" }, \"role\": \"lead\" }",
       revision: 1,
     };
 
@@ -135,7 +137,7 @@ describe("inspector draft model", () => {
       input: {
         name: "Alice",
         description: "Protagonist",
-        properties: { meta: { age: 31 }, role: "lead" },
+        properties: { meta: { age: "31" }, role: "lead" },
       },
     });
   });

@@ -29,11 +29,13 @@ function nodeFixture(overrides: Partial<GraphNodeResponse> = {}): GraphNodeRespo
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 3,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    kind: "entity",
   };
 }
 
@@ -47,12 +49,15 @@ function edgeFixture(overrides: Partial<GraphEdgeResponse> = {}): GraphEdgeRespo
     description: "",
     iconKey: null,
     properties: {},
-    style: {},
-    labelPresentation: {},
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     version: 4,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    direction: "DIRECTED",
+    kind: "relationship",
   };
 }
 
@@ -67,6 +72,8 @@ function hydrate(store = createGraphEditorStore()) {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: [nodeFixture(), nodeFixture({ id: bobId, name: "Bob", x: 200 })],
     edges: [edgeFixture()],
@@ -103,6 +110,15 @@ describe("Board-owned editor command runtime", () => {
         name: "Charlie",
         position: { x: 50, y: 60 },
         createdAt: now,
+
+        description: "",
+        kind: "entity",
+        iconKey: null,
+        properties: {},
+        width: null,
+        height: null,
+        zIndex: 0,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
       } as never),
     ).toBe(true);
     expect(store.getState().nodes.find((node) => node.id === createdId)).toMatchObject({
@@ -110,6 +126,9 @@ describe("Board-owned editor command runtime", () => {
       name: "Charlie",
       x: 50,
       y: 60,
+
+      kind: "entity",
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     });
 
     expect(
@@ -164,13 +183,19 @@ describe("Board-owned editor command runtime", () => {
         expectedVersion: 4,
         name: "protects",
         description: "updated",
-        properties: { weight: 2 },
+        properties: { weight: "2" },
+
+        direction: "DIRECTED",
+        kind: "relationship",
+        iconKey: null,
+        presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+        routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
       } as never),
     ).toBe(true);
     expect(store.getState().edges[0]).toMatchObject({
       name: "protects",
       description: "updated",
-      properties: { weight: 2 },
+      properties: { weight: "2" },
     });
 
     expect(
@@ -243,6 +268,12 @@ describe("Board-owned editor command runtime", () => {
         name: "protects",
         description: "queued",
         properties: {},
+
+        direction: "DIRECTED",
+        kind: "relationship",
+        iconKey: null,
+        presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+        routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
       } as never,
     );
 
@@ -285,6 +316,10 @@ describe("Board-owned editor command runtime", () => {
       name: "Alicia",
       description: "Lead",
       properties: {},
+
+      kind: "entity",
+      iconKey: null,
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     } as const;
     expect(applyEditorCommand(store, nodeUpdate)).toBe(true);
     const pendingNode = persistAndReconcileEditorCommand(store, adapter, nodeUpdate);
@@ -314,6 +349,12 @@ describe("Board-owned editor command runtime", () => {
       name: "protects",
       description: "",
       properties: {},
+
+      direction: "DIRECTED",
+      kind: "relationship",
+      iconKey: null,
+      presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+      routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     } as const;
     expect(applyEditorCommand(edgeStore, edgeUpdate)).toBe(true);
     const pendingEdge = persistAndReconcileEditorCommand(edgeStore, adapter, edgeUpdate);

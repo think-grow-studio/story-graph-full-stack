@@ -112,10 +112,12 @@ function graphNode(id: string, name: string, x: number, y: number, version = 3) 
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version,
     createdAt: now,
     updatedAt: now,
+
+    kind: "entity",
   };
 }
 
@@ -130,6 +132,8 @@ function snapshot() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: [
       graphNode(nodeId, "Alice", 120, 80),
@@ -188,11 +192,14 @@ beforeEach(() => {
     description: "",
     iconKey: null,
     properties: {},
-    style: {},
-    labelPresentation: {},
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     version: 1,
     createdAt: now,
     updatedAt: now,
+
+    direction: "DIRECTED",
+    kind: "relationship",
   }));
   mocks.updateEdge.mockImplementation(async (input) => ({
     id: input.edgeId,
@@ -203,11 +210,14 @@ beforeEach(() => {
     description: input.description ?? "",
     iconKey: null,
     properties: input.properties ?? {},
-    style: {},
-    labelPresentation: {},
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     version: input.expectedVersion + 1,
     createdAt: now,
     updatedAt: now,
+
+    direction: "DIRECTED",
+    kind: "relationship",
   }));
   mocks.deleteEdge.mockResolvedValue(undefined);
   mocks.restoreEdge.mockImplementation(async (input) => ({
@@ -245,6 +255,9 @@ describe("GraphEditorPage Board-owned graph", () => {
       name: "Charlie",
       x: 320,
       y: 240,
+
+      kind: "entity",
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     });
     expect(await screen.findByText("Charlie")).toBeInTheDocument();
   });
@@ -287,6 +300,11 @@ describe("GraphEditorPage Board-owned graph", () => {
       sourceNodeId: nodeId,
       targetNodeId: secondNodeId,
       name: "sister",
+
+      direction: "DIRECTED",
+      kind: "relationship",
+      presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+      routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     });
     expect(await screen.findByText("sister")).toBeInTheDocument();
   });

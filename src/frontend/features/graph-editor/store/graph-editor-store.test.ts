@@ -26,11 +26,13 @@ function nodeFixture(overrides: Partial<GraphNodeResponse> = {}): GraphNodeRespo
     width: null,
     height: null,
     zIndex: 0,
-    style: { accent: true },
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 1,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    kind: "entity",
   };
 }
 
@@ -44,17 +46,20 @@ function edgeFixture(overrides: Partial<GraphEdgeResponse> = {}): GraphEdgeRespo
     description: "",
     iconKey: null,
     properties: {},
-    style: { dashed: true },
-    labelPresentation: { placement: "center" },
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     version: 1,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    direction: "DIRECTED",
+    kind: "relationship",
   };
 }
 
 const alice = nodeFixture();
-const bob = nodeFixture({ id: bobId, name: "Bob", x: 360, y: 180, style: {} });
+const bob = nodeFixture({ id: bobId, name: "Bob", x: 360, y: 180, presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null } });
 const knows = edgeFixture();
 
 const snapshot: BoardSnapshotResponse = {
@@ -70,6 +75,8 @@ const snapshot: BoardSnapshotResponse = {
     tags: ["인물"],
     createdAt: now,
     updatedAt: now,
+
+    graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
   },
   nodes: [alice, bob],
   edges: [knows],
@@ -90,15 +97,15 @@ const legacyCompatibleSnapshot = {
     width: node.width,
     height: node.height,
     zIndex: node.zIndex,
-    style: node.style,
+    style: node.presentation,
     createdAt: node.createdAt,
     updatedAt: node.updatedAt,
   })),
   boardEdges: snapshot.edges.map((edge) => ({
     boardId: edge.boardId,
     edgeId: edge.id,
-    style: edge.style,
-    labelPresentation: edge.labelPresentation,
+    style: edge.presentation,
+    labelPresentation: edge.routing,
     createdAt: edge.createdAt,
     updatedAt: edge.updatedAt,
   })),
