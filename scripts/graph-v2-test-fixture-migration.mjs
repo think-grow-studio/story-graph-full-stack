@@ -25,7 +25,14 @@ const testFiles = [
   "src/frontend/features/graph-editor/save-queue/use-editor-save-queue.test.tsx",
   "src/frontend/features/graph-editor/store/graph-editor-store.test.ts",
   "src/frontend/pages/graph-editor/graph-editor-page.test.tsx",
+  "src/frontend/pages/graph-editor/graph-editor-inspector.test.tsx",
 ];
+
+const legacyInspectorJsonFiles = new Set([
+  "src/frontend/features/graph-editor/inspector/inspector-autosave-controller.test.ts",
+  "src/frontend/features/graph-editor/inspector/inspector-draft-model.test.ts",
+  "src/frontend/pages/graph-editor/graph-editor-inspector.test.tsx",
+]);
 
 function propertyName(property) {
   if (!property.name) return null;
@@ -108,6 +115,23 @@ function stringifyPropertyLeaves(initializer, edits) {
   visit(initializer);
 }
 
+function stringifyJsonScalarTokens(text) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return text;
+
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") return text;
+  } catch {
+    return text;
+  }
+
+  return text.replace(
+    /([:\[,]\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)(?=\s*[,}\]])/g,
+    (_match, prefix, scalar) => `${prefix}${JSON.stringify(scalar)}`,
+  );
+}
+
 function commandAdditions(type, names) {
   const additions = [];
   const add = (name, text) => {
@@ -159,6 +183,21 @@ function migrateTestFile(relativePath) {
   const edits = [];
 
   function visit(node) {
+    if (
+      legacyInspectorJsonFiles.has(relativePath) &&
+      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+    ) {
+      const nextText = stringifyJsonScalarTokens(node.text);
+      if (nextText !== node.text) {
+        const quote = ts.isNoSubstitutionTemplateLiteral(node) ? "`" : JSON.stringify(nextText);
+        edits.push({
+          start: node.getStart(),
+          end: node.getEnd(),
+          text: ts.isNoSubstitutionTemplateLiteral(node) ? `${quote}${nextText}${quote}` : quote,
+        });
+      }
+    }
+
     if (ts.isObjectLiteralExpression(node)) {
       const names = objectPropertyNames(node);
       const effectiveNames = effectivePropertyNames(names);
