@@ -31,14 +31,16 @@ export async function PATCH(request: Request, context: BoardEdgeRouteContext) {
         boardId: validatedBoardId,
         edgeId: validatedEdgeId,
         expectedVersion: body.expectedVersion,
+        ...(body.direction !== undefined ? { direction: body.direction } : {}),
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.description !== undefined ? { description: body.description } : {}),
+        ...(body.kind !== undefined ? { kind: body.kind } : {}),
         ...(body.iconKey !== undefined ? { iconKey: body.iconKey } : {}),
         ...(body.properties !== undefined ? { properties: body.properties } : {}),
-        ...(body.style !== undefined ? { style: body.style } : {}),
-        ...(body.labelPresentation !== undefined
-          ? { labelPresentation: body.labelPresentation }
+        ...(body.presentation !== undefined
+          ? { presentation: body.presentation }
           : {}),
+        ...(body.routing !== undefined ? { routing: body.routing } : {}),
       },
       graphDependencies,
     );
