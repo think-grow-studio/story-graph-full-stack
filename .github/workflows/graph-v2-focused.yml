@@ -12,6 +12,8 @@ on:
       - src/app/api/v1/stories/**/boards/**
       - src/backend/infrastructure/openapi/**
       - src/frontend/api/graph/**
+      - src/frontend/features/graph-editor/commands/**
+      - src/frontend/features/graph-editor/store/**
 
 jobs:
   verify:
@@ -43,4 +45,5 @@ jobs:
             src/backend/modules/graph/application/node.use-cases.test.ts \
             src/backend/modules/graph/application/edge.use-cases.test.ts \
             src/backend/infrastructure/openapi/openapi-document.test.ts \
-            src/frontend/api/graph/graph.api.test.ts
+            src/frontend/api/graph/graph.api.test.ts \
+            src/frontend/features/graph-editor/commands/editor-command-runtime.v2.test.ts
