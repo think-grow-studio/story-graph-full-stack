@@ -2,10 +2,10 @@
 
 import {
   Background,
+  ConnectionMode,
   Controls,
   ReactFlow,
   type Edge,
-  type Node,
   type OnConnect,
   type OnNodeDrag,
   type ReactFlowInstance,
@@ -14,8 +14,13 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
   type Ref,
 } from "react";
+import {
+  StoryGraphNode,
+  type StoryGraphFlowNode,
+} from "./story-graph-node";
 
 export type GraphCanvasNode = {
   id: string;
@@ -49,7 +54,9 @@ export type GraphCanvasProps = {
   ref?: Ref<GraphCanvasHandle>;
 };
 
-type FlowNode = Node<{ label: string }>;
+const nodeTypes = { storyGraph: StoryGraphNode };
+
+type FlowNode = StoryGraphFlowNode;
 
 export function GraphCanvas({
   nodes,
@@ -62,16 +69,18 @@ export function GraphCanvas({
   onSelectEdge,
   ref,
 }: GraphCanvasProps) {
+  const [connectionActive, setConnectionActive] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null);
   const flowNodes = useMemo<FlowNode[]>(
     () =>
       nodes.map((node) => ({
         id: node.id,
+        type: "storyGraph",
         position: node.position,
-        data: { label: node.name },
+        data: { label: node.name, connectionActive },
       })),
-    [nodes],
+    [connectionActive, nodes],
   );
   const flowEdges = useMemo<Edge[]>(
     () =>
@@ -118,6 +127,7 @@ export function GraphCanvas({
   };
 
   const handleConnect: OnConnect = (connection) => {
+    setConnectionActive(false);
     if (!connection.source || !connection.target) return;
     onConnectNodes(connection.source, connection.target);
   };
@@ -129,10 +139,14 @@ export function GraphCanvas({
       ref={containerRef}
     >
       <ReactFlow<FlowNode, Edge>
+        connectionMode={ConnectionMode.Loose}
         edges={flowEdges}
         fitView
         nodes={flowNodes}
+        nodeTypes={nodeTypes}
         onConnect={handleConnect}
+        onConnectEnd={() => setConnectionActive(false)}
+        onConnectStart={() => setConnectionActive(true)}
         onEdgeClick={(_, edge) => onSelectEdge?.(edge.id)}
         onInit={(instance) => {
           instanceRef.current = instance;
