@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Board, BoardSnapshot } from "../domain/graph";
+import type { Board, BoardSnapshot, GraphSettings } from "../domain/graph";
 import type { GraphRepository } from "../domain/graph.repository";
 import type { Story } from "@/backend/modules/story/domain/story";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
@@ -10,6 +10,11 @@ import { getBoardSnapshot } from "./get-board-snapshot/get-board-snapshot";
 import { updateBoard } from "./update-board/update-board";
 
 const now = new Date("2026-09-06T00:00:00.000Z");
+const graphSettings: GraphSettings = {
+  defaultEdgeRouting: "orthogonal",
+  snapToGrid: false,
+  layoutMode: "free",
+};
 
 function storyFixture(overrides: Partial<Story> = {}): Story {
   return {
@@ -30,6 +35,7 @@ function boardFixture(overrides: Partial<Board> = {}): Board {
     name: "Main",
     description: "",
     tags: ["characters"],
+    graphSettings,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -96,7 +102,7 @@ describe("Board use-cases", () => {
     access = createAccess();
   });
 
-  it("creates an independent Board with tags after resolving Story ownership", async () => {
+  it("creates an independent Board with tags and graph settings after resolving Story ownership", async () => {
     const result = await createBoard(
       {
         actorId: "user-1",
@@ -105,6 +111,7 @@ describe("Board use-cases", () => {
         name: "Main",
         description: "View",
         tags: ["characters", "draft"],
+        graphSettings,
       },
       { stories, graph, access },
     );
@@ -113,6 +120,7 @@ describe("Board use-cases", () => {
       storyId: "story-1",
       name: "Main",
       tags: ["characters", "draft"],
+      graphSettings,
     });
     expect(access.requireCapability).toHaveBeenCalledWith({
       userId: "user-1",
@@ -124,10 +132,16 @@ describe("Board use-cases", () => {
       name: "Main",
       description: "View",
       tags: ["characters", "draft"],
+      graphSettings,
     });
   });
 
-  it("updates Board metadata and replaces tags only when provided", async () => {
+  it("updates Board metadata, tags, and graph settings only when provided", async () => {
+    const nextGraphSettings: GraphSettings = {
+      defaultEdgeRouting: "curved",
+      snapToGrid: true,
+      layoutMode: "free",
+    };
     const result = await updateBoard(
       {
         actorId: "user-1",
@@ -135,15 +149,21 @@ describe("Board use-cases", () => {
         boardId: "board-1",
         name: "Characters",
         tags: ["인물", "1부"],
+        graphSettings: nextGraphSettings,
       },
       { stories, graph, access },
     );
 
-    expect(result).toMatchObject({ name: "Characters", tags: ["인물", "1부"] });
+    expect(result).toMatchObject({
+      name: "Characters",
+      tags: ["인물", "1부"],
+      graphSettings: nextGraphSettings,
+    });
     expect(graph.updateBoard).toHaveBeenCalledWith({
       id: "board-1",
       name: "Characters",
       tags: ["인물", "1부"],
+      graphSettings: nextGraphSettings,
     });
   });
 
@@ -159,6 +179,7 @@ describe("Board use-cases", () => {
           name: "Denied",
           description: "",
           tags: [],
+          graphSettings,
         },
         { stories, graph, access },
       ),
