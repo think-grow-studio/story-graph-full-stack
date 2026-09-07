@@ -41,6 +41,7 @@ jobs:
         run: |
           node scripts/graph-v2-test-fixture-migration.mjs
           node scripts/graph-v2-test-fixture-finalize.mjs
+          git diff --name-only --diff-filter=ACM -z | xargs -0 -r sed -i 's/[[:blank:]]\+$//'
 
       - name: Verify architecture, lint, types, and unit tests
         run: pnpm check
