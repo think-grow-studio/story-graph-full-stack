@@ -75,13 +75,18 @@ const propertyKeySchema = z
   );
 const propertyScalarSchema = z.string().max(10_000);
 
-const graphPropertyValueSchema: z.ZodType<GraphPropertyValue> = z.lazy(() =>
-  z.union([
-    propertyScalarSchema,
-    z.array(graphPropertyValueSchema),
-    z.record(propertyKeySchema, graphPropertyValueSchema),
-  ]),
-);
+const graphPropertyValueSchema: z.ZodType<GraphPropertyValue> = z
+  .lazy(() =>
+    z.union([
+      propertyScalarSchema,
+      z.array(graphPropertyValueSchema),
+      z.record(propertyKeySchema, graphPropertyValueSchema),
+    ]),
+  )
+  .meta({
+    id: "GraphPropertyValue",
+    description: "Recursive Graph property value; scalar leaves are strings.",
+  });
 
 function validatePropertyComplexity(
   properties: GraphProperties,
@@ -153,7 +158,11 @@ type PropertyKey = string | number;
 
 export const graphPropertiesSchema: z.ZodType<GraphProperties> = z
   .record(propertyKeySchema, graphPropertyValueSchema)
-  .superRefine(validatePropertyComplexity);
+  .superRefine(validatePropertyComplexity)
+  .meta({
+    description:
+      "Recursive Graph properties; scalar leaves are strings, with depth and entry limits enforced by the runtime contract.",
+  });
 
 export const graphSettingsSchema = z
   .object({
