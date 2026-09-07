@@ -1,0 +1,59 @@
+name: Graph V2 Integration
+
+on:
+  push:
+    branches:
+      - feat/graph-editor-v2
+    paths:
+      - .github/workflows/graph-v2-integration.yml
+      - tests/integration/graph/**
+      - src/contracts/graph/**
+      - src/backend/modules/graph/**
+      - src/backend/infrastructure/database/schema/**
+      - src/app/api/v1/boards/**
+      - src/app/api/v1/stories/**/boards/**
+      - drizzle/**
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    env:
+      DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
+      BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: story_graph
+          POSTGRES_USER: story_graph
+          POSTGRES_PASSWORD: story_graph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U story_graph -d story_graph"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/graph-editor-v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply migrations
+        run: pnpm db:migrate
+      - name: Verify Graph repository and HTTP integration
+        run: |
+          pnpm vitest run --config vitest.integration.config.ts \
+            tests/integration/graph/graph-repository.integration.ts \
+            tests/integration/graph/graph-api.integration.ts
