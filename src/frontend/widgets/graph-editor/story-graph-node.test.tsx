@@ -17,15 +17,13 @@ import { StoryGraphNode } from "./story-graph-node";
 
 describe("StoryGraphNode", () => {
   it("renders four stable magnetic connection ports", () => {
-    render(
-      <StoryGraphNode
-        {...({
-          id: "node-1",
-          data: { label: "Alice" },
-          selected: false,
-        } as never)}
-      />,
-    );
+    const props = {
+      id: "node-1",
+      data: { label: "Alice" },
+      selected: false,
+    } as unknown as Parameters<typeof StoryGraphNode>[0];
+
+    render(<StoryGraphNode {...props} />);
 
     expect(screen.getByText("Alice")).toBeInTheDocument();
     const ports = screen.getAllByTestId("graph-port");
