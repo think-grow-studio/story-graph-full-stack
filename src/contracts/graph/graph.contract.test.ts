@@ -102,8 +102,12 @@ describe("Graph Editor V2 contracts", () => {
       updatedAt: now,
     });
 
-    expect(board.graphSettings).toEqual(graphSettings);
-    expect(board.tags).toEqual(["인물", "전체"]);
+    expect(board).toEqual(
+      expect.objectContaining({
+        graphSettings,
+        tags: ["인물", "전체"],
+      }),
+    );
   });
 
   it("accepts recursive properties only when every scalar leaf is a string", () => {
@@ -208,19 +212,20 @@ describe("Graph Editor V2 contracts", () => {
       routing: edgeRouting,
     });
 
-    expect(
-      createEdgeRequestSchema.parse({
-        workspaceId: "workspace-1",
-        id: edgeId,
-        sourceNodeId: nodeId,
-        targetNodeId: otherNodeId,
-        direction: "UNDIRECTED",
-        name: "형제",
-        kind: "relationship",
-        presentation: edgePresentation,
-        routing: edgeRouting,
-      }).direction,
-    ).toBe("UNDIRECTED");
+    const undirected = createEdgeRequestSchema.parse({
+      workspaceId: "workspace-1",
+      id: edgeId,
+      sourceNodeId: nodeId,
+      targetNodeId: otherNodeId,
+      direction: "UNDIRECTED",
+      name: "형제",
+      kind: "relationship",
+      presentation: edgePresentation,
+      routing: edgeRouting,
+    });
+    expect(undirected).toEqual(
+      expect.objectContaining({ direction: "UNDIRECTED" }),
+    );
 
     expect(() =>
       createEdgeRequestSchema.parse({
