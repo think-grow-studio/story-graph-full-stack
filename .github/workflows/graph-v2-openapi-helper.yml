@@ -1,0 +1,60 @@
+name: Graph V2 OpenAPI Helper
+
+on:
+  push:
+    branches:
+      - feat/graph-editor-v2
+    paths:
+      - .github/workflows/graph-v2-openapi-helper.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-24.04
+    env:
+      DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
+      BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/graph-editor-v2
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Name recursive Graph property schema for OpenAPI refs
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          path = Path('src/contracts/graph/graph.contract.ts')
+          text = path.read_text()
+          old = '''const graphPropertyValueSchema: z.ZodType<GraphPropertyValue> = z.lazy(() =>\n  z.union([\n    propertyScalarSchema,\n    z.array(graphPropertyValueSchema),\n    z.record(propertyKeySchema, graphPropertyValueSchema),\n  ]),\n);'''
+          new = '''const graphPropertyValueSchema: z.ZodType<GraphPropertyValue> = z\n  .lazy(() =>\n    z.union([\n      propertyScalarSchema,\n      z.array(graphPropertyValueSchema),\n      z.record(propertyKeySchema, graphPropertyValueSchema),\n    ]),\n  )\n  .meta({\n    id: "GraphPropertyValue",\n    description: "Recursive Graph property value; scalar leaves are strings.",\n  });'''
+          if old not in text:
+              raise SystemExit('expected GraphPropertyValue schema block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Verify contract and OpenAPI
+        run: |
+          pnpm vitest run src/contracts/graph/graph.contract.test.ts src/backend/infrastructure/openapi/openapi-document.test.ts
+
+      - name: Commit verified patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/contracts/graph/graph.contract.ts
+          git commit -m 'fix(openapi): name recursive Graph property schema'
+          git push origin HEAD:feat/graph-editor-v2
