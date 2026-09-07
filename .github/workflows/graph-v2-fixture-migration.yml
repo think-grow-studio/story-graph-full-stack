@@ -6,6 +6,7 @@ on:
       - feat/graph-editor-v2
     paths:
       - scripts/graph-v2-test-fixture-migration.mjs
+      - scripts/graph-v2-test-fixture-finalize.mjs
       - .github/workflows/graph-v2-fixture-migration.yml
 
 permissions:
@@ -37,7 +38,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Apply V2 fixture migration
-        run: node scripts/graph-v2-test-fixture-migration.mjs
+        run: |
+          node scripts/graph-v2-test-fixture-migration.mjs
+          node scripts/graph-v2-test-fixture-finalize.mjs
 
       - name: Verify architecture, lint, types, and unit tests
         run: pnpm check
@@ -45,6 +48,7 @@ jobs:
       - name: Remove temporary migration tooling
         run: |
           rm scripts/graph-v2-test-fixture-migration.mjs
+          rm scripts/graph-v2-test-fixture-finalize.mjs
           rm .github/workflows/graph-v2-fixture-migration.yml
 
       - name: Commit verified migration
