@@ -61,6 +61,33 @@ describe("GraphCanvas", () => {
     ]);
   });
 
+  it("marks Node data active only while a connection gesture is in progress", () => {
+    render(
+      <GraphCanvas
+        edges={[]}
+        nodes={[{ id: "node-1", name: "Alice", position: { x: 10, y: 20 } }]}
+        onConnectNodes={vi.fn()}
+        onNodeDragStop={vi.fn()}
+        onNodePositionChange={vi.fn()}
+      />,
+    );
+
+    const getNodeData = () =>
+      ((flowMocks.props?.nodes as Array<{ data: { connectionActive: boolean } }>)?.[0]
+        ?.data);
+    expect(getNodeData()?.connectionActive).toBe(false);
+
+    act(() => {
+      (flowMocks.props?.onConnectStart as (() => void) | undefined)?.();
+    });
+    expect(getNodeData()?.connectionActive).toBe(true);
+
+    act(() => {
+      (flowMocks.props?.onConnectEnd as (() => void) | undefined)?.();
+    });
+    expect(getNodeData()?.connectionActive).toBe(false);
+  });
+
   it("preserves semantic source and target Node ids regardless of physical handles", () => {
     const onConnectNodes = vi.fn();
     render(
