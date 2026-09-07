@@ -13,6 +13,6 @@ export const boardTag = pgTable(
   },
   (table) => [
     primaryKey({ name: "board_tag_pk", columns: [table.boardId, table.name] }),
-    index("board_tag_board_id_idx").on(table.boardId),
+    index("board_tag_name_idx").on(table.name),
   ],
 );
