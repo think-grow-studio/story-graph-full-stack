@@ -40,6 +40,7 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
     onNodePositionChange,
     onNodeDragStop,
     onConnectNodes,
+    onSelectNode,
     ref,
   }: {
     nodes: Array<{ id: string; name: string; position: { x: number; y: number } }>;
@@ -52,6 +53,7 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
     onNodePositionChange: (nodeId: string, position: { x: number; y: number }) => void;
     onNodeDragStop: (nodeId: string) => void;
     onConnectNodes?: (sourceNodeId: string, targetNodeId: string) => void;
+    onSelectNode?: (nodeId: string) => void;
     ref?: Ref<{ getCenterPosition: () => { x: number; y: number } }>;
   }) => {
     useImperativeHandle(ref, () => ({
@@ -64,6 +66,9 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
           <div key={node.id}>
             <span>{node.name}</span>
             <span>{`${node.position.x},${node.position.y}`}</span>
+            <button onClick={() => onSelectNode?.(node.id)} type="button">
+              Select {node.name}
+            </button>
             <button
               onClick={() => onNodePositionChange(node.id, { x: 240, y: 160 })}
               type="button"
@@ -81,6 +86,14 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
             type="button"
           >
             Connect {nodes[0].name} to {nodes[1].name}
+          </button>
+        ) : null}
+        {nodes.length ? (
+          <button
+            onClick={() => onConnectNodes?.(nodes[0].id, nodes[0].id)}
+            type="button"
+          >
+            Connect {nodes[0].name} to itself
           </button>
         ) : null}
         {edges.map((edge) => (
@@ -112,11 +125,16 @@ function graphNode(id: string, name: string, x: number, y: number, version = 3) 
     width: null,
     height: null,
     zIndex: 0,
-    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
+    presentation: {
+      shape: "rounded-rect",
+      fillColor: null,
+      borderColor: null,
+      borderWidth: null,
+      textColor: null,
+    },
     version,
     createdAt: now,
     updatedAt: now,
-
     kind: "entity",
   };
 }
@@ -132,8 +150,11 @@ function snapshot() {
       tags: [],
       createdAt: now,
       updatedAt: now,
-
-      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
+      graphSettings: {
+        defaultEdgeRouting: "orthogonal",
+        snapToGrid: false,
+        layoutMode: "free",
+      },
     },
     nodes: [
       graphNode(nodeId, "Alice", 120, 80),
@@ -158,7 +179,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getBootstrap.mockResolvedValue({
     actor: { id: "user-1", email: "user@example.com", name: "Writer" },
-    workspace: { id: "workspace-1", name: "Writer's Workspace", slug: "personal-user-1" },
+    workspace: {
+      id: "workspace-1",
+      name: "Writer's Workspace",
+      slug: "personal-user-1",
+    },
   });
   mocks.getBoardSnapshot.mockResolvedValue(snapshot());
   mocks.createNode.mockImplementation(async (input) =>
@@ -192,13 +217,22 @@ beforeEach(() => {
     description: "",
     iconKey: null,
     properties: {},
-    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
-    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
+    presentation: {
+      strokeColor: null,
+      strokeWidth: null,
+      strokeStyle: "solid",
+      labelColor: null,
+    },
+    routing: {
+      type: input.routing.type,
+      sourcePort: "auto",
+      targetPort: "auto",
+      waypoints: [] as Array<{ x: number; y: number }>,
+    },
     version: 1,
     createdAt: now,
     updatedAt: now,
-
-    direction: "DIRECTED",
+    direction: input.direction,
     kind: "relationship",
   }));
   mocks.updateEdge.mockImplementation(async (input) => ({
@@ -210,12 +244,21 @@ beforeEach(() => {
     description: input.description ?? "",
     iconKey: null,
     properties: input.properties ?? {},
-    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
-    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
+    presentation: {
+      strokeColor: null,
+      strokeWidth: null,
+      strokeStyle: "solid",
+      labelColor: null,
+    },
+    routing: {
+      type: "orthogonal",
+      sourcePort: "auto",
+      targetPort: "auto",
+      waypoints: [] as Array<{ x: number; y: number }>,
+    },
     version: input.expectedVersion + 1,
     createdAt: now,
     updatedAt: now,
-
     direction: "DIRECTED",
     kind: "relationship",
   }));
@@ -233,10 +276,15 @@ describe("GraphEditorPage Board-owned graph", () => {
   it("renders direct Node rows at their own positions", async () => {
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Characters" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Characters" }),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("120,80")).toBeInTheDocument();
-    expect(mocks.getBoardSnapshot).toHaveBeenCalledWith(boardId, "workspace-1");
+    expect(mocks.getBoardSnapshot).toHaveBeenCalledWith(
+      boardId,
+      "workspace-1",
+    );
   });
 
   it("creates a new Board-owned Node from the single add-node dialog", async () => {
@@ -255,9 +303,14 @@ describe("GraphEditorPage Board-owned graph", () => {
       name: "Charlie",
       x: 320,
       y: 240,
-
       kind: "entity",
-      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
+      presentation: {
+        shape: "rounded-rect",
+        fillColor: null,
+        borderColor: null,
+        borderWidth: null,
+        textColor: null,
+      },
     });
     expect(await screen.findByText("Charlie")).toBeInTheDocument();
   });
@@ -284,13 +337,19 @@ describe("GraphEditorPage Board-owned graph", () => {
     });
   });
 
-  it("creates a direct Relationship after naming a connection", async () => {
+  it("opens the Relationship dialog from a drag connection without persisting until submit", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByText("Alice");
 
-    await user.click(screen.getByRole("button", { name: "Connect Alice to Bob" }));
-    await user.type(await screen.findByLabelText("관계 이름"), "sister");
+    await user.click(
+      screen.getByRole("button", { name: "Connect Alice to Bob" }),
+    );
+
+    expect(await screen.findByText("Alice → Bob")).toBeInTheDocument();
+    expect(mocks.createEdge).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("관계 이름"), "sister");
     await user.click(screen.getByRole("button", { name: "관계 만들기" }));
 
     await waitFor(() => expect(mocks.createEdge).toHaveBeenCalledTimes(1));
@@ -300,12 +359,74 @@ describe("GraphEditorPage Board-owned graph", () => {
       sourceNodeId: nodeId,
       targetNodeId: secondNodeId,
       name: "sister",
-
       direction: "DIRECTED",
       kind: "relationship",
-      presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
-      routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
+      presentation: {
+        strokeColor: null,
+        strokeWidth: null,
+        strokeStyle: "solid",
+        labelColor: null,
+      },
+      routing: {
+        type: "orthogonal",
+        sourcePort: "auto",
+        targetPort: "auto",
+        waypoints: [] as Array<{ x: number; y: number }>,
+      },
     });
     expect(await screen.findByText("sister")).toBeInTheDocument();
+  });
+
+  it("rejects self-edges and creates an undirected Relationship through target-pick mode", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Alice");
+
+    await user.click(screen.getByRole("button", { name: "Select Alice" }));
+    await user.click(screen.getByRole("button", { name: "관계 만들기" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Alice에서 시작할 관계의 대상 노드를 선택하세요.",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Select Alice" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mocks.createEdge).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Select Bob" }));
+    expect(await screen.findByText("Alice → Bob")).toBeInTheDocument();
+    expect(mocks.createEdge).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "방향 없음" }));
+    expect(screen.getByText("Alice — Bob")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("관계 이름"), "siblings");
+    await user.click(screen.getByRole("button", { name: "관계 만들기" }));
+
+    await waitFor(() => expect(mocks.createEdge).toHaveBeenCalledTimes(1));
+    expect(mocks.createEdge.mock.calls[0][0]).toMatchObject({
+      sourceNodeId: nodeId,
+      targetNodeId: secondNodeId,
+      direction: "UNDIRECTED",
+      name: "siblings",
+    });
+  });
+
+  it("cancels target-pick mode with Escape and does not create an Edge", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Alice");
+
+    await user.click(screen.getByRole("button", { name: "Select Alice" }));
+    await user.click(screen.getByRole("button", { name: "관계 만들기" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Alice에서 시작할 관계의 대상 노드를 선택하세요.",
+    );
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Select Bob" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mocks.createEdge).not.toHaveBeenCalled();
   });
 });
