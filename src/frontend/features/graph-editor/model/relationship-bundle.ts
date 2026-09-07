@@ -1,15 +1,22 @@
-import type { GraphEdgeResponse } from "@/contracts/graph/graph.contract";
+import type { EdgeDirection } from "@/contracts/graph/graph.contract";
 
-export type RelationshipBundle = {
-  key: string;
-  nodeIds: readonly [string, string];
-  edges: GraphEdgeResponse[];
+export type BundleEdge = {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  direction: EdgeDirection;
 };
 
-export function buildRelationshipBundles(
-  edges: readonly GraphEdgeResponse[],
-): RelationshipBundle[] {
-  const grouped = new Map<string, RelationshipBundle>();
+export type RelationshipBundle<T extends BundleEdge = BundleEdge> = {
+  key: string;
+  nodeIds: readonly [string, string];
+  edges: T[];
+};
+
+export function buildRelationshipBundles<T extends BundleEdge>(
+  edges: readonly T[],
+): RelationshipBundle<T>[] {
+  const grouped = new Map<string, RelationshipBundle<T>>();
 
   for (const edge of edges) {
     const nodeIds = orderedPair(edge.sourceNodeId, edge.targetNodeId);
@@ -37,15 +44,15 @@ function orderedPair(left: string, right: string): readonly [string, string] {
 }
 
 function compareBundleEdges(
-  left: GraphEdgeResponse,
-  right: GraphEdgeResponse,
+  left: BundleEdge,
+  right: BundleEdge,
   [lowerId]: readonly [string, string],
 ) {
   const rankDifference = edgeRank(left, lowerId) - edgeRank(right, lowerId);
   return rankDifference !== 0 ? rankDifference : left.id.localeCompare(right.id);
 }
 
-function edgeRank(edge: GraphEdgeResponse, lowerId: string) {
+function edgeRank(edge: BundleEdge, lowerId: string) {
   if (edge.direction === "UNDIRECTED") return 0;
   return edge.sourceNodeId === lowerId ? 1 : 2;
 }
