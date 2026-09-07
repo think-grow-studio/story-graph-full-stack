@@ -40,7 +40,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Focused Graph V2 unit tests
+      - name: Focused Graph V2 contract and API tests
         run: |
           pnpm vitest run \
             src/contracts/graph/graph.contract.test.ts \
@@ -49,6 +49,11 @@ jobs:
             src/backend/modules/graph/application/edge.use-cases.test.ts \
             src/backend/infrastructure/openapi/openapi-document.test.ts \
             src/frontend/api/graph/graph.api.test.ts \
-            src/frontend/features/graph-editor/commands/editor-command-runtime.v2.test.ts \
-            src/frontend/features/graph-editor/history/editor-history-entry.v2.test.ts \
             src/frontend/features/graph-editor/inspector/inspector-draft-model.v2.test.ts
+      - name: Graph V2 editor runtime regression suite
+        run: |
+          pnpm vitest run \
+            src/frontend/features/graph-editor/commands \
+            src/frontend/features/graph-editor/history \
+            src/frontend/features/graph-editor/persistence \
+            src/frontend/features/graph-editor/store
