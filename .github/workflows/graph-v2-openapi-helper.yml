@@ -40,11 +40,17 @@ jobs:
           from pathlib import Path
           path = Path('src/contracts/graph/graph.contract.ts')
           text = path.read_text()
-          old = '''const graphPropertyValueSchema: z.ZodType<GraphPropertyValue> = z.lazy(() =>\n  z.union([\n    propertyScalarSchema,\n    z.array(graphPropertyValueSchema),\n    z.record(propertyKeySchema, graphPropertyValueSchema),\n  ]),\n);'''
-          new = '''const graphPropertyValueSchema: z.ZodType<GraphPropertyValue> = z\n  .lazy(() =>\n    z.union([\n      propertyScalarSchema,\n      z.array(graphPropertyValueSchema),\n      z.record(propertyKeySchema, graphPropertyValueSchema),\n    ]),\n  )\n  .meta({\n    id: "GraphPropertyValue",\n    description: "Recursive Graph property value; scalar leaves are strings.",\n  });'''
-          if old not in text:
+          old_value = '''const graphPropertyValueSchema: z.ZodType<GraphPropertyValue> = z.lazy(() =>\n  z.union([\n    propertyScalarSchema,\n    z.array(graphPropertyValueSchema),\n    z.record(propertyKeySchema, graphPropertyValueSchema),\n  ]),\n);'''
+          new_value = '''const graphPropertyValueSchema: z.ZodType<GraphPropertyValue> = z\n  .lazy(() =>\n    z.union([\n      propertyScalarSchema,\n      z.array(graphPropertyValueSchema),\n      z.record(propertyKeySchema, graphPropertyValueSchema),\n    ]),\n  )\n  .meta({\n    id: "GraphPropertyValue",\n    description: "Recursive Graph property value; scalar leaves are strings.",\n  });'''
+          old_root = '''export const graphPropertiesSchema: z.ZodType<GraphProperties> = z\n  .record(propertyKeySchema, graphPropertyValueSchema)\n  .superRefine(validatePropertyComplexity);'''
+          new_root = '''export const graphPropertiesSchema: z.ZodType<GraphProperties> = z\n  .record(propertyKeySchema, graphPropertyValueSchema)\n  .superRefine(validatePropertyComplexity)\n  .meta({\n    description:\n      "Recursive Graph properties; scalar leaves are strings, with depth and entry limits enforced by the runtime contract.",\n  });'''
+          if old_value not in text:
               raise SystemExit('expected GraphPropertyValue schema block not found')
-          path.write_text(text.replace(old, new, 1))
+          if old_root not in text:
+              raise SystemExit('expected GraphProperties schema block not found')
+          text = text.replace(old_value, new_value, 1)
+          text = text.replace(old_root, new_root, 1)
+          path.write_text(text)
           PY
 
       - name: Verify contract and OpenAPI
@@ -56,5 +62,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/contracts/graph/graph.contract.ts
-          git commit -m 'fix(openapi): name recursive Graph property schema'
+          git commit -m 'fix(openapi): document recursive Graph properties'
           git push origin HEAD:feat/graph-editor-v2
