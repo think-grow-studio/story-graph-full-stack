@@ -1,6 +1,6 @@
 import type {
   EdgeDirection,
-  GraphEdgeResponse,
+  EdgeRouting,
 } from "@/contracts/graph/graph.contract";
 import {
   resolveConnectionPorts,
@@ -8,24 +8,29 @@ import {
   type ResolvedPort,
 } from "./port-resolver";
 
+export type RoutableEdge = {
+  direction: EdgeDirection;
+  routing: EdgeRouting;
+};
+
 export type EdgeRouteProjection = {
-  routingType: GraphEdgeResponse["routing"]["type"];
+  routingType: EdgeRouting["type"];
   sourcePort: ResolvedPort;
   targetPort: ResolvedPort;
-  waypoints: GraphEdgeResponse["routing"]["waypoints"];
+  waypoints: EdgeRouting["waypoints"];
   laneIndex: number;
   laneCount: number;
   direction: EdgeDirection;
 };
 
-export function projectEdgeRoute({
+export function projectEdgeRoute<T extends RoutableEdge>({
   edge,
   sourceNode,
   targetNode,
   laneIndex,
   laneCount,
 }: {
-  edge: GraphEdgeResponse;
+  edge: T;
   sourceNode: NodeBounds;
   targetNode: NodeBounds;
   laneIndex: number;
