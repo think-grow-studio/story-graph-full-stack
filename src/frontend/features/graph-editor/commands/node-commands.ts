@@ -1,6 +1,8 @@
 import type {
   GraphEdgeResponse,
   GraphNodeResponse,
+  GraphProperties,
+  NodePresentation,
 } from "@/contracts/graph/graph.contract";
 
 export type CreateNodeCommand = {
@@ -9,7 +11,15 @@ export type CreateNodeCommand = {
   workspaceId: string;
   nodeId: string;
   name: string;
+  description: string;
+  kind: string;
+  iconKey: string | null;
+  properties: GraphProperties;
   position: { x: number; y: number };
+  width: number | null;
+  height: number | null;
+  zIndex: number;
+  presentation: NodePresentation;
   createdAt: string;
 };
 
@@ -30,7 +40,10 @@ export type UpdateNodeCommand = {
   expectedVersion: number;
   name: string;
   description: string;
-  properties: Record<string, unknown>;
+  kind: string;
+  iconKey: string | null;
+  properties: GraphProperties;
+  presentation: NodePresentation;
 };
 
 export type DeleteNodeCommand = {
