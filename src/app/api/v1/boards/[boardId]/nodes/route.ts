@@ -28,6 +28,7 @@ export async function POST(
         id: body.id,
         name: body.name,
         description: body.description,
+        kind: body.kind,
         iconKey: body.iconKey,
         properties: body.properties,
         x: body.x,
@@ -35,7 +36,7 @@ export async function POST(
         width: body.width,
         height: body.height,
         zIndex: body.zIndex,
-        style: body.style,
+        presentation: body.presentation,
       },
       graphDependencies,
     );
