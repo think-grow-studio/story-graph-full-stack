@@ -10,6 +10,10 @@ import {
   useState,
 } from "react";
 
+import {
+  defaultEdgePresentation,
+  defaultNodePresentation,
+} from "@/contracts/graph/graph.contract";
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
 import { useBoardSnapshotQuery } from "@/frontend/api/graph/graph.queries";
 import { AddNodeDialog } from "@/frontend/features/graph-editor/actions/add-node-dialog";
@@ -228,7 +232,15 @@ function GraphEditorContent({
       workspaceId,
       nodeId: crypto.randomUUID(),
       name,
+      description: "",
+      kind: "entity",
+      iconKey: null,
+      properties: {},
       position,
+      width: null,
+      height: null,
+      zIndex: 0,
+      presentation: { ...defaultNodePresentation },
       createdAt: new Date().toISOString(),
     });
 
@@ -249,7 +261,19 @@ function GraphEditorContent({
       edgeId: crypto.randomUUID(),
       sourceNodeId: pendingConnection.sourceNodeId,
       targetNodeId: pendingConnection.targetNodeId,
+      direction: "DIRECTED",
       name,
+      description: "",
+      kind: "relationship",
+      iconKey: null,
+      properties: {},
+      presentation: { ...defaultEdgePresentation },
+      routing: {
+        type: snapshot.data?.board.graphSettings?.defaultEdgeRouting ?? "orthogonal",
+        sourcePort: "auto",
+        targetPort: "auto",
+        waypoints: [],
+      },
       createdAt: new Date().toISOString(),
     });
 
