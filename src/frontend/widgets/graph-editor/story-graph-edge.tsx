@@ -165,11 +165,17 @@ function getRoutePath({
   targetPosition: Position;
 }): [string, number, number] {
   if (routingType === "straight") {
-    return getStraightPath({ sourceX, sourceY, targetX, targetY });
+    const [path, labelX, labelY] = getStraightPath({
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
+    });
+    return [path, labelX, labelY];
   }
 
   if (routingType === "curved") {
-    return getBezierPath({
+    const [path, labelX, labelY] = getBezierPath({
       sourceX,
       sourceY,
       targetX,
@@ -177,9 +183,10 @@ function getRoutePath({
       sourcePosition,
       targetPosition,
     });
+    return [path, labelX, labelY];
   }
 
-  return getSmoothStepPath({
+  const [path, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     targetX,
@@ -188,4 +195,5 @@ function getRoutePath({
     targetPosition,
     borderRadius: 8,
   });
+  return [path, labelX, labelY];
 }
