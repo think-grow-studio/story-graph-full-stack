@@ -58,6 +58,7 @@ export async function POST(
         name: body.name,
         description: body.description,
         tags: body.tags,
+        graphSettings: body.graphSettings,
       },
       graphDependencies,
     );
