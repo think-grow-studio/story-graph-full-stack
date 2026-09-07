@@ -61,6 +61,18 @@ function graphEdge(
   };
 }
 
+type FlowEdgeSnapshot = {
+  id: string;
+  type: string;
+  sourceHandle: string;
+  targetHandle: string;
+  data: {
+    laneIndex: number;
+    laneCount: number;
+    visualState?: string;
+  };
+};
+
 describe("GraphCanvas", () => {
   it("uses the available editor height with a sensible minimum", () => {
     const view = render(
@@ -114,7 +126,7 @@ describe("GraphCanvas", () => {
       />,
     );
 
-    const flowEdges = flowMocks.props?.edges as Array<Record<string, any>>;
+    const flowEdges = flowMocks.props?.edges as FlowEdgeSnapshot[];
     expect(flowEdges.map((edge) => edge.id)).toEqual(["edge-a", "edge-b"]);
     expect(flowEdges.map((edge) => edge.type)).toEqual(["storyGraph", "storyGraph"]);
     expect(flowEdges.map((edge) => [edge.data.laneIndex, edge.data.laneCount])).toEqual([
@@ -145,7 +157,7 @@ describe("GraphCanvas", () => {
       />,
     );
 
-    const flowEdges = flowMocks.props?.edges as Array<Record<string, any>>;
+    const flowEdges = flowMocks.props?.edges as FlowEdgeSnapshot[];
     const stateById = Object.fromEntries(
       flowEdges.map((edge) => [edge.id, edge.data.visualState]),
     );
