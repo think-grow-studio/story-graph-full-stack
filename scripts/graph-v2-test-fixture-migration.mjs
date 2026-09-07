@@ -4,7 +4,7 @@ import ts from "typescript";
 
 const nodePresentation = '{ shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null }';
 const edgePresentation = '{ strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null }';
-const edgeRouting = '{ type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] }';
+const edgeRouting = '{ type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> }';
 const graphSettings = '{ defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" }';
 
 const testFiles = [
@@ -46,6 +46,13 @@ function stringLiteralProperty(object, name) {
 
 function objectPropertyNames(object) {
   return new Set(object.properties.map(propertyName).filter(Boolean));
+}
+
+function effectivePropertyNames(names) {
+  const effective = new Set(names);
+  if (names.has("style")) effective.add("presentation");
+  if (names.has("labelPresentation")) effective.add("routing");
+  return effective;
 }
 
 function indentationAt(source, position) {
@@ -154,18 +161,25 @@ function migrateTestFile(relativePath) {
   function visit(node) {
     if (ts.isObjectLiteralExpression(node)) {
       const names = objectPropertyNames(node);
+      const effectiveNames = effectivePropertyNames(names);
       const type = stringLiteralProperty(node, "type");
 
       if (type) {
-        insertProperties(source, sourceFile, node, commandAdditions(type, names), edits);
+        insertProperties(
+          source,
+          sourceFile,
+          node,
+          commandAdditions(type, effectiveNames),
+          edits,
+        );
       }
 
       const isEdgeShape =
-        names.has("boardId") && names.has("sourceNodeId") && names.has("targetNodeId");
+        !type && names.has("boardId") && names.has("sourceNodeId") && names.has("targetNodeId");
       const isNodeShape =
-        names.has("boardId") && names.has("name") && names.has("x") && names.has("y");
+        !type && names.has("boardId") && names.has("name") && names.has("x") && names.has("y");
       const isBoardShape =
-        names.has("storyId") && names.has("tags") && names.has("createdAt") && names.has("updatedAt");
+        !type && names.has("storyId") && names.has("tags") && names.has("createdAt") && names.has("updatedAt");
 
       for (const property of node.properties) {
         if (!ts.isPropertyAssignment(property)) continue;
@@ -187,7 +201,7 @@ function migrateTestFile(relativePath) {
 
       const additions = [];
       const add = (name, text) => {
-        if (!names.has(name)) additions.push(`${name}: ${text}`);
+        if (!effectiveNames.has(name)) additions.push(`${name}: ${text}`);
       };
 
       if (isNodeShape) {
