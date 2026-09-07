@@ -1,7 +1,11 @@
 import { ApplicationError } from "@/backend/common/errors/application-error";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
 import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
-import type { GraphNode, JsonObject } from "../../domain/graph";
+import type {
+  GraphNode,
+  GraphProperties,
+  NodePresentation,
+} from "../../domain/graph";
 import type { GraphRepository } from "../../domain/graph.repository";
 
 export async function updateNode(
@@ -13,14 +17,15 @@ export async function updateNode(
     expectedVersion: number;
     name?: string;
     description?: string;
+    kind?: string;
     iconKey?: string | null;
-    properties?: JsonObject;
+    properties?: GraphProperties;
     x?: number;
     y?: number;
     width?: number | null;
     height?: number | null;
     zIndex?: number;
-    style?: JsonObject;
+    presentation?: NodePresentation;
   },
   dependencies: {
     stories: StoryRepository;
@@ -55,6 +60,7 @@ export async function updateNode(
     expectedVersion: input.expectedVersion,
     ...(input.name !== undefined ? { name: input.name } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.kind !== undefined ? { kind: input.kind } : {}),
     ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
     ...(input.properties !== undefined ? { properties: input.properties } : {}),
     ...(input.x !== undefined ? { x: input.x } : {}),
@@ -62,7 +68,9 @@ export async function updateNode(
     ...(input.width !== undefined ? { width: input.width } : {}),
     ...(input.height !== undefined ? { height: input.height } : {}),
     ...(input.zIndex !== undefined ? { zIndex: input.zIndex } : {}),
-    ...(input.style !== undefined ? { style: input.style } : {}),
+    ...(input.presentation !== undefined
+      ? { presentation: input.presentation }
+      : {}),
   });
 
   if (!updated) {
