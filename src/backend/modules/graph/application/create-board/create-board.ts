@@ -1,7 +1,7 @@
 import { ApplicationError } from "@/backend/common/errors/application-error";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
 import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
-import type { Board } from "../../domain/graph";
+import type { Board, GraphSettings } from "../../domain/graph";
 import type { GraphRepository } from "../../domain/graph.repository";
 
 export async function createBoard(
@@ -12,6 +12,7 @@ export async function createBoard(
     name: string;
     description: string;
     tags?: string[];
+    graphSettings: GraphSettings;
   },
   dependencies: {
     stories: StoryRepository;
@@ -35,5 +36,6 @@ export async function createBoard(
     name: input.name,
     description: input.description,
     tags: input.tags ?? [],
+    graphSettings: input.graphSettings,
   });
 }
