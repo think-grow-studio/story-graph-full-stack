@@ -1,6 +1,8 @@
-import type {
-  GraphEdgeResponse,
-  GraphNodeResponse,
+import {
+  graphPropertiesSchema,
+  type GraphEdgeResponse,
+  type GraphNodeResponse,
+  type GraphProperties,
 } from "@/contracts/graph/graph.contract";
 import type { SaveState } from "../save-queue/save-state";
 
@@ -26,7 +28,7 @@ export type InspectorDraftEvaluation =
       input: {
         name: string;
         description: string;
-        properties: Record<string, unknown>;
+        properties: GraphProperties;
       };
     }
   | {
@@ -35,7 +37,8 @@ export type InspectorDraftEvaluation =
       message:
         | "Name is required."
         | "Properties must be valid JSON."
-        | "Properties must be a JSON object.";
+        | "Properties must be a JSON object."
+        | "Properties do not match the Graph property rules.";
     };
 
 export function toInspectorEntityKey(
@@ -92,10 +95,19 @@ export function evaluateInspectorDraft(
     };
   }
 
+  const parsedProperties = graphPropertiesSchema.safeParse(properties);
+  if (!parsedProperties.success) {
+    return {
+      status: "invalid",
+      dirty: isRawDraftDifferentFromCanonical(draft, entity),
+      message: "Properties do not match the Graph property rules.",
+    };
+  }
+
   const input = {
     name: trimmedName,
     description: draft.description,
-    properties: properties as Record<string, unknown>,
+    properties: parsedProperties.data,
   };
 
   return {
