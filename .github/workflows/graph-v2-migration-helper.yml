@@ -1,0 +1,63 @@
+name: Graph V2 Migration Helper
+
+on:
+  push:
+    branches:
+      - feat/graph-editor-v2
+    paths:
+      - src/backend/infrastructure/database/schema/graph.schema.ts
+      - src/backend/infrastructure/database/schema/board-tag.schema.ts
+      - .github/workflows/graph-v2-migration-helper.yml
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/graph-editor-v2
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Reset old Graph 0002 metadata
+        run: |
+          rm -f drizzle/0002_board_owned_graph.sql drizzle/meta/0002_snapshot.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'drizzle/meta/_journal.json';
+          const journal = JSON.parse(fs.readFileSync(path, 'utf8'));
+          journal.entries = journal.entries.filter((entry) => entry.idx < 2);
+          fs.writeFileSync(path, `${JSON.stringify(journal, null, 2)}\n`);
+          NODE
+
+      - name: Generate Graph Editor V2 baseline
+        run: pnpm exec drizzle-kit generate --name graph_editor_v2
+
+      - name: Verify generated baseline
+        run: |
+          test -f drizzle/0002_graph_editor_v2.sql
+          test -f drizzle/meta/0002_snapshot.json
+          grep -q '0002_graph_editor_v2' drizzle/meta/_journal.json
+          pnpm db:check
+
+      - name: Commit generated migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add drizzle
+          git commit -m 'refactor(db): regenerate Graph Editor V2 baseline'
+          git push origin HEAD:feat/graph-editor-v2
