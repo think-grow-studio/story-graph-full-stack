@@ -66,4 +66,69 @@ describe("buildOpenApiDocument", () => {
       "/api/v1/boards/{boardId}/nodes/{nodeId}/presentation",
     );
   });
+
+  it("documents Graph Editor V2 semantic, presentation, routing, and property fields", async () => {
+    const document = await buildOpenApiDocument();
+    const schemas = document.components?.schemas ?? {};
+
+    expect(schemas.BoardResponse).toMatchObject({
+      type: "object",
+      properties: {
+        graphSettings: {
+          type: "object",
+          properties: {
+            defaultEdgeRouting: { enum: ["orthogonal", "straight", "curved"] },
+            snapToGrid: { type: "boolean" },
+            layoutMode: { enum: ["free"] },
+          },
+        },
+      },
+    });
+
+    expect(schemas.GraphNodeResponse).toMatchObject({
+      type: "object",
+      properties: {
+        kind: { type: "string" },
+        properties: {
+          type: "object",
+          description: expect.stringContaining("scalar leaves are strings"),
+        },
+        presentation: {
+          type: "object",
+          properties: {
+            shape: { enum: ["rounded-rect", "rect", "ellipse", "diamond"] },
+          },
+        },
+      },
+    });
+
+    expect(schemas.GraphEdgeResponse).toMatchObject({
+      type: "object",
+      properties: {
+        direction: { enum: ["DIRECTED", "UNDIRECTED"] },
+        kind: { type: "string" },
+        properties: {
+          type: "object",
+          description: expect.stringContaining("scalar leaves are strings"),
+        },
+        presentation: {
+          type: "object",
+          properties: {
+            strokeStyle: { enum: ["solid", "dashed", "dotted"] },
+          },
+        },
+        routing: {
+          type: "object",
+          properties: {
+            type: { enum: ["orthogonal", "straight", "curved"] },
+            sourcePort: { enum: ["auto", "top", "right", "bottom", "left"] },
+            targetPort: { enum: ["auto", "top", "right", "bottom", "left"] },
+          },
+        },
+      },
+    });
+
+    expect(JSON.stringify(schemas.GraphNodeResponse)).not.toContain('"style"');
+    expect(JSON.stringify(schemas.GraphEdgeResponse)).not.toContain('"labelPresentation"');
+  });
 });
