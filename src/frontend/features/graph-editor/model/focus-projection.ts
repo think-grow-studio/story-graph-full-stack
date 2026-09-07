@@ -1,4 +1,8 @@
-import type { GraphEdgeResponse } from "@/contracts/graph/graph.contract";
+export type FocusEdge = {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+};
 
 export type FocusProjection = {
   focusedNodeIds: Set<string>;
@@ -6,14 +10,14 @@ export type FocusProjection = {
   secondaryEdgeIds: Set<string>;
 };
 
-export function projectGraphFocus({
+export function projectGraphFocus<T extends FocusEdge>({
   selectedNodeId,
   selectedEdgeId,
   edges,
 }: {
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
-  edges: readonly GraphEdgeResponse[];
+  edges: readonly T[];
 }): FocusProjection {
   const focusedNodeIds = new Set<string>();
   const focusedEdgeIds = new Set<string>();
