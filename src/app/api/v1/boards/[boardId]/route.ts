@@ -29,6 +29,9 @@ export async function PATCH(
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.description !== undefined ? { description: body.description } : {}),
         ...(body.tags !== undefined ? { tags: body.tags } : {}),
+        ...(body.graphSettings !== undefined
+          ? { graphSettings: body.graphSettings }
+          : {}),
       },
       graphDependencies,
     );
