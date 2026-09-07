@@ -1,7 +1,7 @@
 import { ApplicationError } from "@/backend/common/errors/application-error";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
 import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
-import type { Board } from "../../domain/graph";
+import type { Board, GraphSettings } from "../../domain/graph";
 import type { GraphRepository } from "../../domain/graph.repository";
 
 export async function updateBoard(
@@ -12,6 +12,7 @@ export async function updateBoard(
     name?: string;
     description?: string;
     tags?: string[];
+    graphSettings?: GraphSettings;
   },
   dependencies: {
     stories: StoryRepository;
@@ -40,6 +41,9 @@ export async function updateBoard(
     ...(input.name !== undefined ? { name: input.name } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
     ...(input.tags !== undefined ? { tags: input.tags } : {}),
+    ...(input.graphSettings !== undefined
+      ? { graphSettings: input.graphSettings }
+      : {}),
   });
   if (!updated) {
     throw new ApplicationError("NOT_FOUND", 404, "Board not found");
