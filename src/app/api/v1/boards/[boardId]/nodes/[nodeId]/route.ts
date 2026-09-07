@@ -33,6 +33,7 @@ export async function PATCH(request: Request, context: BoardNodeRouteContext) {
         expectedVersion: body.expectedVersion,
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.description !== undefined ? { description: body.description } : {}),
+        ...(body.kind !== undefined ? { kind: body.kind } : {}),
         ...(body.iconKey !== undefined ? { iconKey: body.iconKey } : {}),
         ...(body.properties !== undefined ? { properties: body.properties } : {}),
         ...(body.x !== undefined ? { x: body.x } : {}),
@@ -40,7 +41,9 @@ export async function PATCH(request: Request, context: BoardNodeRouteContext) {
         ...(body.width !== undefined ? { width: body.width } : {}),
         ...(body.height !== undefined ? { height: body.height } : {}),
         ...(body.zIndex !== undefined ? { zIndex: body.zIndex } : {}),
-        ...(body.style !== undefined ? { style: body.style } : {}),
+        ...(body.presentation !== undefined
+          ? { presentation: body.presentation }
+          : {}),
       },
       graphDependencies,
     );
