@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const geometry = vi.hoisted(() => ({
   bezier: vi.fn(() => ["M0 0 C 50 0 50 100 100 100", 50, 50]),
@@ -25,6 +25,11 @@ vi.mock("@xyflow/react", () => ({
 }));
 
 import { StoryGraphEdge, type StoryGraphFlowEdge } from "./story-graph-edge";
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function renderEdge(overrides: Partial<StoryGraphFlowEdge["data"]> = {}) {
   const data: NonNullable<StoryGraphFlowEdge["data"]> = {
