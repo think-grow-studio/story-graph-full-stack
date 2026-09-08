@@ -109,6 +109,26 @@ describe("GraphCanvas", () => {
     ]);
   });
 
+  it("forwards an empty-canvas click to the selection clear callback", () => {
+    const onClearSelection = vi.fn();
+    render(
+      <GraphCanvas
+        edges={[]}
+        nodes={[]}
+        onClearSelection={onClearSelection}
+        onConnectNodes={vi.fn()}
+        onNodeDragStop={vi.fn()}
+        onNodePositionChange={vi.fn()}
+      />,
+    );
+
+    act(() => {
+      (flowMocks.props?.onPaneClick as (() => void) | undefined)?.();
+    });
+
+    expect(onClearSelection).toHaveBeenCalledTimes(1);
+  });
+
   it("projects parallel and bidirectional relationships into deterministic separate lanes", () => {
     render(
       <GraphCanvas
