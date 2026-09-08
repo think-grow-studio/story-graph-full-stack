@@ -101,6 +101,7 @@ function graphNode({
     boardId,
     name,
     description: "",
+    kind: "entity",
     iconKey: null,
     properties: {},
     x,
@@ -108,7 +109,13 @@ function graphNode({
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: {
+      shape: "rounded-rect" as const,
+      fillColor: null,
+      borderColor: null,
+      borderWidth: null,
+      textColor: null,
+    },
     version,
     createdAt: now,
     updatedAt: now,
@@ -129,6 +136,11 @@ beforeEach(() => {
       name: "Characters",
       description: "",
       tags: [],
+      graphSettings: {
+        defaultEdgeRouting: "orthogonal",
+        snapToGrid: false,
+        layoutMode: "free",
+      },
       createdAt: now,
       updatedAt: now,
     },
@@ -201,11 +213,11 @@ describe("GraphEditorPage save state", () => {
 
     expect(await screen.findByText("저장됨")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Select Alice" }));
-    fireEvent.change(await screen.findByLabelText("속성 JSON"), {
-      target: { value: '{"job":' },
+    fireEvent.change(await screen.findByLabelText("이름"), {
+      target: { value: "   " },
     });
 
-    expect(screen.getByText("Properties must be valid JSON.")).toBeInTheDocument();
+    expect(screen.getByText("Name is required.")).toBeInTheDocument();
     expect(screen.getByText("저장되지 않음")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Select Bob" }));
