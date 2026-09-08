@@ -14,6 +14,7 @@ vi.mock("@xyflow/react", () => ({
       data-edge-id={id}
       data-marker-end={markerEnd ?? ""}
       data-path={path}
+      data-stroke={String(style?.stroke ?? "")}
       data-stroke-width={String(style?.strokeWidth ?? "")}
     />
   ),
@@ -137,5 +138,19 @@ describe("StoryGraphEdge", () => {
     renderEdge({ visualState });
     expect(screen.getByTestId("base-edge")).toHaveAttribute("data-stroke-width", expectedWidth);
     expect(screen.getByTestId("relationship-label")).toHaveAttribute("data-visual-state", visualState);
+  });
+
+  it("uses durable Story Graph tokens for default stroke and keyboard focus", () => {
+    renderEdge();
+
+    expect(screen.getByTestId("base-edge")).toHaveAttribute(
+      "data-stroke",
+      "var(--sg-brand)",
+    );
+    const label = screen.getByRole("button", {
+      name: "관계 선택: 친구라고 생각함",
+    });
+    expect(label).toHaveClass("focus-visible:ring-[color:var(--sg-focus)]");
+    expect(label.className).not.toContain("--sg-accent");
   });
 });
