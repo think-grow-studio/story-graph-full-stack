@@ -76,7 +76,8 @@ test("Graph Editor persists direct Relationship delete Undo and Redo", async ({
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
 
     const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
-    await expect(edgeElement).toBeVisible();
+    const edgePath = edgeElement.locator(".react-flow__edge-path");
+    await expect(edgePath).toBeVisible();
     await edgeElement.locator(".react-flow__edge-path").click({ force: true });
     await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
     await expect(
@@ -100,7 +101,7 @@ test("Graph Editor persists direct Relationship delete Undo and Redo", async ({
       boardId: board.id,
       version: edge.version,
     });
-    await expect(edgeElement).toBeVisible();
+    await expect(edgePath).toBeVisible();
     await expect(page.getByText("저장됨")).toBeVisible();
 
     const redoPromise = waitForEdgeDelete(page, board.id, edge.id);
@@ -111,13 +112,15 @@ test("Graph Editor persists direct Relationship delete Undo and Redo", async ({
     const finalUndoPromise = waitForEdgeRestore(page, board.id, edge.id);
     await page.getByRole("button", { name: "Undo" }).click();
     expect((await finalUndoPromise).status()).toBe(200);
-    await expect(edgeElement).toBeVisible();
+    await expect(edgePath).toBeVisible();
     await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
     await expect(
-      page.locator(`.react-flow__edge[data-id="${edge.id}"]`),
+      page
+        .locator(`.react-flow__edge[data-id="${edge.id}"]`)
+        .locator(".react-flow__edge-path"),
     ).toBeVisible();
 
     const snapshotResponse = await context.request.get(

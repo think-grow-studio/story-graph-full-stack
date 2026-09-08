@@ -376,12 +376,16 @@ test("Graph Editor creates a direct Relationship and restores it after reload", 
       version: 1,
     });
     await expect(
-      page.locator(`.react-flow__edge[data-id="${createdEdge.id}"]`),
+      page
+        .locator(`.react-flow__edge[data-id="${createdEdge.id}"]`)
+        .locator(".react-flow__edge-path"),
     ).toBeVisible();
 
     await page.reload();
     await expect(
-      page.locator(`.react-flow__edge[data-id="${createdEdge.id}"]`),
+      page
+        .locator(`.react-flow__edge[data-id="${createdEdge.id}"]`)
+        .locator(".react-flow__edge-path"),
     ).toBeVisible();
 
     const snapshotResponse = await context.request.get(
@@ -452,7 +456,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
       new URL(response.url()).pathname ===
         `/api/v1/boards/${board.id}/nodes/${alice.id}`,
     );
-    await page.getByLabel("속성 JSON").fill('{"role":"lead","age":31}');
+    await page.getByLabel("속성 JSON").fill('{"role":"lead","age":"31"}');
     const nodeUpdate = await nodeUpdatePromise;
     expect(nodeUpdate.status()).toBe(200);
     expect(await nodeUpdate.json()).toMatchObject({
@@ -460,7 +464,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
       boardId: board.id,
       name: "Alicia",
       description: "Main protagonist",
-      properties: { role: "lead", age: 31 },
+      properties: { role: "lead", age: "31" },
       version: 2,
     });
     await expect(page.getByText("저장됨")).toBeVisible();
@@ -475,7 +479,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
       new URL(response.url()).pathname ===
         `/api/v1/boards/${board.id}/edges/${edge.id}`,
     );
-    await page.getByLabel("속성 JSON").fill('{"since":2012}');
+    await page.getByLabel("속성 JSON").fill('{"since":"2012"}');
     const edgeUpdate = await edgeUpdatePromise;
     expect(edgeUpdate.status()).toBe(200);
     expect(await edgeUpdate.json()).toMatchObject({
@@ -483,7 +487,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
       boardId: board.id,
       name: "best friend",
       description: "Childhood friends",
-      properties: { since: 2012 },
+      properties: { since: "2012" },
       version: 2,
     });
     await expect(page.getByText("저장됨")).toBeVisible();
@@ -492,7 +496,11 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
     await expect(
       page.locator(`.react-flow__node[data-id="${alice.id}"]`),
     ).toContainText("Alicia");
-    await expect(page.locator(`.react-flow__edge[data-id="${edge.id}"]`)).toBeVisible();
+    await expect(
+      page
+        .locator(`.react-flow__edge[data-id="${edge.id}"]`)
+        .locator(".react-flow__edge-path"),
+    ).toBeVisible();
 
     const snapshotResponse = await context.request.get(
       `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,
@@ -504,7 +512,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
         id: alice.id,
         name: "Alicia",
         description: "Main protagonist",
-        properties: { role: "lead", age: 31 },
+        properties: { role: "lead", age: "31" },
         version: 2,
       }),
     );
@@ -513,7 +521,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
         id: edge.id,
         name: "best friend",
         description: "Childhood friends",
-        properties: { since: 2012 },
+        properties: { since: "2012" },
         version: 2,
       }),
     );
