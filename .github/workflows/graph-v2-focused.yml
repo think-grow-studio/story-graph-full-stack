@@ -42,6 +42,24 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Check migration metadata consistency
+        run: pnpm db:check
+      - name: Reject legacy Graph V1 fields in production code
+        run: |
+          if rg -n -P '\bstyle\b|labelPresentation|propertiesText|ConnectionMode\.Strict|defaultEdgeOptions.*bezier' \
+            --glob '!*.test.ts' \
+            --glob '!*.test.tsx' \
+            --glob '!AGENTS.md' \
+            src/contracts/graph \
+            src/backend/modules/graph \
+            src/app/api/v1/boards \
+            src/app/api/v1/stories \
+            src/frontend/api/graph \
+            src/frontend/features/graph-editor \
+            src/frontend/widgets/graph-editor; then
+            echo "Legacy Graph V1 fields remain in production code."
+            exit 1
+          fi
       - name: Focused Graph V2 contract and API tests
         run: |
           pnpm vitest run \
