@@ -174,7 +174,7 @@ function ObjectPropertyRow({
         <label className="text-xs font-medium text-[var(--sg-muted)]">
           이름
           <input
-            aria-label={`${name} 속성 이름`}
+            aria-label={`${name} 속성 키`}
             className="mt-1 w-full rounded-md border border-[var(--sg-line)] px-2 py-1.5 text-sm outline-none focus:border-[var(--sg-brand)]"
             disabled={disabled}
             maxLength={100}
