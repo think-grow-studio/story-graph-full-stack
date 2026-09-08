@@ -172,7 +172,7 @@ function ObjectPropertyRow({
     <div className="rounded-[var(--sg-radius-sm)] border border-[var(--sg-line)] bg-[var(--sg-surface)] p-2.5">
       <div className="grid grid-cols-[minmax(0,1fr)_7rem_auto] items-end gap-2">
         <label className="text-xs font-medium text-[var(--sg-muted)]">
-          이름
+          키
           <input
             aria-label={`${name} 속성 키`}
             className="mt-1 w-full rounded-md border border-[var(--sg-line)] px-2 py-1.5 text-sm outline-none focus:border-[var(--sg-brand)]"
