@@ -17,7 +17,10 @@ import {
 import { useBootstrapQuery } from "@/frontend/api/auth/bootstrap.queries";
 import { useBoardSnapshotQuery } from "@/frontend/api/graph/graph.queries";
 import { AddNodeDialog } from "@/frontend/features/graph-editor/actions/add-node-dialog";
-import { RelationshipDialog } from "@/frontend/features/graph-editor/actions/relationship-dialog";
+import {
+  RelationshipDialog,
+  type RelationshipDraftResult,
+} from "@/frontend/features/graph-editor/actions/relationship-dialog";
 import type { EditorCommand } from "@/frontend/features/graph-editor/commands/editor-command";
 import type { UndoableEditorCommand } from "@/frontend/features/graph-editor/history/editor-history-entry";
 import { useEditorHistory } from "@/frontend/features/graph-editor/history/use-editor-history";
@@ -80,6 +83,9 @@ function GraphEditorContent({
     sourceNodeId: string;
     targetNodeId: string;
   } | null>(null);
+  const [relationshipPickSourceId, setRelationshipPickSourceId] = useState<
+    string | null
+  >(null);
   const canvasRef = useRef<GraphCanvasHandle>(null);
   const hydratedBoardIdRef = useRef<string | null>(null);
   const dragStartPositionsRef = useRef(
@@ -106,6 +112,19 @@ function GraphEditorContent({
     store.getState().hydrate(snapshot.data);
     hydratedBoardIdRef.current = boardId;
   }, [boardId, snapshot.data, store]);
+
+  useEffect(() => {
+    if (!relationshipPickSourceId) return;
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setRelationshipPickSourceId(null);
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [relationshipPickSourceId]);
 
   let inspectorSelection: GraphInspectorSelection | null = null;
   if (selectedEntity?.kind === "node") {
@@ -222,6 +241,31 @@ function GraphEditorContent({
     setSelectedEntity(next);
   }
 
+  function handleSelectNode(nodeId: string) {
+    if (relationshipPickSourceId) {
+      if (nodeId === relationshipPickSourceId) return;
+      setPendingConnection({
+        sourceNodeId: relationshipPickSourceId,
+        targetNodeId: nodeId,
+      });
+      setRelationshipPickSourceId(null);
+      return;
+    }
+
+    selectEntity({ kind: "node", id: nodeId });
+  }
+
+  function handleSelectEdge(edgeId: string) {
+    setRelationshipPickSourceId(null);
+    selectEntity({ kind: "edge", id: edgeId });
+  }
+
+  function beginRelationshipTargetPick() {
+    if (selectedEntity?.kind !== "node") return;
+    setPendingConnection(null);
+    setRelationshipPickSourceId(selectedEntity.id);
+  }
+
   function handleCreateNode(name: string) {
     if (!workspaceId) return;
 
@@ -248,28 +292,43 @@ function GraphEditorContent({
   }
 
   function handleConnectNodes(sourceNodeId: string, targetNodeId: string) {
+    if (sourceNodeId === targetNodeId) return;
+    setRelationshipPickSourceId(null);
     setPendingConnection({ sourceNodeId, targetNodeId });
   }
 
-  function handleCreateRelationship(name: string) {
+  function handleCreateRelationship(result: RelationshipDraftResult) {
     if (!workspaceId || !pendingConnection) return;
+    if (result.sourceNodeId === result.targetNodeId) return;
+
+    const pendingIds = new Set([
+      pendingConnection.sourceNodeId,
+      pendingConnection.targetNodeId,
+    ]);
+    if (
+      !pendingIds.has(result.sourceNodeId) ||
+      !pendingIds.has(result.targetNodeId)
+    ) {
+      return;
+    }
 
     const operationId = history.dispatch({
       type: "create-edge",
       boardId,
       workspaceId,
       edgeId: crypto.randomUUID(),
-      sourceNodeId: pendingConnection.sourceNodeId,
-      targetNodeId: pendingConnection.targetNodeId,
-      direction: "DIRECTED",
-      name,
+      sourceNodeId: result.sourceNodeId,
+      targetNodeId: result.targetNodeId,
+      direction: result.direction,
+      name: result.name,
       description: "",
       kind: "relationship",
       iconKey: null,
       properties: {},
       presentation: { ...defaultEdgePresentation },
       routing: {
-        type: snapshot.data?.board.graphSettings?.defaultEdgeRouting ?? "orthogonal",
+        type:
+          snapshot.data?.board.graphSettings?.defaultEdgeRouting ?? "orthogonal",
         sourcePort: "auto",
         targetPort: "auto",
         waypoints: [],
@@ -333,7 +392,10 @@ function GraphEditorContent({
         nodeId: selectedEntity.id,
         workspaceId,
       });
-      if (operationId) setSelectedEntity(null);
+      if (operationId) {
+        setSelectedEntity(null);
+        setRelationshipPickSourceId(null);
+      }
       return;
     }
 
@@ -361,6 +423,8 @@ function GraphEditorContent({
     id: node.id,
     name: node.name,
     position: { x: node.x, y: node.y },
+    width: node.width,
+    height: node.height,
   }));
   const canvasEdges = state.edges.map((edge) => ({
     id: edge.id,
@@ -373,11 +437,17 @@ function GraphEditorContent({
   }));
 
   const pendingSourceLabel = pendingConnection
-    ? canvasNodes.find((node) => node.id === pendingConnection.sourceNodeId)?.name ?? "출발 노드"
+    ? (canvasNodes.find((node) => node.id === pendingConnection.sourceNodeId)
+        ?.name ?? "출발 노드")
     : "";
   const pendingTargetLabel = pendingConnection
-    ? canvasNodes.find((node) => node.id === pendingConnection.targetNodeId)?.name ?? "도착 노드"
+    ? (canvasNodes.find((node) => node.id === pendingConnection.targetNodeId)
+        ?.name ?? "도착 노드")
     : "";
+  const relationshipPickSourceLabel = relationshipPickSourceId
+    ? (canvasNodes.find((node) => node.id === relationshipPickSourceId)?.name ??
+      "선택한 노드")
+    : null;
 
   const selectedLaneKey = selectedDraftKey;
   const selectedLaneState = selectedLaneKey
@@ -419,11 +489,16 @@ function GraphEditorContent({
             <h1 className="truncate text-xl font-semibold tracking-[-0.025em]">
               {snapshot.data.board.name}
             </h1>
-            <p className="text-sm text-[var(--sg-muted)]">{snapshot.data.story.name}</p>
+            <p className="text-sm text-[var(--sg-muted)]">
+              {snapshot.data.story.name}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <div aria-live="polite" className="min-w-24 text-right text-sm text-[var(--sg-muted)]">
+          <div
+            aria-live="polite"
+            className="min-w-24 text-right text-sm text-[var(--sg-muted)]"
+          >
             {editorSaveState === "saved" ? <span>저장됨</span> : null}
             {editorSaveState === "saving" ? <span>저장 중…</span> : null}
             {editorSaveState === "unsaved" ? <span>저장되지 않음</span> : null}
@@ -456,12 +531,30 @@ function GraphEditorContent({
           >
             Redo
           </Button>
+          {selectedEntity?.kind === "node" ? (
+            <Button
+              emphasis="outline"
+              intent="neutral"
+              onClick={beginRelationshipTargetPick}
+            >
+              관계 만들기
+            </Button>
+          ) : null}
           <Button onClick={() => setNodeDialogOpen(true)}>노드 추가</Button>
         </div>
       </header>
 
       <div className="grid min-h-0 gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="grid min-h-0 gap-3">
+          {relationshipPickSourceLabel ? (
+            <div
+              className="rounded-[var(--sg-radius-sm)] border border-[var(--sg-line)] bg-[var(--sg-surface)] px-3 py-2 text-sm font-medium text-[var(--sg-ink)]"
+              role="status"
+            >
+              {relationshipPickSourceLabel}에서 시작할 관계의 대상 노드를
+              선택하세요.
+            </div>
+          ) : null}
           {actionFailures.length ? (
             <div className="grid gap-1" role="status">
               {actionFailures.map((failure) => (
@@ -481,9 +574,15 @@ function GraphEditorContent({
             onNodeDragStart={handleNodeDragStart}
             onNodeDragStop={handleNodeDragStop}
             onNodePositionChange={handleNodePositionChange}
-            onSelectEdge={(edgeId) => selectEntity({ kind: "edge", id: edgeId })}
-            onSelectNode={(nodeId) => selectEntity({ kind: "node", id: nodeId })}
+            onSelectEdge={handleSelectEdge}
+            onSelectNode={handleSelectNode}
             ref={canvasRef}
+            selectedEdgeId={
+              selectedEntity?.kind === "edge" ? selectedEntity.id : null
+            }
+            selectedNodeId={
+              selectedEntity?.kind === "node" ? selectedEntity.id : null
+            }
           />
         </div>
         {inspectorSelection && selectedDraft && selectedDraftKey ? (
@@ -520,7 +619,9 @@ function GraphEditorContent({
         onCreate={handleCreateRelationship}
         open={Boolean(pendingConnection)}
         sourceLabel={pendingSourceLabel}
+        sourceNodeId={pendingConnection?.sourceNodeId ?? ""}
         targetLabel={pendingTargetLabel}
+        targetNodeId={pendingConnection?.targetNodeId ?? ""}
       />
     </main>
   );
