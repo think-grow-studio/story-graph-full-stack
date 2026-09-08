@@ -6,6 +6,8 @@ on:
       - feat/graph-editor-v2
     paths:
       - .github/workflows/graph-v2-focused.yml
+      - DESIGN.md
+      - src/app/globals.css
       - src/contracts/graph/**
       - src/backend/modules/graph/application/**
       - src/app/api/v1/boards/**
@@ -18,6 +20,7 @@ on:
       - src/frontend/features/graph-editor/persistence/**
       - src/frontend/features/graph-editor/inspector/**
       - src/frontend/features/graph-editor/model/**
+      - src/frontend/pages/graph-editor/**
       - src/frontend/widgets/graph-editor/**
 
 jobs:
@@ -46,20 +49,70 @@ jobs:
         run: pnpm db:check
       - name: Reject legacy Graph V1 fields in production code
         run: |
-          if rg -n -P '\bstyle\b|labelPresentation|propertiesText|ConnectionMode\.Strict|defaultEdgeOptions.*bezier' \
-            --glob '!*.test.ts' \
-            --glob '!*.test.tsx' \
-            --glob '!AGENTS.md' \
-            src/contracts/graph \
-            src/backend/modules/graph \
-            src/app/api/v1/boards \
-            src/app/api/v1/stories \
-            src/frontend/api/graph \
-            src/frontend/features/graph-editor \
-            src/frontend/widgets/graph-editor; then
-            echo "Legacy Graph V1 fields remain in production code."
-            exit 1
-          fi
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          general_roots = [
+              Path("src/contracts/graph"),
+              Path("src/backend/modules/graph"),
+              Path("src/app/api/v1/boards"),
+              Path("src/app/api/v1/stories"),
+              Path("src/frontend/api/graph"),
+              Path("src/frontend/features/graph-editor"),
+              Path("src/frontend/pages/graph-editor"),
+              Path("src/frontend/widgets/graph-editor"),
+          ]
+          data_style_roots = [
+              Path("src/contracts/graph"),
+              Path("src/backend/modules/graph"),
+              Path("src/app/api/v1/boards"),
+              Path("src/app/api/v1/stories"),
+              Path("src/frontend/api/graph"),
+              Path("src/frontend/features/graph-editor/commands"),
+              Path("src/frontend/features/graph-editor/history"),
+              Path("src/frontend/features/graph-editor/inspector"),
+              Path("src/frontend/features/graph-editor/persistence"),
+              Path("src/frontend/features/graph-editor/store"),
+          ]
+
+          def production_files(roots):
+              seen = set()
+              for root in roots:
+                  if not root.exists():
+                      continue
+                  for path in root.rglob("*"):
+                      if not path.is_file() or path.suffix not in {".ts", ".tsx"}:
+                          continue
+                      if ".test." in path.name or path.name == "AGENTS.md":
+                          continue
+                      if path in seen:
+                          continue
+                      seen.add(path)
+                      yield path
+
+          general_pattern = re.compile(
+              r"labelPresentation|propertiesText|ConnectionMode\.Strict|defaultEdgeOptions[^\n]*bezier"
+          )
+          legacy_style_pattern = re.compile(r"\bstyle\s*\??\s*:")
+          issues = []
+
+          for path in production_files(general_roots):
+              for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+                  if general_pattern.search(line):
+                      issues.append(f"{path}:{line_number}:{line.strip()}")
+
+          for path in production_files(data_style_roots):
+              for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+                  if legacy_style_pattern.search(line):
+                      issues.append(f"{path}:{line_number}:{line.strip()}")
+
+          if issues:
+              print("Legacy Graph V1 production fields remain:")
+              print("\n".join(issues))
+              sys.exit(1)
+          PY
       - name: Focused Graph V2 contract and API tests
         run: |
           pnpm vitest run \
@@ -85,3 +138,5 @@ jobs:
             src/frontend/widgets/graph-editor/story-graph-node.test.tsx \
             src/frontend/widgets/graph-editor/story-graph-edge.test.tsx \
             src/frontend/widgets/graph-editor/graph-canvas.test.tsx
+      - name: Graph V2 page integration suite
+        run: pnpm vitest run src/frontend/pages/graph-editor
