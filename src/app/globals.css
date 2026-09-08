@@ -10,6 +10,7 @@
   --sg-line: #e3e6ea;
   --sg-brand: #595bd4;
   --sg-brand-strong: #484ac2;
+  --sg-graph-target-soft: color-mix(in srgb, var(--sg-brand) 10%, var(--sg-surface));
   --sg-danger: #b42318;
   --sg-danger-soft: #fff1f0;
   --sg-success: #18794e;
