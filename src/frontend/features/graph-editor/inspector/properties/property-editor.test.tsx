@@ -60,7 +60,7 @@ describe("PropertyEditor", () => {
       <PropertyEditor onChange={onChange} value={{ job: "mage" }} />,
     );
 
-    const newKey = screen.getByLabelText("새 속성 이름");
+    const newKey = screen.getByLabelText("새 속성 키");
     await user.type(newKey, "income{Enter}");
     expect(onChange).toHaveBeenLastCalledWith({ job: "mage", income: "" });
 
@@ -85,7 +85,7 @@ describe("PropertyEditor", () => {
     expect(onChange).toHaveBeenLastCalledWith({ place: {} });
 
     rerender(<PropertyEditor onChange={onChange} value={{ place: {} }} />);
-    await user.type(screen.getByLabelText("place 새 속성 이름"), "country");
+    await user.type(screen.getByLabelText("place 새 속성 키"), "country");
     await user.click(
       screen.getByRole("button", { name: "place에 속성 추가" }),
     );
@@ -100,7 +100,7 @@ describe("PropertyEditor", () => {
     const onChange = vi.fn();
     render(<PropertyEditor onChange={onChange} value={{ job: "mage" }} />);
 
-    fireEvent.change(screen.getByLabelText("새 속성 이름"), {
+    fireEvent.change(screen.getByLabelText("새 속성 키"), {
       target: { value: "job" },
     });
     fireEvent.click(screen.getByRole("button", { name: "속성 추가" }));

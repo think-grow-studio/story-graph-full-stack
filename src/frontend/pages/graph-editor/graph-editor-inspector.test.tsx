@@ -292,7 +292,7 @@ describe("Graph Editor inspector", () => {
     fireEvent.change(screen.getByLabelText("종류"), {
       target: { value: "person" },
     });
-    fireEvent.change(screen.getByLabelText("새 속성 이름"), {
+    fireEvent.change(screen.getByLabelText("새 속성 키"), {
       target: { value: "age" },
     });
     fireEvent.click(screen.getByRole("button", { name: "속성 추가" }));

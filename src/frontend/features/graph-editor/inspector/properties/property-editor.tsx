@@ -123,7 +123,7 @@ function ObjectEditor({
           {contextName ? `${contextName} 새 속성` : "새 속성"}
           <input
             aria-label={
-              contextName ? `${contextName} 새 속성 이름` : "새 속성 이름"
+              contextName ? `${contextName} 새 속성 키` : "새 속성 키"
             }
             className="mt-1 w-full rounded-md border border-[var(--sg-line)] bg-[var(--sg-surface)] px-2.5 py-2 text-sm text-[var(--sg-ink)] outline-none focus:border-[var(--sg-brand)]"
             disabled={disabled}
