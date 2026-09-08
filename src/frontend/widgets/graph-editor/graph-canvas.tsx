@@ -175,11 +175,12 @@ export function GraphCanvas({
               focus.secondaryEdgeIds,
             ),
             presentation: edge.presentation,
+            onSelect: onSelectEdge,
           },
         } satisfies FlowEdge;
       }),
     );
-  }, [edges, focus.focusedEdgeIds, focus.secondaryEdgeIds, hasFocus, nodes]);
+  }, [edges, focus.focusedEdgeIds, focus.secondaryEdgeIds, hasFocus, nodes, onSelectEdge]);
 
   useImperativeHandle(ref, () => ({
     getCenterPosition() {
