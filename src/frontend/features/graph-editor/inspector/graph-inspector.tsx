@@ -5,11 +5,16 @@ import type {
   GraphNodeResponse,
 } from "@/contracts/graph/graph.contract";
 import { Button } from "@/frontend/shared/ui/button";
-import { TextAreaField, TextField } from "@/frontend/shared/ui/form-field";
+import {
+  SelectField,
+  TextAreaField,
+  TextField,
+} from "@/frontend/shared/ui/form-field";
 import type {
   InspectorDraft,
   InspectorDraftPatch,
 } from "./inspector-draft-model";
+import { PropertyEditor } from "./properties/property-editor";
 
 export type GraphInspectorSelection =
   | { kind: "node"; entity: GraphNodeResponse }
@@ -67,15 +72,54 @@ export function GraphInspector({
           value={draft.description}
         />
 
-        <TextAreaField
-          className="min-h-40 font-mono text-xs"
-          error={validationError}
-          label="속성 JSON"
-          onChange={(event) =>
-            onDraftChange({ propertiesText: event.target.value })
-          }
-          value={draft.propertiesText}
+        <TextField
+          label="종류"
+          maxLength={100}
+          onChange={(event) => onDraftChange({ kind: event.target.value })}
+          value={draft.kind}
         />
+
+        {!isNode ? (
+          <div className="grid grid-cols-2 gap-3">
+            <SelectField
+              label="방향"
+              onChange={(event) =>
+                onDraftChange({
+                  direction: event.target.value as GraphEdgeResponse["direction"],
+                })
+              }
+              value={draft.direction ?? "DIRECTED"}
+            >
+              <option value="DIRECTED">단방향</option>
+              <option value="UNDIRECTED">무방향</option>
+            </SelectField>
+
+            <SelectField
+              label="선 모양"
+              onChange={(event) =>
+                onDraftChange({
+                  routingType: event.target.value as GraphEdgeResponse["routing"]["type"],
+                })
+              }
+              value={draft.routingType ?? "orthogonal"}
+            >
+              <option value="orthogonal">직각</option>
+              <option value="straight">직선</option>
+              <option value="curved">곡선</option>
+            </SelectField>
+          </div>
+        ) : null}
+
+        <PropertyEditor
+          onChange={(properties) => onDraftChange({ properties })}
+          value={draft.properties}
+        />
+
+        {validationError ? (
+          <p className="text-sm leading-6 text-[var(--sg-danger)]" role="alert">
+            {validationError}
+          </p>
+        ) : null}
 
         {error ? (
           <p className="text-sm leading-6 text-[var(--sg-danger)]" role="alert">
