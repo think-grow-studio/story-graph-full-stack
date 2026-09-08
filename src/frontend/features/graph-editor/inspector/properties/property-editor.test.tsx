@@ -1,16 +1,41 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GraphProperties } from "@/contracts/graph/graph.contract";
 import { PropertyEditor } from "./property-editor";
+
+function ControlledPropertyEditor({
+  initialValue,
+  onChange,
+}: {
+  initialValue: GraphProperties;
+  onChange: (value: GraphProperties) => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  return (
+    <PropertyEditor
+      onChange={(next) => {
+        setValue(next);
+        onChange(next);
+      }}
+      value={value}
+    />
+  );
+}
 
 describe("PropertyEditor", () => {
   it("edits scalar values without exposing raw JSON", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
-    render(<PropertyEditor onChange={onChange} value={{ job: "mage" }} />);
+    render(
+      <ControlledPropertyEditor
+        initialValue={{ job: "mage" }}
+        onChange={onChange}
+      />,
+    );
 
     expect(screen.queryByText("속성 JSON")).not.toBeInTheDocument();
     expect(screen.getByLabelText("job 값")).toHaveValue("mage");
