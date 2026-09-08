@@ -1,10 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { GraphProperties } from "@/contracts/graph/graph.contract";
 import { PropertyEditor } from "./property-editor";
+
+afterEach(cleanup);
 
 function ControlledPropertyEditor({
   initialValue,
