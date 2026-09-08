@@ -2,6 +2,15 @@ import fs from "node:fs";
 
 const replacements = [
   {
+    path: "src/frontend/pages/graph-editor/graph-editor-page.tsx",
+    pairs: [
+      [
+        '{selectedEntity?.kind === "node" ? (',
+        '{selectedEntity?.kind === "node" && !pendingConnection ? (',
+      ],
+    ],
+  },
+  {
     path: "tests/e2e/auth-story.spec.ts",
     pairs: [
       [
