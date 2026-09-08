@@ -1,0 +1,59 @@
+name: Build Diff Diagnostic
+
+on:
+  push:
+    branches: [feat/graph-editor-v2]
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
+      BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Production build
+        run: pnpm build
+
+      - name: Capture tracked diff
+        if: always()
+        run: |
+          {
+            echo '=== git status --short ==='
+            git status --short
+            echo
+            echo '=== git diff --name-status ==='
+            git diff --name-status
+            echo
+            echo '=== git diff ==='
+            git diff --no-ext-diff
+          } > build-diff.txt
+
+      - name: Upload diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diff
+          path: build-diff.txt
+          if-no-files-found: error
