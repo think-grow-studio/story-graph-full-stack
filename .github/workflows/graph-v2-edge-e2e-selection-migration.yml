@@ -1,0 +1,167 @@
+name: Graph V2 Edge E2E Selection Migration
+
+on:
+  push:
+    branches:
+      - feat/graph-editor-v2
+    paths:
+      - .github/workflows/graph-v2-edge-e2e-selection-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/graph-editor-v2
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Migrate E2E edge selection assertions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(text: str, old: str, new: str, expected: int, label: str) -> str:
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f"{label}: expected {expected} matches, found {count}")
+              return text.replace(old, new)
+
+          auth = Path("tests/e2e/auth-story.spec.ts")
+          text = auth.read_text()
+          created_edge_visibility = '''    await expect(
+              page
+                .locator(`.react-flow__edge[data-id="${createdEdge.id}"]`)
+                .locator(".react-flow__edge-path"),
+            ).toBeVisible();'''
+          text = replace_exact(
+              text,
+              created_edge_visibility,
+              '''    await expect(
+              page.getByRole("button", { name: "관계 선택: sister" }),
+            ).toBeVisible();''',
+              2,
+              "auth created edge visibility",
+          )
+          text = replace_exact(
+              text,
+              '''    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
+            await edgeElement.locator(".react-flow__edge-path").click({ force: true });''',
+              '''    await page.getByRole("button", { name: "관계 선택: knows" }).click();''',
+              1,
+              "auth edge selection click",
+          )
+          text = replace_exact(
+              text,
+              '''    await expect(
+              page
+                .locator(`.react-flow__edge[data-id="${edge.id}"]`)
+                .locator(".react-flow__edge-path"),
+            ).toBeVisible();''',
+              '''    await expect(
+              page.getByRole("button", { name: "관계 선택: best friend" }),
+            ).toBeVisible();''',
+              1,
+              "auth edited edge reload visibility",
+          )
+          auth.write_text(text)
+
+          node_history = Path("tests/e2e/node-delete-history.spec.ts")
+          text = node_history.read_text()
+          text = replace_exact(
+              text,
+              '''    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
+            const edgePath = edgeElement.locator(".react-flow__edge-path");''',
+              '''    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
+            const edgeSelection = page.getByRole("button", { name: "관계 선택: knows" });''',
+              1,
+              "node history selection locator",
+          )
+          text = replace_exact(
+              text,
+              '''    await expect(edgePath).toBeVisible();''',
+              '''    await expect(edgeSelection).toBeVisible();''',
+              3,
+              "node history visible assertions",
+          )
+          text = replace_exact(
+              text,
+              '''    await expect(
+              page
+                .locator(`.react-flow__edge[data-id="${edge.id}"]`)
+                .locator(".react-flow__edge-path"),
+            ).toBeVisible();''',
+              '''    await expect(edgeSelection).toBeVisible();''',
+              1,
+              "node history reload visibility",
+          )
+          node_history.write_text(text)
+
+          edge_history = Path("tests/e2e/relationship-delete-history.spec.ts")
+          text = edge_history.read_text()
+          text = replace_exact(
+              text,
+              '''    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
+            const edgePath = edgeElement.locator(".react-flow__edge-path");
+            await expect(edgePath).toBeVisible();
+            await edgeElement.locator(".react-flow__edge-path").click({ force: true });''',
+              '''    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
+            const edgeSelection = page.getByRole("button", { name: "관계 선택: knows" });
+            await expect(edgeSelection).toBeVisible();
+            await edgeSelection.click();''',
+              1,
+              "edge history selection locator and click",
+          )
+          text = replace_exact(
+              text,
+              '''    await expect(edgePath).toBeVisible();''',
+              '''    await expect(edgeSelection).toBeVisible();''',
+              2,
+              "edge history undo visibility",
+          )
+          text = replace_exact(
+              text,
+              '''    await expect(
+              page
+                .locator(`.react-flow__edge[data-id="${edge.id}"]`)
+                .locator(".react-flow__edge-path"),
+            ).toBeVisible();''',
+              '''    await expect(edgeSelection).toBeVisible();''',
+              1,
+              "edge history reload visibility",
+          )
+          edge_history.write_text(text)
+          PY
+
+      - name: Verify architecture, lint, types, and unit tests
+        run: pnpm check
+
+      - name: Remove temporary migration workflow
+        run: rm .github/workflows/graph-v2-edge-e2e-selection-migration.yml
+
+      - name: Commit verified E2E migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/e2e/auth-story.spec.ts tests/e2e/node-delete-history.spec.ts tests/e2e/relationship-delete-history.spec.ts .github/workflows/graph-v2-edge-e2e-selection-migration.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "test(e2e): use accessible relationship selection surface"
+          git push origin HEAD:feat/graph-editor-v2
