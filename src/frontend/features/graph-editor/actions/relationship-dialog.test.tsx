@@ -9,13 +9,22 @@ afterEach(cleanup);
 const sourceNodeId = "11111111-1111-4111-8111-111111111111";
 const targetNodeId = "22222222-2222-4222-8222-222222222222";
 
+type RelationshipDraftResult = {
+  sourceNodeId: string;
+  targetNodeId: string;
+  name: string;
+  direction: "DIRECTED" | "UNDIRECTED";
+};
+
+type DialogSpies = {
+  onClose: ReturnType<typeof vi.fn<() => void>>;
+  onCreate: ReturnType<typeof vi.fn<(result: RelationshipDraftResult) => void>>;
+};
+
 function renderDialog({
-  onClose = vi.fn(),
-  onCreate = vi.fn(),
-}: {
-  onClose?: ReturnType<typeof vi.fn>;
-  onCreate?: ReturnType<typeof vi.fn>;
-} = {}) {
+  onClose = vi.fn<() => void>(),
+  onCreate = vi.fn<(result: RelationshipDraftResult) => void>(),
+}: Partial<DialogSpies> = {}) {
   render(
     <RelationshipDialog
       busy={false}
@@ -34,7 +43,7 @@ function renderDialog({
 
 describe("RelationshipDialog", () => {
   it("defaults to a directed A → B relationship and submits the complete draft", async () => {
-    const onCreate = vi.fn();
+    const onCreate = vi.fn<(result: RelationshipDraftResult) => void>();
     const user = userEvent.setup();
     renderDialog({ onCreate });
 
@@ -56,7 +65,7 @@ describe("RelationshipDialog", () => {
   });
 
   it("supports an undirected A — B relationship", async () => {
-    const onCreate = vi.fn();
+    const onCreate = vi.fn<(result: RelationshipDraftResult) => void>();
     const user = userEvent.setup();
     renderDialog({ onCreate });
 
@@ -80,7 +89,7 @@ describe("RelationshipDialog", () => {
   });
 
   it("swaps semantic source and target before creation", async () => {
-    const onCreate = vi.fn();
+    const onCreate = vi.fn<(result: RelationshipDraftResult) => void>();
     const user = userEvent.setup();
     renderDialog({ onCreate });
 
@@ -99,10 +108,10 @@ describe("RelationshipDialog", () => {
   });
 
   it("closes on cancel or Escape without creating a Relationship", async () => {
-    const onClose = vi.fn();
-    const onCreate = vi.fn();
+    const onClose = vi.fn<() => void>();
+    const onCreate = vi.fn<(result: RelationshipDraftResult) => void>();
     const user = userEvent.setup();
-    const view = renderDialog({ onClose, onCreate });
+    renderDialog({ onClose, onCreate });
 
     await user.click(screen.getByRole("button", { name: "취소" }));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -114,6 +123,5 @@ describe("RelationshipDialog", () => {
 
     expect(onClose).toHaveBeenCalledTimes(2);
     expect(onCreate).not.toHaveBeenCalled();
-    void view;
   });
 });
