@@ -82,7 +82,7 @@ export function StoryGraphEdge({
         path={path}
         style={{
           opacity,
-          stroke: data.presentation.strokeColor ?? "var(--sg-graph-indigo)",
+          stroke: data.presentation.strokeColor ?? "var(--sg-brand)",
           strokeDasharray:
             data.presentation.strokeStyle === "dashed"
               ? "8 5"
@@ -95,7 +95,7 @@ export function StoryGraphEdge({
       <EdgeLabelRenderer>
         <button
           aria-label={`관계 선택: ${data.label}`}
-          className="nodrag nopan pointer-events-auto absolute cursor-pointer rounded border-0 bg-[var(--sg-surface)] px-1.5 py-0.5 text-xs font-medium text-[var(--sg-ink)] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--sg-accent)]"
+          className="nodrag nopan pointer-events-auto absolute cursor-pointer rounded border-0 bg-[var(--sg-surface)] px-1.5 py-0.5 text-xs font-medium text-[var(--sg-ink)] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--sg-focus)]"
           data-lane-offset={laneOffset}
           data-testid="relationship-label"
           data-visual-state={data.visualState}
