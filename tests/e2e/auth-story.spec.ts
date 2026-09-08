@@ -376,16 +376,12 @@ test("Graph Editor creates a direct Relationship and restores it after reload", 
       version: 1,
     });
     await expect(
-      page
-        .locator(`.react-flow__edge[data-id="${createdEdge.id}"]`)
-        .locator(".react-flow__edge-path"),
+      page.getByRole("button", { name: "관계 선택: sister" }),
     ).toBeVisible();
 
     await page.reload();
     await expect(
-      page
-        .locator(`.react-flow__edge[data-id="${createdEdge.id}"]`)
-        .locator(".react-flow__edge-path"),
+      page.getByRole("button", { name: "관계 선택: sister" }),
     ).toBeVisible();
 
     const snapshotResponse = await context.request.get(
@@ -469,8 +465,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
     });
     await expect(page.getByText("저장됨")).toBeVisible();
 
-    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
-    await edgeElement.locator(".react-flow__edge-path").click({ force: true });
+    await page.getByRole("button", { name: "관계 선택: knows" }).click();
     await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
     await page.getByLabel("이름").fill("best friend");
     await page.getByLabel("설명").fill("Childhood friends");
@@ -497,9 +492,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
       page.locator(`.react-flow__node[data-id="${alice.id}"]`),
     ).toContainText("Alicia");
     await expect(
-      page
-        .locator(`.react-flow__edge[data-id="${edge.id}"]`)
-        .locator(".react-flow__edge-path"),
+      page.getByRole("button", { name: "관계 선택: best friend" }),
     ).toBeVisible();
 
     const snapshotResponse = await context.request.get(
