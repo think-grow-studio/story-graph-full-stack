@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const geometry = vi.hoisted(() => ({
@@ -115,6 +115,18 @@ describe("StoryGraphEdge", () => {
     renderEdge({ laneIndex: 2, laneCount: 3 });
     expect(screen.getByText("친구라고 생각함")).toBeInTheDocument();
     expect(screen.getByTestId("relationship-label")).toHaveAttribute("data-lane-offset", "18");
+  });
+
+  it("exposes the relationship label as an explicit selection surface", () => {
+    const onSelect = vi.fn();
+    renderEdge({ onSelect } as unknown as Partial<StoryGraphFlowEdge["data"]>);
+
+    const selectionSurface = screen.getByRole("button", {
+      name: "관계 선택: 친구라고 생각함",
+    });
+    fireEvent.click(selectionSurface);
+
+    expect(onSelect).toHaveBeenCalledWith("edge-1");
   });
 
   it.each([
