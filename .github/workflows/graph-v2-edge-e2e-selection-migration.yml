@@ -38,6 +38,13 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
+          def sub_exact(text: str, pattern: str, replacement: str, expected: int, label: str) -> str:
+              next_text, count = re.subn(pattern, replacement, text, flags=re.MULTILINE)
+              if count != expected:
+                  raise SystemExit(f"{label}: expected {expected} matches, found {count}")
+              return next_text
 
           def replace_exact(text: str, old: str, new: str, expected: int, label: str) -> str:
               count = text.count(old)
@@ -45,40 +52,34 @@ jobs:
                   raise SystemExit(f"{label}: expected {expected} matches, found {count}")
               return text.replace(old, new)
 
+          edge_path_expect = lambda id_expr: (
+              rf'    await expect\(\n'
+              rf'\s*page\n'
+              rf'\s*\.locator\(`\.react-flow__edge\[data-id="\$\{{{id_expr}\}}"\]`\)\n'
+              rf'\s*\.locator\("\.react-flow__edge-path"\),\n'
+              rf'\s*\)\.toBeVisible\(\);'
+          )
+
           auth = Path("tests/e2e/auth-story.spec.ts")
           text = auth.read_text()
-          created_edge_visibility = '''    await expect(
-              page
-                .locator(`.react-flow__edge[data-id="${createdEdge.id}"]`)
-                .locator(".react-flow__edge-path"),
-            ).toBeVisible();'''
-          text = replace_exact(
+          text = sub_exact(
               text,
-              created_edge_visibility,
-              '''    await expect(
-              page.getByRole("button", { name: "관계 선택: sister" }),
-            ).toBeVisible();''',
+              edge_path_expect(r'createdEdge\.id'),
+              '    await expect(\n      page.getByRole("button", { name: "관계 선택: sister" }),\n    ).toBeVisible();',
               2,
               "auth created edge visibility",
           )
-          text = replace_exact(
+          text = sub_exact(
               text,
-              '''    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
-            await edgeElement.locator(".react-flow__edge-path").click({ force: true });''',
-              '''    await page.getByRole("button", { name: "관계 선택: knows" }).click();''',
+              r'    const edgeElement = page\.locator\(`\.react-flow__edge\[data-id="\$\{edge\.id\}"\]`\);\n\s*await edgeElement\.locator\("\.react-flow__edge-path"\)\.click\(\{ force: true \}\);',
+              '    await page.getByRole("button", { name: "관계 선택: knows" }).click();',
               1,
               "auth edge selection click",
           )
-          text = replace_exact(
+          text = sub_exact(
               text,
-              '''    await expect(
-              page
-                .locator(`.react-flow__edge[data-id="${edge.id}"]`)
-                .locator(".react-flow__edge-path"),
-            ).toBeVisible();''',
-              '''    await expect(
-              page.getByRole("button", { name: "관계 선택: best friend" }),
-            ).toBeVisible();''',
+              edge_path_expect(r'edge\.id'),
+              '    await expect(\n      page.getByRole("button", { name: "관계 선택: best friend" }),\n    ).toBeVisible();',
               1,
               "auth edited edge reload visibility",
           )
@@ -86,30 +87,24 @@ jobs:
 
           node_history = Path("tests/e2e/node-delete-history.spec.ts")
           text = node_history.read_text()
-          text = replace_exact(
+          text = sub_exact(
               text,
-              '''    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
-            const edgePath = edgeElement.locator(".react-flow__edge-path");''',
-              '''    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
-            const edgeSelection = page.getByRole("button", { name: "관계 선택: knows" });''',
+              r'    const edgeElement = page\.locator\(`\.react-flow__edge\[data-id="\$\{edge\.id\}"\]`\);\n\s*const edgePath = edgeElement\.locator\("\.react-flow__edge-path"\);',
+              '    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);\n    const edgeSelection = page.getByRole("button", { name: "관계 선택: knows" });',
               1,
               "node history selection locator",
           )
           text = replace_exact(
               text,
-              '''    await expect(edgePath).toBeVisible();''',
-              '''    await expect(edgeSelection).toBeVisible();''',
+              '    await expect(edgePath).toBeVisible();',
+              '    await expect(edgeSelection).toBeVisible();',
               3,
               "node history visible assertions",
           )
-          text = replace_exact(
+          text = sub_exact(
               text,
-              '''    await expect(
-              page
-                .locator(`.react-flow__edge[data-id="${edge.id}"]`)
-                .locator(".react-flow__edge-path"),
-            ).toBeVisible();''',
-              '''    await expect(edgeSelection).toBeVisible();''',
+              edge_path_expect(r'edge\.id'),
+              '    await expect(edgeSelection).toBeVisible();',
               1,
               "node history reload visibility",
           )
@@ -117,34 +112,24 @@ jobs:
 
           edge_history = Path("tests/e2e/relationship-delete-history.spec.ts")
           text = edge_history.read_text()
-          text = replace_exact(
+          text = sub_exact(
               text,
-              '''    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
-            const edgePath = edgeElement.locator(".react-flow__edge-path");
-            await expect(edgePath).toBeVisible();
-            await edgeElement.locator(".react-flow__edge-path").click({ force: true });''',
-              '''    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
-            const edgeSelection = page.getByRole("button", { name: "관계 선택: knows" });
-            await expect(edgeSelection).toBeVisible();
-            await edgeSelection.click();''',
+              r'    const edgeElement = page\.locator\(`\.react-flow__edge\[data-id="\$\{edge\.id\}"\]`\);\n\s*const edgePath = edgeElement\.locator\("\.react-flow__edge-path"\);\n\s*await expect\(edgePath\)\.toBeVisible\(\);\n\s*await edgeElement\.locator\("\.react-flow__edge-path"\)\.click\(\{ force: true \}\);',
+              '    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);\n    const edgeSelection = page.getByRole("button", { name: "관계 선택: knows" });\n    await expect(edgeSelection).toBeVisible();\n    await edgeSelection.click();',
               1,
               "edge history selection locator and click",
           )
           text = replace_exact(
               text,
-              '''    await expect(edgePath).toBeVisible();''',
-              '''    await expect(edgeSelection).toBeVisible();''',
+              '    await expect(edgePath).toBeVisible();',
+              '    await expect(edgeSelection).toBeVisible();',
               2,
               "edge history undo visibility",
           )
-          text = replace_exact(
+          text = sub_exact(
               text,
-              '''    await expect(
-              page
-                .locator(`.react-flow__edge[data-id="${edge.id}"]`)
-                .locator(".react-flow__edge-path"),
-            ).toBeVisible();''',
-              '''    await expect(edgeSelection).toBeVisible();''',
+              edge_path_expect(r'edge\.id'),
+              '    await expect(edgeSelection).toBeVisible();',
               1,
               "edge history reload visibility",
           )
