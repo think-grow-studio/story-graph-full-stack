@@ -35,6 +35,7 @@ export type StoryGraphEdgeData = {
   laneCount: number;
   visualState: RelationshipVisualState;
   presentation: EdgePresentation;
+  onSelect?: (edgeId: string) => void;
 };
 
 export type StoryGraphFlowEdge = Edge<StoryGraphEdgeData, "storyGraph">;
@@ -92,18 +93,24 @@ export function StoryGraphEdge({
         }}
       />
       <EdgeLabelRenderer>
-        <div
-          className="pointer-events-none absolute rounded bg-[var(--sg-surface)] px-1.5 py-0.5 text-xs font-medium text-[var(--sg-ink)] shadow-sm"
+        <button
+          aria-label={`관계 선택: ${data.label}`}
+          className="nodrag nopan pointer-events-auto absolute cursor-pointer rounded border-0 bg-[var(--sg-surface)] px-1.5 py-0.5 text-xs font-medium text-[var(--sg-ink)] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--sg-accent)]"
           data-lane-offset={laneOffset}
           data-testid="relationship-label"
           data-visual-state={data.visualState}
+          onClick={(event) => {
+            event.stopPropagation();
+            data.onSelect?.(id);
+          }}
           style={{
             opacity,
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
           }}
+          type="button"
         >
           {data.label}
-        </div>
+        </button>
       </EdgeLabelRenderer>
     </>
   );
