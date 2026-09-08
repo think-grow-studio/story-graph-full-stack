@@ -74,6 +74,7 @@ function node(id: string, name: string, x: number) {
     boardId,
     name,
     description: "",
+    kind: "entity",
     iconKey: null,
     properties: {},
     x,
@@ -81,7 +82,13 @@ function node(id: string, name: string, x: number) {
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: {
+      shape: "rounded-rect" as const,
+      fillColor: null,
+      borderColor: null,
+      borderWidth: null,
+      textColor: null,
+    },
     version: 2,
     createdAt: now,
     updatedAt: now,
@@ -94,12 +101,24 @@ function relationship() {
     boardId,
     sourceNodeId: aliceId,
     targetNodeId: bobId,
+    direction: "DIRECTED" as const,
     name: "knows",
     description: "",
+    kind: "relationship",
     iconKey: null,
     properties: {},
-    style: {},
-    labelPresentation: {},
+    presentation: {
+      strokeColor: null,
+      strokeWidth: null,
+      strokeStyle: "solid" as const,
+      labelColor: null,
+    },
+    routing: {
+      type: "orthogonal" as const,
+      sourcePort: "auto" as const,
+      targetPort: "auto" as const,
+      waypoints: [] as Array<{ x: number; y: number }>,
+    },
     version: 3,
     createdAt: now,
     updatedAt: now,
@@ -115,6 +134,11 @@ function snapshot() {
       name: "Characters",
       description: "",
       tags: [],
+      graphSettings: {
+        defaultEdgeRouting: "orthogonal" as const,
+        snapToGrid: false,
+        layoutMode: "free" as const,
+      },
       createdAt: now,
       updatedAt: now,
     },
@@ -180,8 +204,12 @@ describe("Graph Editor direct deletion", () => {
       nodeId: aliceId,
       workspaceId: "workspace-1",
     });
-    expect(screen.queryByRole("button", { name: "Select Alice" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Select knows" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Select Alice" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Select knows" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Select Bob" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Undo" }));
@@ -194,8 +222,12 @@ describe("Graph Editor direct deletion", () => {
       node: expect.objectContaining({ id: aliceId, boardId }),
       edges: [expect.objectContaining({ id: edgeId, boardId })],
     });
-    expect(await screen.findByRole("button", { name: "Select Alice" })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Select knows" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Select Alice" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Select knows" }),
+    ).toBeInTheDocument();
   });
 
   it("deletes one Relationship while keeping both Nodes and restores it with Undo", async () => {
@@ -217,7 +249,9 @@ describe("Graph Editor direct deletion", () => {
       edgeId,
       workspaceId: "workspace-1",
     });
-    expect(screen.queryByRole("button", { name: "Select knows" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Select knows" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Select Alice" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Select Bob" })).toBeInTheDocument();
 
@@ -230,6 +264,8 @@ describe("Graph Editor direct deletion", () => {
       workspaceId: "workspace-1",
       edge: expect.objectContaining({ id: edgeId, boardId }),
     });
-    expect(await screen.findByRole("button", { name: "Select knows" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Select knows" }),
+    ).toBeInTheDocument();
   });
 });
