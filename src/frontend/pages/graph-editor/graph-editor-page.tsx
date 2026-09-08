@@ -113,19 +113,6 @@ function GraphEditorContent({
     hydratedBoardIdRef.current = boardId;
   }, [boardId, snapshot.data, store]);
 
-  useEffect(() => {
-    if (!relationshipPickSourceId) return;
-
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setRelationshipPickSourceId(null);
-    }
-
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [relationshipPickSourceId]);
-
   let inspectorSelection: GraphInspectorSelection | null = null;
   if (selectedEntity?.kind === "node") {
     const node = state.nodes.find(
@@ -222,6 +209,7 @@ function GraphEditorContent({
     blocked: historyBlocked,
     onReplayCommand: handleReplayCommand,
   });
+  const historyBoundary = history.boundary;
 
   useInspectorAutosave({
     draftStore,
@@ -230,6 +218,38 @@ function GraphEditorContent({
     workspaceId,
     dispatch: history.dispatch,
   });
+
+  const clearGraphFocus = useCallback(() => {
+    if (selectedEntity) historyBoundary();
+    setSelectedEntity(null);
+    setRelationshipPickSourceId(null);
+  }, [historyBoundary, selectedEntity]);
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+
+      if (relationshipPickSourceId) {
+        event.preventDefault();
+        setRelationshipPickSourceId(null);
+        return;
+      }
+
+      if (isNodeDialogOpen || pendingConnection || !selectedEntity) return;
+
+      event.preventDefault();
+      clearGraphFocus();
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [
+    clearGraphFocus,
+    isNodeDialogOpen,
+    pendingConnection,
+    relationshipPickSourceId,
+    selectedEntity,
+  ]);
 
   function selectEntity(next: SelectedGraphEntity) {
     if (
@@ -570,6 +590,7 @@ function GraphEditorContent({
           <GraphCanvas
             edges={canvasEdges}
             nodes={canvasNodes}
+            onClearSelection={clearGraphFocus}
             onConnectNodes={handleConnectNodes}
             onNodeDragStart={handleNodeDragStart}
             onNodeDragStop={handleNodeDragStop}
