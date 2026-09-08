@@ -35,7 +35,9 @@ describe("Graph Editor V2 Inspector property validation", () => {
   it("accepts nested string-valued Graph properties", () => {
     const draft = {
       ...createInspectorDraftFromEntity(node),
-      propertiesText: '{"profile":{"age":"21","aliases":["A","Hero"]}}',
+      properties: {
+        profile: { age: "21", aliases: ["A", "Hero"] },
+      },
       revision: 1,
     };
 
@@ -43,6 +45,7 @@ describe("Graph Editor V2 Inspector property validation", () => {
       status: "saveable",
       dirty: true,
       input: {
+        kind: "person",
         properties: { profile: { age: "21", aliases: ["A", "Hero"] } },
       },
     });
@@ -51,7 +54,7 @@ describe("Graph Editor V2 Inspector property validation", () => {
   it("rejects non-string scalar values before autosave dispatch", () => {
     const draft = {
       ...createInspectorDraftFromEntity(node),
-      propertiesText: '{"profile":{"age":21}}',
+      properties: { profile: { age: 21 as never } },
       revision: 1,
     };
 
