@@ -61,6 +61,7 @@ export type GraphCanvasProps = {
   edges?: GraphCanvasEdge[];
   selectedNodeId?: string | null;
   selectedEdgeId?: string | null;
+  onClearSelection?: () => void;
   onNodePositionChange: (
     nodeId: string,
     position: { x: number; y: number },
@@ -86,6 +87,7 @@ export function GraphCanvas({
   edges = [],
   selectedNodeId = null,
   selectedEdgeId = null,
+  onClearSelection,
   onNodePositionChange,
   onNodeDragStart,
   onNodeDragStop,
@@ -245,6 +247,7 @@ export function GraphCanvas({
         onNodeDrag={handleNodeDrag}
         onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
+        onPaneClick={() => onClearSelection?.()}
       >
         <Background />
         <Controls />
