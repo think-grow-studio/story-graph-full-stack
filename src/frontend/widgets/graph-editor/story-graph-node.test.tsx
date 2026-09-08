@@ -41,4 +41,35 @@ describe("StoryGraphNode", () => {
       "left",
     ]);
   });
+
+  it("uses durable graph tokens and non-color structure for selected and connection-target states", () => {
+    const selectedProps = {
+      id: "node-1",
+      data: { label: "Alice", connectionActive: false },
+      selected: true,
+    } as unknown as Parameters<typeof StoryGraphNode>[0];
+
+    const { rerender } = render(<StoryGraphNode {...selectedProps} />);
+    const selectedNode = screen.getByText("Alice").parentElement;
+
+    expect(screen.getByText("Alice")).toHaveClass("text-[var(--sg-ink)]");
+    expect(selectedNode).toHaveClass("border-[var(--sg-brand)]", "ring-2");
+    expect(selectedNode?.className).not.toContain("--sg-accent");
+    expect(selectedNode?.className).not.toContain("--sg-text");
+
+    rerender(
+      <StoryGraphNode
+        {...({
+          ...selectedProps,
+          selected: false,
+          data: { label: "Alice", connectionActive: true },
+        } as unknown as Parameters<typeof StoryGraphNode>[0])}
+      />,
+    );
+
+    expect(screen.getByText("Alice").parentElement).toHaveClass(
+      "border-[var(--sg-brand)]",
+      "bg-[var(--sg-graph-target-soft)]",
+    );
+  });
 });
