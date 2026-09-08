@@ -20,31 +20,36 @@ function node(id: string, name: string): GraphNodeResponse {
     width: null,
     height: null,
     zIndex: 0,
-    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
+    presentation: {
+      shape: "rounded-rect",
+      fillColor: null,
+      borderColor: null,
+      borderWidth: null,
+      textColor: null,
+    },
     version: 1,
     createdAt: now,
     updatedAt: now,
-
     kind: "entity",
   };
 }
 
 describe("inspector draft store", () => {
-  it("preserves an existing entity draft across selection changes and version updates", () => {
+  it("preserves an existing structured draft across selection changes and version updates", () => {
     const store = createInspectorDraftStore();
     const alice = node("alice", "Alice");
     const bob = node("bob", "Bob");
 
     store.getState().ensureDraft("node:alice", alice);
     store.getState().updateDraft("node:alice", {
-      propertiesText: '{"job":',
+      properties: { job: "mage", profile: { level: "3" } },
     });
     store.getState().ensureDraft("node:bob", bob);
     store.getState().ensureDraft("node:alice", { ...alice, version: 99 });
 
     expect(store.getState().drafts["node:alice"]).toMatchObject({
       name: "Alice",
-      propertiesText: '{"job":',
+      properties: { job: "mage", profile: { level: "3" } },
       revision: 1,
     });
     expect(store.getState().drafts["node:bob"]).toMatchObject({
@@ -53,12 +58,13 @@ describe("inspector draft store", () => {
     });
   });
 
-  it("increments revision only when raw input actually changes", () => {
+  it("increments revision only when structured input actually changes", () => {
     const store = createInspectorDraftStore();
     const alice = node("alice", "Alice");
     store.getState().ensureDraft("node:alice", alice);
 
     store.getState().updateDraft("node:alice", { name: "Alice" });
+    store.getState().updateDraft("node:alice", { properties: {} });
     expect(store.getState().drafts["node:alice"]?.revision).toBe(0);
 
     store.getState().updateDraft("node:alice", { name: "Alicia" });
@@ -74,27 +80,34 @@ describe("inspector draft store", () => {
     });
   });
 
-  it("replaces an existing raw draft for Undo/Redo replay and increments revision once", () => {
+  it("replaces the exact structured draft for Undo/Redo replay and increments revision once", () => {
     const store = createInspectorDraftStore();
     const alice = node("alice", "Alice");
     store.getState().ensureDraft("node:alice", alice);
     store.getState().updateDraft("node:alice", {
       name: "Alicia",
       description: "Changed",
-      propertiesText: '{"role":"lead","age":31}',
+      kind: "person",
+      properties: { role: "lead", aliases: ["A"] },
     });
 
     const beforeRevision = store.getState().drafts["node:alice"]?.revision;
     store.getState().replaceDraft("node:alice", {
       name: "Alice",
       description: "",
-      propertiesText: "{}",
+      kind: "entity",
+      properties: {},
+      direction: null,
+      routingType: null,
     });
 
     expect(store.getState().drafts["node:alice"]).toEqual({
       name: "Alice",
       description: "",
-      propertiesText: "{}",
+      kind: "entity",
+      properties: {},
+      direction: null,
+      routingType: null,
       revision: (beforeRevision ?? 0) + 1,
     });
 
@@ -102,7 +115,10 @@ describe("inspector draft store", () => {
     store.getState().replaceDraft("node:alice", {
       name: "Alice",
       description: "",
-      propertiesText: "{}",
+      kind: "entity",
+      properties: {},
+      direction: null,
+      routingType: null,
     });
     expect(store.getState()).toBe(afterReplay);
   });
@@ -115,7 +131,10 @@ describe("inspector draft store", () => {
     store.getState().replaceDraft("node:missing", {
       name: "Ghost",
       description: "",
-      propertiesText: "{}",
+      kind: "entity",
+      properties: {},
+      direction: null,
+      routingType: null,
     });
 
     expect(store.getState()).toBe(beforeReplay);
