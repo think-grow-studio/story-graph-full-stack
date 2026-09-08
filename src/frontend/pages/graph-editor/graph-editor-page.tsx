@@ -531,7 +531,7 @@ function GraphEditorContent({
           >
             Redo
           </Button>
-          {selectedEntity?.kind === "node" ? (
+          {selectedEntity?.kind === "node" && !pendingConnection ? (
             <Button
               emphasis="outline"
               intent="neutral"

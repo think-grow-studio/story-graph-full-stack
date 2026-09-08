@@ -340,8 +340,8 @@ test("Graph Editor creates a direct Relationship and restores it after reload", 
 
     const aliceElement = page.locator(`.react-flow__node[data-id="${alice.id}"]`);
     const bobElement = page.locator(`.react-flow__node[data-id="${bob.id}"]`);
-    const sourceHandle = aliceElement.locator(".react-flow__handle.source");
-    const targetHandle = bobElement.locator(".react-flow__handle.target");
+    const sourceHandle = aliceElement.locator('.react-flow__handle[data-handleid="right"]');
+    const targetHandle = bobElement.locator('.react-flow__handle[data-handleid="left"]');
     const sourceBox = await sourceHandle.boundingBox();
     const targetBox = await targetHandle.boundingBox();
     expect(sourceBox).not.toBeNull();
