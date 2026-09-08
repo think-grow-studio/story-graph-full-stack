@@ -8,15 +8,29 @@ import type { SaveState } from "../save-queue/save-state";
 
 export type InspectorEntityKey = `node:${string}` | `edge:${string}`;
 
+type EdgeDirection = GraphEdgeResponse["direction"];
+type EdgeRoutingType = GraphEdgeResponse["routing"]["type"];
+
 export type InspectorDraft = {
   name: string;
   description: string;
-  propertiesText: string;
+  kind: string;
+  properties: GraphProperties;
+  direction: EdgeDirection | null;
+  routingType: EdgeRoutingType | null;
   revision: number;
 };
 
 export type InspectorDraftPatch = Partial<
-  Pick<InspectorDraft, "name" | "description" | "propertiesText">
+  Pick<
+    InspectorDraft,
+    | "name"
+    | "description"
+    | "kind"
+    | "properties"
+    | "direction"
+    | "routingType"
+  >
 >;
 
 export type InspectorCanonicalEntity = GraphNodeResponse | GraphEdgeResponse;
@@ -28,6 +42,7 @@ export type InspectorDraftEvaluation =
       input: {
         name: string;
         description: string;
+        kind: string;
         properties: GraphProperties;
       };
     }
@@ -36,8 +51,7 @@ export type InspectorDraftEvaluation =
       dirty: boolean;
       message:
         | "Name is required."
-        | "Properties must be valid JSON."
-        | "Properties must be a JSON object."
+        | "Kind is required."
         | "Properties do not match the Graph property rules.";
     };
 
@@ -51,10 +65,14 @@ export function toInspectorEntityKey(
 export function createInspectorDraftFromEntity(
   entity: InspectorCanonicalEntity,
 ): InspectorDraft {
+  const edge = isEdgeEntity(entity) ? entity : null;
   return {
     name: entity.name,
     description: entity.description,
-    propertiesText: JSON.stringify(entity.properties, null, 2),
+    kind: entity.kind,
+    properties: entity.properties,
+    direction: edge?.direction ?? null,
+    routingType: edge?.routing.type ?? null,
     revision: 0,
   };
 }
@@ -67,39 +85,25 @@ export function evaluateInspectorDraft(
   if (!trimmedName) {
     return {
       status: "invalid",
-      dirty: isRawDraftDifferentFromCanonical(draft, entity),
+      dirty: isDraftDifferentFromCanonical(draft, entity),
       message: "Name is required.",
     };
   }
 
-  let properties: unknown;
-  try {
-    properties = JSON.parse(draft.propertiesText);
-  } catch {
+  const trimmedKind = draft.kind.trim();
+  if (!trimmedKind) {
     return {
       status: "invalid",
-      dirty: isRawDraftDifferentFromCanonical(draft, entity),
-      message: "Properties must be valid JSON.",
+      dirty: isDraftDifferentFromCanonical(draft, entity),
+      message: "Kind is required.",
     };
   }
 
-  if (
-    properties === null ||
-    Array.isArray(properties) ||
-    typeof properties !== "object"
-  ) {
-    return {
-      status: "invalid",
-      dirty: isRawDraftDifferentFromCanonical(draft, entity),
-      message: "Properties must be a JSON object.",
-    };
-  }
-
-  const parsedProperties = graphPropertiesSchema.safeParse(properties);
+  const parsedProperties = graphPropertiesSchema.safeParse(draft.properties);
   if (!parsedProperties.success) {
     return {
       status: "invalid",
-      dirty: isRawDraftDifferentFromCanonical(draft, entity),
+      dirty: isDraftDifferentFromCanonical(draft, entity),
       message: "Properties do not match the Graph property rules.",
     };
   }
@@ -107,17 +111,38 @@ export function evaluateInspectorDraft(
   const input = {
     name: trimmedName,
     description: draft.description,
+    kind: trimmedKind,
     properties: parsedProperties.data,
   };
+
+  const edgeDirty =
+    isEdgeEntity(entity) &&
+    (draft.direction !== entity.direction || draft.routingType !== entity.routing.type);
 
   return {
     status: "saveable",
     dirty:
       input.name !== entity.name ||
       input.description !== entity.description ||
-      !isJsonValueEqual(input.properties, entity.properties),
+      input.kind !== entity.kind ||
+      !isJsonValueEqual(input.properties, entity.properties) ||
+      edgeDirty,
     input,
   };
+}
+
+export function areInspectorDraftValuesEqual(
+  left: InspectorDraft,
+  right: InspectorDraft,
+): boolean {
+  return (
+    left.name === right.name &&
+    left.description === right.description &&
+    left.kind === right.kind &&
+    left.direction === right.direction &&
+    left.routingType === right.routingType &&
+    isJsonValueEqual(left.properties, right.properties)
+  );
 }
 
 export function combineEditorSaveState(
@@ -130,16 +155,17 @@ export function combineEditorSaveState(
   return hasDirtyInspectorDraft ? "unsaved" : "saved";
 }
 
-function isRawDraftDifferentFromCanonical(
+function isDraftDifferentFromCanonical(
   draft: InspectorDraft,
   entity: InspectorCanonicalEntity,
 ): boolean {
-  const canonical = createInspectorDraftFromEntity(entity);
-  return (
-    draft.name !== canonical.name ||
-    draft.description !== canonical.description ||
-    draft.propertiesText !== canonical.propertiesText
-  );
+  return !areInspectorDraftValuesEqual(draft, createInspectorDraftFromEntity(entity));
+}
+
+function isEdgeEntity(
+  entity: InspectorCanonicalEntity,
+): entity is GraphEdgeResponse {
+  return "routing" in entity;
 }
 
 function isJsonValueEqual(left: unknown, right: unknown): boolean {
