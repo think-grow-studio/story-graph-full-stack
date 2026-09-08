@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type {
   GraphProperties,
@@ -28,14 +28,8 @@ export function PropertyEditor({
   onChange: (value: GraphProperties) => void;
   disabled?: boolean;
 }) {
-  const [editorValue, setEditorValue] = useState(value);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setEditorValue(value);
-  }, [value]);
-
-  const treeValidation = validatePropertyTree(editorValue);
+  const treeValidation = validatePropertyTree(value);
   const validationMessage = error ?? (treeValidation.ok ? null : treeValidation.message);
 
   function commit(result: PropertyEditResult) {
@@ -44,7 +38,6 @@ export function PropertyEditor({
       return;
     }
     setError(null);
-    setEditorValue(result.properties);
     onChange(result.properties);
   }
 
@@ -63,8 +56,8 @@ export function PropertyEditor({
         disabled={disabled}
         onCommit={commit}
         path={[]}
-        root={editorValue}
-        value={editorValue}
+        root={value}
+        value={value}
       />
 
       {validationMessage ? (
@@ -99,7 +92,13 @@ function ObjectEditor({
   }
 
   return (
-    <div className={path.length > 0 ? "grid gap-2 border-l border-[var(--sg-line)] pl-3" : "grid gap-2"}>
+    <div
+      className={
+        path.length > 0
+          ? "grid gap-2 border-l border-[var(--sg-line)] pl-3"
+          : "grid gap-2"
+      }
+    >
       {Object.entries(value).map(([key, childValue]) => (
         <ObjectPropertyRow
           disabled={disabled}
@@ -123,7 +122,9 @@ function ObjectEditor({
         <label className="min-w-0 flex-1 text-xs font-medium text-[var(--sg-muted)]">
           {contextName ? `${contextName} 새 속성` : "새 속성"}
           <input
-            aria-label={contextName ? `${contextName} 새 속성 이름` : "새 속성 이름"}
+            aria-label={
+              contextName ? `${contextName} 새 속성 이름` : "새 속성 이름"
+            }
             className="mt-1 w-full rounded-md border border-[var(--sg-line)] bg-[var(--sg-surface)] px-2.5 py-2 text-sm text-[var(--sg-ink)] outline-none focus:border-[var(--sg-brand)]"
             disabled={disabled}
             maxLength={100}
@@ -163,10 +164,6 @@ function ObjectPropertyRow({
 }) {
   const [keyDraft, setKeyDraft] = useState(name);
 
-  useEffect(() => {
-    setKeyDraft(name);
-  }, [name]);
-
   function commitKey() {
     onCommit(renameObjectProperty(root, objectPath, name, keyDraft));
   }
@@ -201,7 +198,11 @@ function ObjectPropertyRow({
             disabled={disabled}
             onChange={(event) =>
               onCommit(
-                setPropertyValue(root, path, emptyValueForType(event.target.value as PropertyValueType)),
+                setPropertyValue(
+                  root,
+                  path,
+                  emptyValueForType(event.target.value as PropertyValueType),
+                ),
               )
             }
             value={valueType(value)}
@@ -259,7 +260,9 @@ function ValueEditor({
         className="w-full rounded-md border border-[var(--sg-line)] px-2.5 py-2 text-sm outline-none focus:border-[var(--sg-brand)]"
         disabled={disabled}
         maxLength={10_000}
-        onChange={(event) => onCommit(setPropertyValue(root, path, event.target.value))}
+        onChange={(event) =>
+          onCommit(setPropertyValue(root, path, event.target.value))
+        }
         value={value}
       />
     );
@@ -272,7 +275,10 @@ function ValueEditor({
           const itemLabel = `${label} ${index + 1}`;
           const itemPath = [...path, index];
           return (
-            <div className="rounded-md bg-[var(--sg-canvas)] p-2" key={`${path.join(".")}-${index}`}>
+            <div
+              className="rounded-md bg-[var(--sg-canvas)] p-2"
+              key={`${path.join(".")}-${index}`}
+            >
               <div className="mb-2 flex items-center justify-between gap-2">
                 <label className="text-xs font-medium text-[var(--sg-muted)]">
                   유형
@@ -285,7 +291,9 @@ function ValueEditor({
                         setPropertyValue(
                           root,
                           itemPath,
-                          emptyValueForType(event.target.value as PropertyValueType),
+                          emptyValueForType(
+                            event.target.value as PropertyValueType,
+                          ),
                         ),
                       )
                     }
