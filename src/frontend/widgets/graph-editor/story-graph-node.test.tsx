@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@xyflow/react", () => ({
   Handle: ({ id, position }: { id: string; position: string }) => (
@@ -14,6 +14,8 @@ vi.mock("@xyflow/react", () => ({
 }));
 
 import { StoryGraphNode } from "./story-graph-node";
+
+afterEach(cleanup);
 
 describe("StoryGraphNode", () => {
   it("renders four stable magnetic connection ports", () => {
@@ -50,9 +52,10 @@ describe("StoryGraphNode", () => {
     } as unknown as Parameters<typeof StoryGraphNode>[0];
 
     const { rerender } = render(<StoryGraphNode {...selectedProps} />);
-    const selectedNode = screen.getByText("Alice").parentElement;
+    const selectedLabel = screen.getByText("Alice");
+    const selectedNode = selectedLabel.parentElement;
 
-    expect(screen.getByText("Alice")).toHaveClass("text-[var(--sg-ink)]");
+    expect(selectedLabel).toHaveClass("text-[var(--sg-ink)]");
     expect(selectedNode).toHaveClass("border-[var(--sg-brand)]", "ring-2");
     expect(selectedNode?.className).not.toContain("--sg-accent");
     expect(selectedNode?.className).not.toContain("--sg-text");
