@@ -100,6 +100,48 @@ describe("PropertyEditor", () => {
     expect(onChange).toHaveBeenLastCalledWith({ aliases: [""] });
   });
 
+  it("keeps compact controls visibly interactive and disabled-aware", () => {
+    const { rerender } = render(
+      <PropertyEditor
+        onChange={vi.fn()}
+        value={{ job: "mage", aliases: ["wizard"] }}
+      />,
+    );
+
+    expect(screen.getByLabelText("job 유형")).toHaveClass("cursor-pointer");
+    expect(screen.getByRole("button", { name: "job 삭제" })).toHaveClass(
+      "cursor-pointer",
+      "hover:bg-[var(--sg-danger-soft)]",
+    );
+    expect(screen.getByRole("button", { name: "속성 추가" })).toHaveClass(
+      "cursor-pointer",
+      "hover:bg-[var(--sg-surface)]",
+    );
+    expect(screen.getByLabelText("aliases 1 유형")).toHaveClass(
+      "cursor-pointer",
+    );
+
+    rerender(
+      <PropertyEditor
+        disabled
+        onChange={vi.fn()}
+        value={{ job: "mage", aliases: ["wizard"] }}
+      />,
+    );
+
+    for (const control of [
+      screen.getByLabelText("job 유형"),
+      screen.getByRole("button", { name: "job 삭제" }),
+      screen.getByRole("button", { name: "속성 추가" }),
+      screen.getByLabelText("aliases 1 유형"),
+      screen.getByRole("button", { name: "aliases 1 삭제" }),
+      screen.getByRole("button", { name: "aliases 값 추가" }),
+    ]) {
+      expect(control).toBeDisabled();
+      expect(control).toHaveClass("disabled:cursor-not-allowed");
+    }
+  });
+
   it("shows validation instead of dispatching duplicate or blank keys", () => {
     const onChange = vi.fn();
     render(<PropertyEditor onChange={onChange} value={{ job: "mage" }} />);
