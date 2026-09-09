@@ -427,6 +427,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
       name: "Alice",
       x: 120,
       y: 180,
+      properties: { role: "support", age: "30" },
     });
     const bob = await createE2ENode(context.request, board.id, workspaceId, {
       name: "Bob",
@@ -437,6 +438,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
       sourceNodeId: alice.id,
       targetNodeId: bob.id,
       name: "knows",
+      properties: { since: "2010" },
     });
 
     await page.goto(`/stories/${story.id}/boards/${board.id}`);
@@ -445,46 +447,72 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
     const aliceElement = page.locator(`.react-flow__node[data-id="${alice.id}"]`);
     await aliceElement.click();
     await expect(page.getByRole("heading", { name: "노드" })).toBeVisible();
+    const nodeUpdatePromise = page.waitForResponse((response) => {
+      if (
+        response.request().method() !== "PATCH" ||
+        new URL(response.url()).pathname !==
+          `/api/v1/boards/${board.id}/nodes/${alice.id}`
+      ) {
+        return false;
+      }
+
+      const payload = response.request().postDataJSON();
+      return (
+        payload.name === "Alicia" &&
+        payload.description === "Main protagonist" &&
+        payload.properties?.role === "lead" &&
+        payload.properties?.age === "31"
+      );
+    });
     await page.getByLabel("이름").fill("Alicia");
     await page.getByLabel("설명").fill("Main protagonist");
-    const nodeUpdatePromise = page.waitForResponse((response) =>
-      response.request().method() === "PATCH" &&
-      new URL(response.url()).pathname ===
-        `/api/v1/boards/${board.id}/nodes/${alice.id}`,
-    );
-    await page.getByLabel("속성 JSON").fill('{"role":"lead","age":"31"}');
+    await page.getByLabel("role 값").fill("lead");
+    await page.getByLabel("age 값").fill("31");
     const nodeUpdate = await nodeUpdatePromise;
     expect(nodeUpdate.status()).toBe(200);
-    expect(await nodeUpdate.json()).toMatchObject({
+    const updatedNode = await nodeUpdate.json();
+    expect(updatedNode).toMatchObject({
       id: alice.id,
       boardId: board.id,
       name: "Alicia",
       description: "Main protagonist",
       properties: { role: "lead", age: "31" },
-      version: 2,
     });
+    expect(updatedNode.version).toBeGreaterThan(1);
     await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.getByRole("button", { name: "관계 선택: knows" }).click();
     await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
+    const edgeUpdatePromise = page.waitForResponse((response) => {
+      if (
+        response.request().method() !== "PATCH" ||
+        new URL(response.url()).pathname !==
+          `/api/v1/boards/${board.id}/edges/${edge.id}`
+      ) {
+        return false;
+      }
+
+      const payload = response.request().postDataJSON();
+      return (
+        payload.name === "best friend" &&
+        payload.description === "Childhood friends" &&
+        payload.properties?.since === "2012"
+      );
+    });
     await page.getByLabel("이름").fill("best friend");
     await page.getByLabel("설명").fill("Childhood friends");
-    const edgeUpdatePromise = page.waitForResponse((response) =>
-      response.request().method() === "PATCH" &&
-      new URL(response.url()).pathname ===
-        `/api/v1/boards/${board.id}/edges/${edge.id}`,
-    );
-    await page.getByLabel("속성 JSON").fill('{"since":"2012"}');
+    await page.getByLabel("since 값").fill("2012");
     const edgeUpdate = await edgeUpdatePromise;
     expect(edgeUpdate.status()).toBe(200);
-    expect(await edgeUpdate.json()).toMatchObject({
+    const updatedEdge = await edgeUpdate.json();
+    expect(updatedEdge).toMatchObject({
       id: edge.id,
       boardId: board.id,
       name: "best friend",
       description: "Childhood friends",
       properties: { since: "2012" },
-      version: 2,
     });
+    expect(updatedEdge.version).toBeGreaterThan(1);
     await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
@@ -506,7 +534,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
         name: "Alicia",
         description: "Main protagonist",
         properties: { role: "lead", age: "31" },
-        version: 2,
+        version: updatedNode.version,
       }),
     );
     expect(persisted.edges).toContainEqual(
@@ -515,7 +543,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
         name: "best friend",
         description: "Childhood friends",
         properties: { since: "2012" },
-        version: 2,
+        version: updatedEdge.version,
       }),
     );
   } finally {
