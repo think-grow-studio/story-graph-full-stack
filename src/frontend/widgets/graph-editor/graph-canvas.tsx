@@ -97,6 +97,7 @@ export function GraphCanvas({
   ref,
 }: GraphCanvasProps) {
   const [connectionActive, setConnectionActive] = useState(false);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
   const focus = useMemo(
@@ -132,8 +133,12 @@ export function GraphCanvas({
       ]),
     );
 
-    return buildRelationshipBundles(edges).flatMap((bundle) =>
-      bundle.edges.map((edge, laneIndex) => {
+    return buildRelationshipBundles(edges).flatMap((bundle) => {
+      const bundleExpanded = bundle.edges.some(
+        (edge) => edge.id === selectedEdgeId || edge.id === hoveredEdgeId,
+      );
+
+      return bundle.edges.map((edge, laneIndex) => {
         const sourceNode = boundsById.get(edge.sourceNodeId);
         const targetNode = boundsById.get(edge.targetNodeId);
         const route = projectEdgeRoute({
@@ -170,6 +175,7 @@ export function GraphCanvas({
             waypoints: route.waypoints,
             laneIndex: route.laneIndex,
             laneCount: route.laneCount,
+            bundleExpanded,
             visualState: getRelationshipVisualState(
               edge.id,
               hasFocus,
@@ -180,9 +186,18 @@ export function GraphCanvas({
             onSelect: onSelectEdge,
           },
         } satisfies FlowEdge;
-      }),
-    );
-  }, [edges, focus.focusedEdgeIds, focus.secondaryEdgeIds, hasFocus, nodes, onSelectEdge]);
+      });
+    });
+  }, [
+    edges,
+    focus.focusedEdgeIds,
+    focus.secondaryEdgeIds,
+    hasFocus,
+    hoveredEdgeId,
+    nodes,
+    onSelectEdge,
+    selectedEdgeId,
+  ]);
 
   useImperativeHandle(ref, () => ({
     getCenterPosition() {
@@ -240,6 +255,10 @@ export function GraphCanvas({
         onConnectEnd={() => setConnectionActive(false)}
         onConnectStart={() => setConnectionActive(true)}
         onEdgeClick={(_, edge) => onSelectEdge?.(edge.id)}
+        onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+        onEdgeMouseLeave={(_, edge) => {
+          setHoveredEdgeId((current) => (current === edge.id ? null : current));
+        }}
         onInit={(instance) => {
           instanceRef.current = instance;
         }}
