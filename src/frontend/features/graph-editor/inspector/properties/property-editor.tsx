@@ -126,7 +126,7 @@ function ObjectEditor({
             aria-label={
               contextName ? `${contextName} 새 속성 키` : "새 속성 키"
             }
-            className="mt-1 w-full rounded-md border border-[var(--sg-line)] bg-[var(--sg-surface)] px-2.5 py-2 text-sm text-[var(--sg-ink)] outline-none focus:border-[var(--sg-brand)]"
+            className="mt-1 w-full rounded-md border border-[var(--sg-line)] bg-[var(--sg-surface)] px-2.5 py-2 text-sm text-[var(--sg-ink)] outline-none focus:border-[var(--sg-brand)] disabled:cursor-not-allowed disabled:bg-[var(--sg-canvas)]"
             disabled={disabled}
             maxLength={100}
             onChange={(event) => setNewKey(event.target.value)}
@@ -135,7 +135,7 @@ function ObjectEditor({
           />
         </label>
         <button
-          className="rounded-md border border-[var(--sg-line)] bg-[var(--sg-surface)] px-3 py-2 text-sm font-medium disabled:opacity-50"
+          className="cursor-pointer rounded-md border border-[var(--sg-line)] bg-[var(--sg-surface)] px-3 py-2 text-sm font-medium transition-[background-color,border-color] hover:border-[var(--sg-brand)] hover:bg-[var(--sg-surface)] disabled:cursor-not-allowed disabled:opacity-50"
           disabled={disabled}
           type="submit"
         >
@@ -176,7 +176,7 @@ function ObjectPropertyRow({
           키
           <input
             aria-label={`${name} 속성 키`}
-            className="mt-1 w-full rounded-md border border-[var(--sg-line)] px-2 py-1.5 text-sm outline-none focus:border-[var(--sg-brand)]"
+            className="mt-1 w-full rounded-md border border-[var(--sg-line)] px-2 py-1.5 text-sm outline-none focus:border-[var(--sg-brand)] disabled:cursor-not-allowed disabled:bg-[var(--sg-canvas)]"
             disabled={disabled}
             maxLength={100}
             onBlur={commitKey}
@@ -195,7 +195,7 @@ function ObjectPropertyRow({
           유형
           <select
             aria-label={`${name} 유형`}
-            className="mt-1 w-full rounded-md border border-[var(--sg-line)] bg-[var(--sg-surface)] px-2 py-1.5 text-sm"
+            className="mt-1 w-full cursor-pointer rounded-md border border-[var(--sg-line)] bg-[var(--sg-surface)] px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-[var(--sg-canvas)]"
             disabled={disabled}
             onChange={(event) =>
               onCommit(
@@ -216,7 +216,7 @@ function ObjectPropertyRow({
 
         <button
           aria-label={`${name} 삭제`}
-          className="rounded-md border border-[var(--sg-line)] px-2.5 py-1.5 text-sm text-[var(--sg-danger)] disabled:opacity-50"
+          className="cursor-pointer rounded-md border border-[var(--sg-line)] px-2.5 py-1.5 text-sm text-[var(--sg-danger)] transition-colors hover:bg-[var(--sg-danger-soft)] disabled:cursor-not-allowed disabled:opacity-50"
           disabled={disabled}
           onClick={() => onCommit(removeProperty(root, path))}
           type="button"
@@ -258,7 +258,7 @@ function ValueEditor({
     return (
       <input
         aria-label={`${label} 값`}
-        className="w-full rounded-md border border-[var(--sg-line)] px-2.5 py-2 text-sm outline-none focus:border-[var(--sg-brand)]"
+        className="w-full rounded-md border border-[var(--sg-line)] px-2.5 py-2 text-sm outline-none focus:border-[var(--sg-brand)] disabled:cursor-not-allowed disabled:bg-[var(--sg-canvas)]"
         disabled={disabled}
         maxLength={10_000}
         onChange={(event) =>
@@ -285,7 +285,7 @@ function ValueEditor({
                   유형
                   <select
                     aria-label={`${itemLabel} 유형`}
-                    className="ml-2 rounded-md border border-[var(--sg-line)] bg-[var(--sg-surface)] px-2 py-1 text-xs"
+                    className="ml-2 cursor-pointer rounded-md border border-[var(--sg-line)] bg-[var(--sg-surface)] px-2 py-1 text-xs disabled:cursor-not-allowed disabled:bg-[var(--sg-canvas)]"
                     disabled={disabled}
                     onChange={(event) =>
                       onCommit(
@@ -307,7 +307,7 @@ function ValueEditor({
                 </label>
                 <button
                   aria-label={`${itemLabel} 삭제`}
-                  className="text-xs text-[var(--sg-danger)] disabled:opacity-50"
+                  className="cursor-pointer text-xs text-[var(--sg-danger)] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={disabled}
                   onClick={() => onCommit(removeProperty(root, itemPath))}
                   type="button"
@@ -327,7 +327,7 @@ function ValueEditor({
           );
         })}
         <button
-          className="justify-self-start rounded-md border border-dashed border-[var(--sg-line)] px-3 py-1.5 text-sm disabled:opacity-50"
+          className="justify-self-start cursor-pointer rounded-md border border-dashed border-[var(--sg-line)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--sg-canvas)] disabled:cursor-not-allowed disabled:opacity-50"
           disabled={disabled}
           onClick={() => onCommit(appendArrayItem(root, path, ""))}
           type="button"
