@@ -8,10 +8,23 @@ const geometry = vi.hoisted(() => ({
 }));
 
 vi.mock("@xyflow/react", () => ({
-  BaseEdge: ({ id, path, markerEnd, style }: { id: string; path: string; markerEnd?: string; style?: Record<string, unknown> }) => (
+  BaseEdge: ({
+    id,
+    path,
+    markerEnd,
+    interactionWidth,
+    style,
+  }: {
+    id: string;
+    path: string;
+    markerEnd?: string;
+    interactionWidth?: number;
+    style?: Record<string, unknown>;
+  }) => (
     <div
       data-testid="base-edge"
       data-edge-id={id}
+      data-interaction-width={String(interactionWidth ?? "")}
       data-marker-end={markerEnd ?? ""}
       data-path={path}
       data-stroke={String(style?.stroke ?? "")}
@@ -36,6 +49,7 @@ type StoryGraphEdgeProps = Parameters<typeof StoryGraphEdge>[0];
 
 function storyGraphEdgeProps(
   data: NonNullable<StoryGraphFlowEdge["data"]>,
+  overrides: Partial<StoryGraphEdgeProps> = {},
 ): StoryGraphEdgeProps {
   return {
     id: "edge-1",
@@ -47,10 +61,14 @@ function storyGraphEdgeProps(
     sourcePosition: "right",
     targetPosition: "left",
     selected: false,
+    ...overrides,
   } as unknown as StoryGraphEdgeProps;
 }
 
-function renderEdge(overrides: Partial<StoryGraphFlowEdge["data"]> = {}) {
+function renderEdge(
+  overrides: Partial<StoryGraphFlowEdge["data"]> = {},
+  propsOverrides: Partial<StoryGraphEdgeProps> = {},
+) {
   const data: NonNullable<StoryGraphFlowEdge["data"]> = {
     label: "친구라고 생각함",
     direction: "DIRECTED",
@@ -70,7 +88,7 @@ function renderEdge(overrides: Partial<StoryGraphFlowEdge["data"]> = {}) {
     ...overrides,
   };
 
-  render(<StoryGraphEdge {...storyGraphEdgeProps(data)} />);
+  render(<StoryGraphEdge {...storyGraphEdgeProps(data, propsOverrides)} />);
 }
 
 describe("StoryGraphEdge", () => {
@@ -128,6 +146,14 @@ describe("StoryGraphEdge", () => {
     expect(screen.getByTestId("relationship-label")).toHaveAttribute(
       "data-lane-offset",
       "28",
+    );
+  });
+
+  it("forwards a wider interaction area so hover remains stable while lanes expand", () => {
+    renderEdge({}, { interactionWidth: 48 });
+    expect(screen.getByTestId("base-edge")).toHaveAttribute(
+      "data-interaction-width",
+      "48",
     );
   });
 
