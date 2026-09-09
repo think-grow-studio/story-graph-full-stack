@@ -33,6 +33,7 @@ export type StoryGraphEdgeData = {
   waypoints: EdgeRouting["waypoints"];
   laneIndex: number;
   laneCount: number;
+  bundleExpanded?: boolean;
   visualState: RelationshipVisualState;
   presentation: EdgePresentation;
   onSelect?: (edgeId: string) => void;
@@ -40,7 +41,8 @@ export type StoryGraphEdgeData = {
 
 export type StoryGraphFlowEdge = Edge<StoryGraphEdgeData, "storyGraph">;
 
-const laneGap = 18;
+const compactLaneGap = 18;
+const expandedLaneGap = 28;
 
 export function StoryGraphEdge({
   id,
@@ -54,7 +56,11 @@ export function StoryGraphEdge({
 }: EdgeProps<StoryGraphFlowEdge>) {
   if (!data) return null;
 
-  const laneOffset = getLaneOffset(data.laneIndex, data.laneCount);
+  const laneOffset = getLaneOffset(
+    data.laneIndex,
+    data.laneCount,
+    Boolean(data.bundleExpanded),
+  );
   const offsetCoordinates = offsetEndpoints(
     sourceX,
     sourceY,
@@ -71,14 +77,24 @@ export function StoryGraphEdge({
     sourcePosition,
     targetPosition,
   });
-  const strokeWidth = getStrokeWidth(data.visualState, data.presentation.strokeWidth);
-  const opacity = data.visualState === "dimmed" ? 0.2 : data.visualState === "secondary" ? 0.65 : 1;
+  const strokeWidth = getStrokeWidth(
+    data.visualState,
+    data.presentation.strokeWidth,
+  );
+  const opacity =
+    data.visualState === "dimmed"
+      ? 0.2
+      : data.visualState === "secondary"
+        ? 0.65
+        : 1;
 
   return (
     <>
       <BaseEdge
         id={id}
-        markerEnd={data.direction === "DIRECTED" ? MarkerType.ArrowClosed : undefined}
+        markerEnd={
+          data.direction === "DIRECTED" ? MarkerType.ArrowClosed : undefined
+        }
         path={path}
         style={{
           opacity,
@@ -116,8 +132,13 @@ export function StoryGraphEdge({
   );
 }
 
-export function getLaneOffset(laneIndex: number, laneCount: number) {
+export function getLaneOffset(
+  laneIndex: number,
+  laneCount: number,
+  expanded = false,
+) {
   if (laneCount <= 1) return 0;
+  const laneGap = expanded ? expandedLaneGap : compactLaneGap;
   return (laneIndex - (laneCount - 1) / 2) * laneGap;
 }
 
