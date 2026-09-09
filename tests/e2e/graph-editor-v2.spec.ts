@@ -74,11 +74,11 @@ async function connectByDrag(
   await page.mouse.up();
 }
 
-test("Graph V2 keeps opposite and parallel Relationships distinct and projects focus", async ({
+test("Graph V2 keeps opposite and parallel Relationships distinct", async ({
   context,
   page,
 }) => {
-  const identity = await createE2EIdentity("Graph V2 Focus User");
+  const identity = await createE2EIdentity("Graph V2 Bundle User");
 
   try {
     await context.addCookies(identity.cookies);
@@ -87,37 +87,26 @@ test("Graph V2 keeps opposite and parallel Relationships distinct and projects f
     const { workspace } = await bootstrapResponse.json();
     const workspaceId = workspace.id as string;
 
-    const story = await createE2EStory(context.request, workspaceId, "Graph V2 Focus Story");
+    const story = await createE2EStory(
+      context.request,
+      workspaceId,
+      "Graph V2 Bundle Story",
+    );
     const board = await createE2EBoard(
       context.request,
       story.id,
       workspaceId,
-      "Focus Board",
+      "Bundle Board",
     );
     const alice = await createE2ENode(context.request, board.id, workspaceId, {
       name: "Alice",
       x: 80,
-      y: 120,
+      y: 160,
     });
     const bob = await createE2ENode(context.request, board.id, workspaceId, {
       name: "Bob",
       x: 460,
-      y: 120,
-    });
-    const charlie = await createE2ENode(context.request, board.id, workspaceId, {
-      name: "Charlie",
-      x: 80,
-      y: 420,
-    });
-    const dana = await createE2ENode(context.request, board.id, workspaceId, {
-      name: "Dana",
-      x: 460,
-      y: 420,
-    });
-    await createE2EEdge(context.request, board.id, workspaceId, {
-      sourceNodeId: charlie.id,
-      targetNodeId: dana.id,
-      name: "unrelated",
+      y: 160,
     });
 
     await page.goto(`/stories/${story.id}/boards/${board.id}`);
@@ -139,10 +128,6 @@ test("Graph V2 keeps opposite and parallel Relationships distinct and projects f
 
     const aliceNode = page.locator(`.react-flow__node[data-id="${alice.id}"]`);
     const bobNode = page.locator(`.react-flow__node[data-id="${bob.id}"]`);
-    const charlieNode = page.locator(
-      `.react-flow__node[data-id="${charlie.id}"]`,
-    );
-    const danaNode = page.locator(`.react-flow__node[data-id="${dana.id}"]`);
 
     await bobNode.click();
     await page.getByRole("button", { name: "관계 만들기" }).click();
@@ -183,9 +168,6 @@ test("Graph V2 keeps opposite and parallel Relationships distinct and projects f
     const parallelLabel = page.getByRole("button", {
       name: "관계 선택: 함께 여행함",
     });
-    const unrelatedLabel = page.getByRole("button", {
-      name: "관계 선택: unrelated",
-    });
 
     await expect(firstLabel).toBeVisible();
     await expect(oppositeLabel).toBeVisible();
@@ -196,6 +178,133 @@ test("Graph V2 keeps opposite and parallel Relationships distinct and projects f
       ),
     );
     expect(new Set(laneOffsets).size).toBe(3);
+
+    const snapshotResponse = await context.request.get(
+      `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,
+    );
+    expect(snapshotResponse.status()).toBe(200);
+    const snapshot = await snapshotResponse.json();
+    expect(snapshot.edges).toContainEqual(
+      expect.objectContaining({
+        id: firstEdge.id,
+        sourceNodeId: alice.id,
+        targetNodeId: bob.id,
+        name: "친구라고 생각함",
+      }),
+    );
+    expect(snapshot.edges).toContainEqual(
+      expect.objectContaining({
+        id: oppositeEdge.id,
+        sourceNodeId: bob.id,
+        targetNodeId: alice.id,
+        name: "친구라고 속임",
+      }),
+    );
+    expect(snapshot.edges).toContainEqual(
+      expect.objectContaining({
+        id: parallelEdge.id,
+        sourceNodeId: alice.id,
+        targetNodeId: bob.id,
+        name: "함께 여행함",
+      }),
+    );
+  } finally {
+    await cleanupE2EIdentity(identity);
+  }
+});
+
+test("Graph V2 projects Node and Relationship focus across bundles", async ({
+  context,
+  page,
+}) => {
+  const identity = await createE2EIdentity("Graph V2 Focus User");
+
+  try {
+    await context.addCookies(identity.cookies);
+    const bootstrapResponse = await context.request.get("/api/v1/bootstrap");
+    expect(bootstrapResponse.status()).toBe(200);
+    const { workspace } = await bootstrapResponse.json();
+    const workspaceId = workspace.id as string;
+
+    const story = await createE2EStory(
+      context.request,
+      workspaceId,
+      "Graph V2 Focus Story",
+    );
+    const board = await createE2EBoard(
+      context.request,
+      story.id,
+      workspaceId,
+      "Focus Board",
+    );
+    const alice = await createE2ENode(context.request, board.id, workspaceId, {
+      name: "Alice",
+      x: 80,
+      y: 120,
+    });
+    const bob = await createE2ENode(context.request, board.id, workspaceId, {
+      name: "Bob",
+      x: 460,
+      y: 120,
+    });
+    const charlie = await createE2ENode(context.request, board.id, workspaceId, {
+      name: "Charlie",
+      x: 80,
+      y: 420,
+    });
+    const dana = await createE2ENode(context.request, board.id, workspaceId, {
+      name: "Dana",
+      x: 460,
+      y: 420,
+    });
+
+    await createE2EEdge(context.request, board.id, workspaceId, {
+      sourceNodeId: alice.id,
+      targetNodeId: bob.id,
+      name: "친구라고 생각함",
+    });
+    await createE2EEdge(context.request, board.id, workspaceId, {
+      sourceNodeId: bob.id,
+      targetNodeId: alice.id,
+      name: "친구라고 속임",
+    });
+    await createE2EEdge(context.request, board.id, workspaceId, {
+      sourceNodeId: alice.id,
+      targetNodeId: bob.id,
+      name: "함께 여행함",
+    });
+    await createE2EEdge(context.request, board.id, workspaceId, {
+      sourceNodeId: charlie.id,
+      targetNodeId: dana.id,
+      name: "unrelated",
+    });
+
+    await page.goto(`/stories/${story.id}/boards/${board.id}`);
+    await expect(page.getByLabel("Graph canvas")).toBeVisible();
+
+    const aliceNode = page.locator(`.react-flow__node[data-id="${alice.id}"]`);
+    const bobNode = page.locator(`.react-flow__node[data-id="${bob.id}"]`);
+    const charlieNode = page.locator(
+      `.react-flow__node[data-id="${charlie.id}"]`,
+    );
+    const danaNode = page.locator(`.react-flow__node[data-id="${dana.id}"]`);
+    const firstLabel = page.getByRole("button", {
+      name: "관계 선택: 친구라고 생각함",
+    });
+    const oppositeLabel = page.getByRole("button", {
+      name: "관계 선택: 친구라고 속임",
+    });
+    const parallelLabel = page.getByRole("button", {
+      name: "관계 선택: 함께 여행함",
+    });
+    const unrelatedLabel = page.getByRole("button", {
+      name: "관계 선택: unrelated",
+    });
+
+    await expect(firstLabel).toBeVisible();
+    await expect(oppositeLabel).toBeVisible();
+    await expect(parallelLabel).toBeVisible();
+    await expect(unrelatedLabel).toBeVisible();
 
     await aliceNode.click();
     await expect(charlieNode).toHaveCSS("opacity", "0.25");
@@ -232,36 +341,6 @@ test("Graph V2 keeps opposite and parallel Relationships distinct and projects f
     await expect(aliceNode).toHaveCSS("opacity", "1");
     await expect(bobNode).toHaveCSS("opacity", "1");
     await expect(charlieNode).toHaveCSS("opacity", "0.25");
-
-    const snapshotResponse = await context.request.get(
-      `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,
-    );
-    expect(snapshotResponse.status()).toBe(200);
-    const snapshot = await snapshotResponse.json();
-    expect(snapshot.edges).toContainEqual(
-      expect.objectContaining({
-        id: firstEdge.id,
-        sourceNodeId: alice.id,
-        targetNodeId: bob.id,
-        name: "친구라고 생각함",
-      }),
-    );
-    expect(snapshot.edges).toContainEqual(
-      expect.objectContaining({
-        id: oppositeEdge.id,
-        sourceNodeId: bob.id,
-        targetNodeId: alice.id,
-        name: "친구라고 속임",
-      }),
-    );
-    expect(snapshot.edges).toContainEqual(
-      expect.objectContaining({
-        id: parallelEdge.id,
-        sourceNodeId: alice.id,
-        targetNodeId: bob.id,
-        name: "함께 여행함",
-      }),
-    );
   } finally {
     await cleanupE2EIdentity(identity);
   }
