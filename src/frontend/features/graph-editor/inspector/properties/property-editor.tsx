@@ -114,6 +114,7 @@ function ObjectEditor({
 
       <form
         className="flex flex-wrap items-end gap-2 rounded-[var(--sg-radius-sm)] bg-[var(--sg-canvas)] p-2"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           addProperty();
