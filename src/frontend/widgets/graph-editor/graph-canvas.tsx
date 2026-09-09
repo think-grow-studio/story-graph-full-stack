@@ -78,6 +78,7 @@ const nodeTypes = { storyGraph: StoryGraphNode };
 const edgeTypes = { storyGraph: StoryGraphEdge };
 const defaultNodeWidth = 112;
 const defaultNodeHeight = 48;
+const relationshipInteractionWidth = 48;
 
 type FlowNode = StoryGraphFlowNode;
 type FlowEdge = StoryGraphFlowEdge;
@@ -166,6 +167,7 @@ export function GraphCanvas({
           target: edge.targetNodeId,
           sourceHandle: route.sourcePort,
           targetHandle: route.targetPort,
+          interactionWidth: relationshipInteractionWidth,
           data: {
             label: edge.name,
             direction: route.direction,
