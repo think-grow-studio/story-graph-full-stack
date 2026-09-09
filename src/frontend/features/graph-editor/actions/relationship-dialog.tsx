@@ -108,7 +108,7 @@ export function RelationshipDialog({
           </Button>
         </div>
       </div>
-      <form className="grid gap-4" onSubmit={handleCreate}>
+      <form className="grid gap-4" noValidate onSubmit={handleCreate}>
         <TextField
           autoFocus
           disabled={busy}
