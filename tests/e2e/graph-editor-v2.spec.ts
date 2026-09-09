@@ -12,14 +12,26 @@ import {
   createE2EStory,
 } from "./helpers/graph-fixtures";
 
+type GraphPatchPayload = {
+  routing?: { type?: string };
+  properties?: {
+    profile?: string | { role?: string };
+  };
+};
+
 test.afterAll(async () => {
   await closeE2EAuthDatabase();
 });
 
+function getProfileObject(payload: GraphPatchPayload) {
+  const profile = payload.properties?.profile;
+  return typeof profile === "object" && profile !== null ? profile : null;
+}
+
 function waitForPatch(
   page: Page,
   pathname: string,
-  predicate: (payload: Record<string, any>) => boolean,
+  predicate: (payload: GraphPatchPayload) => boolean,
 ) {
   return page.waitForResponse((response) => {
     if (
@@ -29,7 +41,7 @@ function waitForPatch(
       return false;
     }
 
-    return predicate(response.request().postDataJSON() as Record<string, any>);
+    return predicate(response.request().postDataJSON() as GraphPatchPayload);
   });
 }
 
@@ -323,10 +335,7 @@ test("Graph V2 persists routing and nested properties edited through the Inspect
     const objectPromise = waitForPatch(
       page,
       `/api/v1/boards/${board.id}/edges/${edge.id}`,
-      (payload) =>
-        payload.properties?.profile !== null &&
-        typeof payload.properties?.profile === "object" &&
-        !Array.isArray(payload.properties.profile),
+      (payload) => getProfileObject(payload) !== null,
     );
     await page.getByLabel("profile 유형").selectOption("object");
     expect((await objectPromise).status()).toBe(200);
@@ -335,7 +344,7 @@ test("Graph V2 persists routing and nested properties edited through the Inspect
     const addRolePromise = waitForPatch(
       page,
       `/api/v1/boards/${board.id}/edges/${edge.id}`,
-      (payload) => payload.properties?.profile?.role === "",
+      (payload) => getProfileObject(payload)?.role === "",
     );
     await page.getByRole("button", { name: "profile에 속성 추가" }).click();
     expect((await addRolePromise).status()).toBe(200);
@@ -343,7 +352,7 @@ test("Graph V2 persists routing and nested properties edited through the Inspect
     const rolePromise = waitForPatch(
       page,
       `/api/v1/boards/${board.id}/edges/${edge.id}`,
-      (payload) => payload.properties?.profile?.role === "lead",
+      (payload) => getProfileObject(payload)?.role === "lead",
     );
     await page.getByLabel("role 값").fill("lead");
     const roleUpdate = await rolePromise;
