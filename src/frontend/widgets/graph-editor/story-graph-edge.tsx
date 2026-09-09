@@ -53,6 +53,7 @@ export function StoryGraphEdge({
   targetY,
   sourcePosition,
   targetPosition,
+  interactionWidth,
 }: EdgeProps<StoryGraphFlowEdge>) {
   if (!data) return null;
 
@@ -92,6 +93,7 @@ export function StoryGraphEdge({
     <>
       <BaseEdge
         id={id}
+        interactionWidth={interactionWidth}
         markerEnd={
           data.direction === "DIRECTED" ? MarkerType.ArrowClosed : undefined
         }
