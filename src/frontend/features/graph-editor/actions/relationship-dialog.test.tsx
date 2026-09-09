@@ -52,6 +52,10 @@ describe("RelationshipDialog", () => {
       "aria-pressed",
       "true",
     );
+    expect(screen.getByLabelText("관계 이름").closest("form")).toHaveProperty(
+      "noValidate",
+      true,
+    );
 
     await user.type(screen.getByLabelText("관계 이름"), "  친구  ");
     await user.click(screen.getByRole("button", { name: "관계 만들기" }));
