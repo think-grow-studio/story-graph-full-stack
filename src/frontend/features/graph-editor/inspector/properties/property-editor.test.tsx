@@ -46,6 +46,10 @@ describe("PropertyEditor", () => {
 
     expect(screen.queryByText("속성 JSON")).not.toBeInTheDocument();
     expect(screen.getByLabelText("job 값")).toHaveValue("mage");
+    expect(screen.getByLabelText("새 속성 키").closest("form")).toHaveProperty(
+      "noValidate",
+      true,
+    );
 
     await user.clear(screen.getByLabelText("job 값"));
     await user.type(screen.getByLabelText("job 값"), "wizard");
