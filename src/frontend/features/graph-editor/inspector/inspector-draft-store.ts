@@ -1,6 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import {
+  areInspectorDraftValuesEqual,
   createInspectorDraftFromEntity,
   type InspectorCanonicalEntity,
   type InspectorDraft,
@@ -9,7 +10,15 @@ import {
 } from "./inspector-draft-model";
 
 type InspectorDraftReplacement =
-  | Pick<InspectorDraft, "name" | "description" | "propertiesText">
+  | Pick<
+      InspectorDraft,
+      | "name"
+      | "description"
+      | "kind"
+      | "properties"
+      | "direction"
+      | "routingType"
+    >
   | InspectorCanonicalEntity;
 
 export type InspectorDraftState = {
@@ -45,13 +54,7 @@ export function createInspectorDraftStore(): InspectorDraftStore {
       if (!current) return;
 
       const next = { ...current, ...patch };
-      if (
-        next.name === current.name &&
-        next.description === current.description &&
-        next.propertiesText === current.propertiesText
-      ) {
-        return;
-      }
+      if (areInspectorDraftValuesEqual(next, current)) return;
 
       set((state) => ({
         drafts: {
@@ -67,14 +70,8 @@ export function createInspectorDraftStore(): InspectorDraftStore {
       const current = get().drafts[key];
       if (!current) return;
 
-      const next = toDraftReplacement(input);
-      if (
-        next.name === current.name &&
-        next.description === current.description &&
-        next.propertiesText === current.propertiesText
-      ) {
-        return;
-      }
+      const next = toDraftReplacement(input, current.revision);
+      if (areInspectorDraftValuesEqual(next, current)) return;
 
       set((state) => ({
         drafts: {
@@ -99,13 +96,14 @@ export function createInspectorDraftStore(): InspectorDraftStore {
 
 function toDraftReplacement(
   input: InspectorDraftReplacement,
-): Pick<InspectorDraft, "name" | "description" | "propertiesText"> {
-  if ("propertiesText" in input) return input;
+  revision: number,
+): InspectorDraft {
+  if ("direction" in input && "routingType" in input) {
+    return { ...input, revision };
+  }
 
-  const draft = createInspectorDraftFromEntity(input);
   return {
-    name: draft.name,
-    description: draft.description,
-    propertiesText: draft.propertiesText,
+    ...createInspectorDraftFromEntity(input as InspectorCanonicalEntity),
+    revision,
   };
 }

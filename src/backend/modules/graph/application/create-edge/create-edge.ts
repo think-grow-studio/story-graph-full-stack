@@ -1,7 +1,13 @@
 import { ApplicationError } from "@/backend/common/errors/application-error";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
 import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
-import type { GraphEdge, JsonObject } from "../../domain/graph";
+import type {
+  EdgeDirection,
+  EdgePresentation,
+  EdgeRouting,
+  GraphEdge,
+  GraphProperties,
+} from "../../domain/graph";
 import type { GraphRepository } from "../../domain/graph.repository";
 
 export async function createEdge(
@@ -12,12 +18,14 @@ export async function createEdge(
     id: string;
     sourceNodeId: string;
     targetNodeId: string;
+    direction: EdgeDirection;
     name: string;
     description: string;
+    kind: string;
     iconKey: string | null;
-    properties: JsonObject;
-    style: JsonObject;
-    labelPresentation: JsonObject;
+    properties: GraphProperties;
+    presentation: EdgePresentation;
+    routing: EdgeRouting;
   },
   dependencies: {
     stories: StoryRepository;
@@ -54,11 +62,13 @@ export async function createEdge(
     boardId: board.id,
     sourceNodeId: source.id,
     targetNodeId: target.id,
+    direction: input.direction,
     name: input.name,
     description: input.description,
+    kind: input.kind,
     iconKey: input.iconKey,
     properties: input.properties,
-    style: input.style,
-    labelPresentation: input.labelPresentation,
+    presentation: input.presentation,
+    routing: input.routing,
   });
 }

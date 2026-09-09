@@ -2,10 +2,9 @@
 
 import {
   Background,
+  ConnectionMode,
   Controls,
   ReactFlow,
-  type Edge,
-  type Node,
   type OnConnect,
   type OnNodeDrag,
   type ReactFlowInstance,
@@ -14,13 +13,33 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
   type Ref,
 } from "react";
+import type {
+  EdgeDirection,
+  EdgePresentation,
+  EdgeRouting,
+} from "@/contracts/graph/graph.contract";
+import { projectEdgeRoute } from "@/frontend/features/graph-editor/model/edge-route-projection";
+import { projectGraphFocus } from "@/frontend/features/graph-editor/model/focus-projection";
+import { buildRelationshipBundles } from "@/frontend/features/graph-editor/model/relationship-bundle";
+import {
+  StoryGraphEdge,
+  type RelationshipVisualState,
+  type StoryGraphFlowEdge,
+} from "./story-graph-edge";
+import {
+  StoryGraphNode,
+  type StoryGraphFlowNode,
+} from "./story-graph-node";
 
 export type GraphCanvasNode = {
   id: string;
   name: string;
   position: { x: number; y: number };
+  width?: number | null;
+  height?: number | null;
 };
 
 export type GraphCanvasEdge = {
@@ -28,6 +47,9 @@ export type GraphCanvasEdge = {
   name: string;
   sourceNodeId: string;
   targetNodeId: string;
+  direction: EdgeDirection;
+  presentation: EdgePresentation;
+  routing: EdgeRouting;
 };
 
 export type GraphCanvasHandle = {
@@ -37,6 +59,9 @@ export type GraphCanvasHandle = {
 export type GraphCanvasProps = {
   nodes: GraphCanvasNode[];
   edges?: GraphCanvasEdge[];
+  selectedNodeId?: string | null;
+  selectedEdgeId?: string | null;
+  onClearSelection?: () => void;
   onNodePositionChange: (
     nodeId: string,
     position: { x: number; y: number },
@@ -49,11 +74,21 @@ export type GraphCanvasProps = {
   ref?: Ref<GraphCanvasHandle>;
 };
 
-type FlowNode = Node<{ label: string }>;
+const nodeTypes = { storyGraph: StoryGraphNode };
+const edgeTypes = { storyGraph: StoryGraphEdge };
+const defaultNodeWidth = 112;
+const defaultNodeHeight = 48;
+const relationshipInteractionWidth = 48;
+
+type FlowNode = StoryGraphFlowNode;
+type FlowEdge = StoryGraphFlowEdge;
 
 export function GraphCanvas({
   nodes,
   edges = [],
+  selectedNodeId = null,
+  selectedEdgeId = null,
+  onClearSelection,
   onNodePositionChange,
   onNodeDragStart,
   onNodeDragStop,
@@ -62,27 +97,109 @@ export function GraphCanvas({
   onSelectEdge,
   ref,
 }: GraphCanvasProps) {
+  const [connectionActive, setConnectionActive] = useState(false);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const instanceRef = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null);
+  const instanceRef = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
+  const focus = useMemo(
+    () => projectGraphFocus({ selectedNodeId, selectedEdgeId, edges }),
+    [edges, selectedEdgeId, selectedNodeId],
+  );
+  const hasFocus = selectedNodeId !== null || selectedEdgeId !== null;
   const flowNodes = useMemo<FlowNode[]>(
     () =>
       nodes.map((node) => ({
         id: node.id,
+        type: "storyGraph",
         position: node.position,
-        data: { label: node.name },
+        selected: node.id === selectedNodeId,
+        style:
+          hasFocus && !focus.focusedNodeIds.has(node.id)
+            ? { opacity: 0.25 }
+            : undefined,
+        data: { label: node.name, connectionActive },
       })),
-    [nodes],
+    [connectionActive, focus.focusedNodeIds, hasFocus, nodes, selectedNodeId],
   );
-  const flowEdges = useMemo<Edge[]>(
-    () =>
-      edges.map((edge) => ({
-        id: edge.id,
-        source: edge.sourceNodeId,
-        target: edge.targetNodeId,
-        label: edge.name,
-      })),
-    [edges],
-  );
+  const flowEdges = useMemo<FlowEdge[]>(() => {
+    const boundsById = new Map(
+      nodes.map((node) => [
+        node.id,
+        {
+          x: node.position.x,
+          y: node.position.y,
+          width: node.width ?? defaultNodeWidth,
+          height: node.height ?? defaultNodeHeight,
+        },
+      ]),
+    );
+
+    return buildRelationshipBundles(edges).flatMap((bundle) => {
+      const bundleExpanded = bundle.edges.some(
+        (edge) => edge.id === selectedEdgeId || edge.id === hoveredEdgeId,
+      );
+
+      return bundle.edges.map((edge, laneIndex) => {
+        const sourceNode = boundsById.get(edge.sourceNodeId);
+        const targetNode = boundsById.get(edge.targetNodeId);
+        const route = projectEdgeRoute({
+          edge,
+          sourceNode: sourceNode ?? {
+            x: 0,
+            y: 0,
+            width: defaultNodeWidth,
+            height: defaultNodeHeight,
+          },
+          targetNode: targetNode ?? {
+            x: 0,
+            y: 0,
+            width: defaultNodeWidth,
+            height: defaultNodeHeight,
+          },
+          laneIndex,
+          laneCount: bundle.edges.length,
+        });
+
+        return {
+          id: edge.id,
+          type: "storyGraph",
+          source: edge.sourceNodeId,
+          target: edge.targetNodeId,
+          sourceHandle: route.sourcePort,
+          targetHandle: route.targetPort,
+          interactionWidth: relationshipInteractionWidth,
+          data: {
+            label: edge.name,
+            direction: route.direction,
+            routingType: route.routingType,
+            sourcePort: route.sourcePort,
+            targetPort: route.targetPort,
+            waypoints: route.waypoints,
+            laneIndex: route.laneIndex,
+            laneCount: route.laneCount,
+            bundleExpanded,
+            visualState: getRelationshipVisualState(
+              edge.id,
+              hasFocus,
+              focus.focusedEdgeIds,
+              focus.secondaryEdgeIds,
+            ),
+            presentation: edge.presentation,
+            onSelect: onSelectEdge,
+          },
+        } satisfies FlowEdge;
+      });
+    });
+  }, [
+    edges,
+    focus.focusedEdgeIds,
+    focus.secondaryEdgeIds,
+    hasFocus,
+    hoveredEdgeId,
+    nodes,
+    onSelectEdge,
+    selectedEdgeId,
+  ]);
 
   useImperativeHandle(ref, () => ({
     getCenterPosition() {
@@ -118,6 +235,7 @@ export function GraphCanvas({
   };
 
   const handleConnect: OnConnect = (connection) => {
+    setConnectionActive(false);
     if (!connection.source || !connection.target) return;
     onConnectNodes(connection.source, connection.target);
   };
@@ -128,12 +246,21 @@ export function GraphCanvas({
       className="h-full min-h-[420px] overflow-hidden rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] shadow-[0_1px_2px_rgba(23,25,29,0.03)]"
       ref={containerRef}
     >
-      <ReactFlow<FlowNode, Edge>
+      <ReactFlow<FlowNode, FlowEdge>
+        connectionMode={ConnectionMode.Loose}
         edges={flowEdges}
+        edgeTypes={edgeTypes}
         fitView
         nodes={flowNodes}
+        nodeTypes={nodeTypes}
         onConnect={handleConnect}
+        onConnectEnd={() => setConnectionActive(false)}
+        onConnectStart={() => setConnectionActive(true)}
         onEdgeClick={(_, edge) => onSelectEdge?.(edge.id)}
+        onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+        onEdgeMouseLeave={(_, edge) => {
+          setHoveredEdgeId((current) => (current === edge.id ? null : current));
+        }}
         onInit={(instance) => {
           instanceRef.current = instance;
         }}
@@ -141,10 +268,23 @@ export function GraphCanvas({
         onNodeDrag={handleNodeDrag}
         onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
+        onPaneClick={() => onClearSelection?.()}
       >
         <Background />
         <Controls />
       </ReactFlow>
     </div>
   );
+}
+
+function getRelationshipVisualState(
+  edgeId: string,
+  hasFocus: boolean,
+  focusedEdgeIds: Set<string>,
+  secondaryEdgeIds: Set<string>,
+): RelationshipVisualState {
+  if (!hasFocus) return "idle";
+  if (focusedEdgeIds.has(edgeId)) return "selected";
+  if (secondaryEdgeIds.has(edgeId)) return "secondary";
+  return "dimmed";
 }

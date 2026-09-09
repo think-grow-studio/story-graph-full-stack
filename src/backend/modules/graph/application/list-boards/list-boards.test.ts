@@ -23,6 +23,11 @@ const boards: Board[] = [
     name: "Main Board",
     description: "",
     tags: [],
+    graphSettings: {
+      defaultEdgeRouting: "orthogonal",
+      snapToGrid: false,
+      layoutMode: "free",
+    },
     createdAt: new Date("2026-08-28T00:00:00.000Z"),
     updatedAt: new Date("2026-08-28T00:00:00.000Z"),
   },

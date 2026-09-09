@@ -47,7 +47,11 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
     onSelectNode,
     onSelectEdge,
   }: {
-    nodes: Array<{ id: string; name: string; position: { x: number; y: number } }>;
+    nodes: Array<{
+      id: string;
+      name: string;
+      position: { x: number; y: number };
+    }>;
     edges?: Array<{ id: string; name: string }>;
     onNodePositionChange?: (
       nodeId: string,
@@ -63,7 +67,9 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
             Select {node.name}
           </button>
           <button
-            onClick={() => onNodePositionChange?.(node.id, { x: 999, y: 888 })}
+            onClick={() =>
+              onNodePositionChange?.(node.id, { x: 999, y: 888 })
+            }
             type="button"
           >
             Move {node.name}
@@ -74,7 +80,11 @@ vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
         </div>
       ))}
       {edges.map((edge) => (
-        <button key={edge.id} onClick={() => onSelectEdge?.(edge.id)} type="button">
+        <button
+          key={edge.id}
+          onClick={() => onSelectEdge?.(edge.id)}
+          type="button"
+        >
           Select {edge.name}
         </button>
       ))}
@@ -102,6 +112,11 @@ function snapshot() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+      graphSettings: {
+        defaultEdgeRouting: "orthogonal",
+        snapToGrid: false,
+        layoutMode: "free",
+      },
     },
     nodes: [
       {
@@ -116,10 +131,17 @@ function snapshot() {
         width: null,
         height: null,
         zIndex: 0,
-        style: {},
+        presentation: {
+          shape: "rounded-rect",
+          fillColor: null,
+          borderColor: null,
+          borderWidth: null,
+          textColor: null,
+        },
         version: 3,
         createdAt: now,
         updatedAt: now,
+        kind: "entity",
       },
       {
         id: bobId,
@@ -133,10 +155,17 @@ function snapshot() {
         width: null,
         height: null,
         zIndex: 0,
-        style: {},
+        presentation: {
+          shape: "rounded-rect",
+          fillColor: null,
+          borderColor: null,
+          borderWidth: null,
+          textColor: null,
+        },
         version: 1,
         createdAt: now,
         updatedAt: now,
+        kind: "entity",
       },
     ],
     edges: [
@@ -148,12 +177,24 @@ function snapshot() {
         name: "knows",
         description: "Old friends",
         iconKey: null,
-        properties: { since: 2020 },
-        style: {},
-        labelPresentation: {},
+        properties: { since: "2020" },
+        presentation: {
+          strokeColor: null,
+          strokeWidth: null,
+          strokeStyle: "solid",
+          labelColor: null,
+        },
+        routing: {
+          type: "orthogonal",
+          sourcePort: "auto",
+          targetPort: "auto",
+          waypoints: [] as Array<{ x: number; y: number }>,
+        },
         version: 4,
         createdAt: now,
         updatedAt: now,
+        direction: "DIRECTED",
+        kind: "relationship",
       },
     ],
   };
@@ -161,7 +202,10 @@ function snapshot() {
 
 function renderPage() {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
   });
   const view = render(
     <QueryClientProvider client={queryClient}>
@@ -181,21 +225,31 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getBootstrap.mockResolvedValue({
     actor: { id: "user-1", email: "user@example.com", name: "Writer" },
-    workspace: { id: "workspace-1", name: "Workspace", slug: "workspace" },
+    workspace: {
+      id: "workspace-1",
+      name: "Workspace",
+      slug: "workspace",
+    },
   });
   mocks.getBoardSnapshot.mockResolvedValue(snapshot());
   mocks.updateNode.mockResolvedValue({
     ...snapshot().nodes[0],
     name: "Alicia",
     description: "Main protagonist",
-    properties: { role: "lead", age: 31 },
+    kind: "person",
+    properties: { role: "lead", age: "31" },
     version: 4,
   });
   mocks.updateEdge.mockResolvedValue({
     ...snapshot().edges[0],
     name: "best friend",
     description: "Childhood friends",
-    properties: { since: 2012 },
+    properties: { since: "2012" },
+    direction: "UNDIRECTED",
+    routing: {
+      ...snapshot().edges[0].routing,
+      type: "curved",
+    },
     version: 5,
   });
 });
@@ -210,17 +264,23 @@ describe("Graph Editor inspector", () => {
     const user = userEvent.setup();
     const { queryClient } = renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Select Alice" }),
+    );
     expect(screen.getByRole("heading", { name: "노드" })).toBeInTheDocument();
     expect(screen.getByLabelText("이름")).toHaveValue("Alice");
     expect(screen.getByLabelText("설명")).toHaveValue("Protagonist");
-    expect(screen.getByLabelText("속성 JSON")).toHaveValue(
-      '{\n  "role": "lead"\n}',
-    );
-    expect(screen.queryByRole("button", { name: "Save Node" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("종류")).toHaveValue("entity");
+    expect(screen.getByLabelText("role 값")).toHaveValue("lead");
+    expect(screen.queryByLabelText("속성 JSON")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save Node" }),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Move Alice" }));
-    expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent("999,888");
+    expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent(
+      "999,888",
+    );
 
     vi.useFakeTimers();
     fireEvent.change(screen.getByLabelText("이름"), {
@@ -229,8 +289,15 @@ describe("Graph Editor inspector", () => {
     fireEvent.change(screen.getByLabelText("설명"), {
       target: { value: "Main protagonist" },
     });
-    fireEvent.change(screen.getByLabelText("속성 JSON"), {
-      target: { value: '{"role":"lead","age":31}' },
+    fireEvent.change(screen.getByLabelText("종류"), {
+      target: { value: "person" },
+    });
+    fireEvent.change(screen.getByLabelText("새 속성 키"), {
+      target: { value: "age" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "속성 추가" }));
+    fireEvent.change(screen.getByLabelText("age 값"), {
+      target: { value: "31" },
     });
 
     await advanceAutosave(499);
@@ -246,10 +313,22 @@ describe("Graph Editor inspector", () => {
       expectedVersion: 3,
       name: "Alicia",
       description: "Main protagonist",
-      properties: { role: "lead", age: 31 },
+      kind: "person",
+      iconKey: null,
+      properties: { role: "lead", age: "31" },
+      presentation: {
+        shape: "rounded-rect",
+        fillColor: null,
+        borderColor: null,
+        borderWidth: null,
+        textColor: null,
+      },
     });
     expect(screen.getByLabelText("이름")).toHaveValue("Alicia");
-    expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent("999,888");
+    expect(screen.getByLabelText("age 값")).toHaveValue("31");
+    expect(screen.getByTestId(`position-${aliceId}`)).toHaveTextContent(
+      "999,888",
+    );
 
     await waitFor(() => {
       const cachedSnapshot = queryClient.getQueryData<ReturnType<typeof snapshot>>([
@@ -259,17 +338,27 @@ describe("Graph Editor inspector", () => {
         boardId,
       ]);
       expect(cachedSnapshot?.nodes).toContainEqual(
-        expect.objectContaining({ id: aliceId, name: "Alicia", version: 4 }),
+        expect.objectContaining({
+          id: aliceId,
+          name: "Alicia",
+          kind: "person",
+          version: 4,
+        }),
       );
     });
   });
 
-  it("autosaves a selected Relationship after 500 ms", async () => {
+  it("autosaves structured Relationship controls after 500 ms", async () => {
     const user = userEvent.setup();
     const { queryClient } = renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Select knows" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Select knows" }),
+    );
     expect(screen.getByRole("heading", { name: "관계" })).toBeInTheDocument();
+    expect(screen.getByLabelText("방향")).toHaveValue("DIRECTED");
+    expect(screen.getByLabelText("선 모양")).toHaveValue("orthogonal");
+    expect(screen.getByLabelText("since 값")).toHaveValue("2020");
     expect(
       screen.queryByRole("button", { name: "Save Relationship" }),
     ).not.toBeInTheDocument();
@@ -281,8 +370,14 @@ describe("Graph Editor inspector", () => {
     fireEvent.change(screen.getByLabelText("설명"), {
       target: { value: "Childhood friends" },
     });
-    fireEvent.change(screen.getByLabelText("속성 JSON"), {
-      target: { value: '{"since":2012}' },
+    fireEvent.change(screen.getByLabelText("since 값"), {
+      target: { value: "2012" },
+    });
+    fireEvent.change(screen.getByLabelText("방향"), {
+      target: { value: "UNDIRECTED" },
+    });
+    fireEvent.change(screen.getByLabelText("선 모양"), {
+      target: { value: "curved" },
     });
 
     await advanceAutosave(500);
@@ -295,8 +390,23 @@ describe("Graph Editor inspector", () => {
       workspaceId: "workspace-1",
       expectedVersion: 4,
       name: "best friend",
+      direction: "UNDIRECTED",
       description: "Childhood friends",
-      properties: { since: 2012 },
+      kind: "relationship",
+      iconKey: null,
+      properties: { since: "2012" },
+      presentation: {
+        strokeColor: null,
+        strokeWidth: null,
+        strokeStyle: "solid",
+        labelColor: null,
+      },
+      routing: {
+        type: "curved",
+        sourcePort: "auto",
+        targetPort: "auto",
+        waypoints: [],
+      },
     });
 
     await waitFor(() => {
@@ -307,7 +417,12 @@ describe("Graph Editor inspector", () => {
         boardId,
       ]);
       expect(cachedSnapshot?.edges).toContainEqual(
-        expect.objectContaining({ id: edgeId, name: "best friend", version: 5 }),
+        expect.objectContaining({
+          id: edgeId,
+          name: "best friend",
+          direction: "UNDIRECTED",
+          version: 5,
+        }),
       );
     });
   });
@@ -316,13 +431,15 @@ describe("Graph Editor inspector", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Select Alice" }),
+    );
     vi.useFakeTimers();
-    fireEvent.change(screen.getByLabelText("속성 JSON"), {
-      target: { value: '{"job":' },
+    fireEvent.change(screen.getByLabelText("이름"), {
+      target: { value: "   " },
     });
 
-    expect(screen.getByText("Properties must be valid JSON.")).toBeInTheDocument();
+    expect(screen.getByText("Name is required.")).toBeInTheDocument();
     await advanceAutosave(500);
     expect(mocks.updateNode).not.toHaveBeenCalled();
     vi.useRealTimers();
@@ -331,13 +448,15 @@ describe("Graph Editor inspector", () => {
     expect(screen.getByLabelText("이름")).toHaveValue("Bob");
     await user.click(screen.getByRole("button", { name: "Select Alice" }));
 
-    expect(screen.getByLabelText("속성 JSON")).toHaveValue('{"job":');
-    expect(screen.getByText("Properties must be valid JSON.")).toBeInTheDocument();
+    expect(screen.getByLabelText("이름")).toHaveValue("   ");
+    expect(screen.getByText("Name is required.")).toBeInTheDocument();
     expect(mocks.updateNode).not.toHaveBeenCalled();
   });
 
-  it("does not let a persistence version response replace a newer raw draft", async () => {
-    let resolveFirst!: (value: ReturnType<typeof snapshot>["nodes"][number]) => void;
+  it("does not let a persistence version response replace a newer structured draft", async () => {
+    let resolveFirst!: (
+      value: ReturnType<typeof snapshot>["nodes"][number],
+    ) => void;
     mocks.updateNode.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -347,7 +466,9 @@ describe("Graph Editor inspector", () => {
 
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Select Alice" }),
+    );
 
     vi.useFakeTimers();
     fireEvent.change(screen.getByLabelText("이름"), {
@@ -357,7 +478,7 @@ describe("Graph Editor inspector", () => {
     expect(mocks.updateNode).toHaveBeenCalledTimes(1);
 
     fireEvent.change(screen.getByLabelText("이름"), {
-      target: { value: "Alicia newest raw draft" },
+      target: { value: "Alicia newest structured draft" },
     });
 
     await act(async () => {
@@ -370,10 +491,12 @@ describe("Graph Editor inspector", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByLabelText("이름")).toHaveValue("Alicia newest raw draft");
+    expect(screen.getByLabelText("이름")).toHaveValue(
+      "Alicia newest structured draft",
+    );
   });
 
-  it("preserves the editable raw draft after a 409 conflict", async () => {
+  it("preserves the editable structured draft after a 409 conflict", async () => {
     mocks.updateNode.mockRejectedValueOnce({
       isAxiosError: true,
       response: { status: 409 },
@@ -381,7 +504,9 @@ describe("Graph Editor inspector", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Select Alice" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Select Alice" }),
+    );
     vi.useFakeTimers();
     fireEvent.change(screen.getByLabelText("이름"), {
       target: { value: "Alicia local draft" },
@@ -390,7 +515,9 @@ describe("Graph Editor inspector", () => {
     vi.useRealTimers();
 
     expect(
-      await screen.findByText("This Node changed elsewhere. Reload before saving again."),
+      await screen.findByText(
+        "This Node changed elsewhere. Reload before saving again.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("이름")).toHaveValue("Alicia local draft");
     expect(mocks.updateNode.mock.calls[0][0]).toMatchObject({

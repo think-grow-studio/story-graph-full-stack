@@ -1,7 +1,11 @@
 import { ApplicationError } from "@/backend/common/errors/application-error";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
 import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
-import type { GraphNode, JsonObject } from "../../domain/graph";
+import type {
+  GraphNode,
+  GraphProperties,
+  NodePresentation,
+} from "../../domain/graph";
 import type { GraphRepository } from "../../domain/graph.repository";
 
 export async function createNode(
@@ -12,14 +16,15 @@ export async function createNode(
     id: string;
     name: string;
     description: string;
+    kind: string;
     iconKey: string | null;
-    properties: JsonObject;
+    properties: GraphProperties;
     x: number;
     y: number;
     width: number | null;
     height: number | null;
     zIndex: number;
-    style: JsonObject;
+    presentation: NodePresentation;
   },
   dependencies: {
     stories: StoryRepository;
@@ -48,6 +53,7 @@ export async function createNode(
     boardId: board.id,
     name: input.name,
     description: input.description,
+    kind: input.kind,
     iconKey: input.iconKey,
     properties: input.properties,
     x: input.x,
@@ -55,6 +61,6 @@ export async function createNode(
     width: input.width,
     height: input.height,
     zIndex: input.zIndex,
-    style: input.style,
+    presentation: input.presentation,
   });
 }

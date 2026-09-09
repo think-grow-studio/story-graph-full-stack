@@ -118,8 +118,8 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
     await expect(bob).toContainText("Bob");
     await expect(page.getByText("저장됨")).toBeVisible();
 
-    const sourceHandle = alice.locator(".react-flow__handle.source");
-    const targetHandle = bob.locator(".react-flow__handle.target");
+    const sourceHandle = alice.locator('.react-flow__handle[data-handleid="right"]');
+    const targetHandle = bob.locator('.react-flow__handle[data-handleid="left"]');
     const sourceBox = await sourceHandle.boundingBox();
     const targetBox = await targetHandle.boundingBox();
     expect(sourceBox).not.toBeNull();

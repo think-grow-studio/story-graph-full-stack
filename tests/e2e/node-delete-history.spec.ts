@@ -78,9 +78,10 @@ test("Graph Editor persists direct Node delete Undo and Redo with incident Relat
     const aliceElement = page.locator(`.react-flow__node[data-id="${alice.id}"]`);
     const bobElement = page.locator(`.react-flow__node[data-id="${bob.id}"]`);
     const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
+    const edgeSelection = page.getByRole("button", { name: "관계 선택: knows" });
     await expect(aliceElement).toContainText("Alice");
     await expect(bobElement).toContainText("Bob");
-    await expect(edgeElement).toBeVisible();
+    await expect(edgeSelection).toBeVisible();
 
     await aliceElement.click();
     await expect(page.getByRole("heading", { name: "노드" })).toBeVisible();
@@ -107,7 +108,7 @@ test("Graph Editor persists direct Node delete Undo and Redo with incident Relat
       edges: [expect.objectContaining({ id: edge.id, version: edge.version })],
     });
     await expect(aliceElement).toBeVisible();
-    await expect(edgeElement).toBeVisible();
+    await expect(edgeSelection).toBeVisible();
     await expect(page.getByText("저장됨")).toBeVisible();
 
     const redoPromise = waitForNodeDelete(page, board.id, alice.id);
@@ -121,7 +122,7 @@ test("Graph Editor persists direct Node delete Undo and Redo with incident Relat
     await page.getByRole("button", { name: "Undo" }).click();
     expect((await finalUndoPromise).status()).toBe(200);
     await expect(aliceElement).toBeVisible();
-    await expect(edgeElement).toBeVisible();
+    await expect(edgeSelection).toBeVisible();
     await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
@@ -132,9 +133,7 @@ test("Graph Editor persists direct Node delete Undo and Redo with incident Relat
     await expect(
       page.locator(`.react-flow__node[data-id="${bob.id}"]`),
     ).toBeVisible();
-    await expect(
-      page.locator(`.react-flow__edge[data-id="${edge.id}"]`),
-    ).toBeVisible();
+    await expect(edgeSelection).toBeVisible();
 
     const snapshotResponse = await context.request.get(
       `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,

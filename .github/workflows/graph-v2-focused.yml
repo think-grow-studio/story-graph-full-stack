@@ -1,0 +1,142 @@
+name: Graph V2 Focused
+
+on:
+  push:
+    branches:
+      - feat/graph-editor-v2
+    paths:
+      - .github/workflows/graph-v2-focused.yml
+      - DESIGN.md
+      - src/app/globals.css
+      - src/contracts/graph/**
+      - src/backend/modules/graph/application/**
+      - src/app/api/v1/boards/**
+      - src/app/api/v1/stories/**/boards/**
+      - src/backend/infrastructure/openapi/**
+      - src/frontend/api/graph/**
+      - src/frontend/features/graph-editor/commands/**
+      - src/frontend/features/graph-editor/store/**
+      - src/frontend/features/graph-editor/history/**
+      - src/frontend/features/graph-editor/persistence/**
+      - src/frontend/features/graph-editor/inspector/**
+      - src/frontend/features/graph-editor/model/**
+      - src/frontend/pages/graph-editor/**
+      - src/frontend/widgets/graph-editor/**
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    env:
+      DATABASE_URL: postgresql://story_graph:story_graph@localhost:5432/story_graph
+      BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/graph-editor-v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check migration metadata consistency
+        run: pnpm db:check
+      - name: Reject legacy Graph V1 fields in production code
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          general_roots = [
+              Path("src/contracts/graph"),
+              Path("src/backend/modules/graph"),
+              Path("src/app/api/v1/boards"),
+              Path("src/app/api/v1/stories"),
+              Path("src/frontend/api/graph"),
+              Path("src/frontend/features/graph-editor"),
+              Path("src/frontend/pages/graph-editor"),
+              Path("src/frontend/widgets/graph-editor"),
+          ]
+          data_style_roots = [
+              Path("src/contracts/graph"),
+              Path("src/backend/modules/graph"),
+              Path("src/app/api/v1/boards"),
+              Path("src/app/api/v1/stories"),
+              Path("src/frontend/api/graph"),
+              Path("src/frontend/features/graph-editor/commands"),
+              Path("src/frontend/features/graph-editor/history"),
+              Path("src/frontend/features/graph-editor/inspector"),
+              Path("src/frontend/features/graph-editor/persistence"),
+              Path("src/frontend/features/graph-editor/store"),
+          ]
+
+          def production_files(roots):
+              seen = set()
+              for root in roots:
+                  if not root.exists():
+                      continue
+                  for path in root.rglob("*"):
+                      if not path.is_file() or path.suffix not in {".ts", ".tsx"}:
+                          continue
+                      if ".test." in path.name or path.name == "AGENTS.md":
+                          continue
+                      if path in seen:
+                          continue
+                      seen.add(path)
+                      yield path
+
+          general_pattern = re.compile(
+              r"labelPresentation|propertiesText|ConnectionMode\.Strict|defaultEdgeOptions[^\n]*bezier"
+          )
+          legacy_style_pattern = re.compile(r"\bstyle\s*\??\s*:")
+          issues = []
+
+          for path in production_files(general_roots):
+              for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+                  if general_pattern.search(line):
+                      issues.append(f"{path}:{line_number}:{line.strip()}")
+
+          for path in production_files(data_style_roots):
+              for line_number, line in enumerate(path.read_text().splitlines(), start=1):
+                  if legacy_style_pattern.search(line):
+                      issues.append(f"{path}:{line_number}:{line.strip()}")
+
+          if issues:
+              print("Legacy Graph V1 production fields remain:")
+              print("\n".join(issues))
+              sys.exit(1)
+          PY
+      - name: Focused Graph V2 contract and API tests
+        run: |
+          pnpm vitest run \
+            src/contracts/graph/graph.contract.test.ts \
+            src/backend/modules/graph/application/board.use-cases.test.ts \
+            src/backend/modules/graph/application/node.use-cases.test.ts \
+            src/backend/modules/graph/application/edge.use-cases.test.ts \
+            src/backend/infrastructure/openapi/openapi-document.test.ts \
+            src/frontend/api/graph/graph.api.test.ts \
+            src/frontend/features/graph-editor/inspector/inspector-draft-model.v2.test.ts
+      - name: Graph V2 editor runtime regression suite
+        run: |
+          pnpm vitest run \
+            src/frontend/features/graph-editor/commands \
+            src/frontend/features/graph-editor/history \
+            src/frontend/features/graph-editor/persistence \
+            src/frontend/features/graph-editor/store
+      - name: Graph V2 pure projection suite
+        run: pnpm vitest run src/frontend/features/graph-editor/model
+      - name: Graph V2 graph widget suite
+        run: |
+          pnpm vitest run \
+            src/frontend/widgets/graph-editor/story-graph-node.test.tsx \
+            src/frontend/widgets/graph-editor/story-graph-edge.test.tsx \
+            src/frontend/widgets/graph-editor/graph-canvas.test.tsx
+      - name: Graph V2 page integration suite
+        run: pnpm vitest run src/frontend/pages/graph-editor

@@ -28,6 +28,28 @@ import { createTestIdentity } from "../../helpers/test-auth";
 const createdUserIds: string[] = [];
 const createdOrganizationIds: string[] = [];
 
+const defaultNodePresentation = {
+  shape: "rounded-rect" as const,
+  fillColor: null,
+  borderColor: null,
+  borderWidth: null,
+  textColor: null,
+};
+
+const defaultEdgePresentation = {
+  strokeColor: null,
+  strokeWidth: null,
+  strokeStyle: "solid" as const,
+  labelColor: null,
+};
+
+const defaultEdgeRouting = {
+  type: "orthogonal" as const,
+  sourcePort: "auto" as const,
+  targetPort: "auto" as const,
+  waypoints: [],
+};
+
 async function createSession(name: string) {
   const identity = await createTestIdentity(name);
   createdUserIds.push(identity.user.id);
@@ -100,6 +122,7 @@ async function createNode(
   name: string,
   x = 10,
   y = 20,
+  overrides: Record<string, unknown> = {},
 ) {
   const id = crypto.randomUUID();
   const response = await CREATE_NODE(
@@ -110,9 +133,17 @@ async function createNode(
         workspaceId,
         id,
         name,
+        description: "",
+        kind: "entity",
+        iconKey: null,
+        properties: {},
         x,
         y,
-        style: { accent: name === "Alice" },
+        width: null,
+        height: null,
+        zIndex: 0,
+        presentation: defaultNodePresentation,
+        ...overrides,
       },
     }),
     boardContext(boardId),
@@ -128,6 +159,7 @@ async function createEdge(
   sourceNodeId: string,
   targetNodeId: string,
   name = "knows",
+  overrides: Record<string, unknown> = {},
 ) {
   const id = crypto.randomUUID();
   const response = await CREATE_EDGE(
@@ -139,8 +171,15 @@ async function createEdge(
         id,
         sourceNodeId,
         targetNodeId,
+        direction: "DIRECTED",
         name,
-        style: { dashed: false },
+        description: "",
+        kind: "relationship",
+        iconKey: null,
+        properties: {},
+        presentation: defaultEdgePresentation,
+        routing: defaultEdgeRouting,
+        ...overrides,
       },
     }),
     boardContext(boardId),
@@ -169,7 +208,7 @@ afterEach(async () => {
 });
 
 describe("Board-owned Graph API", () => {
-  it("requires authentication and validates direct Node input", async () => {
+  it("requires authentication and validates V2 Node input at the HTTP boundary", async () => {
     const unauthenticated = await CREATE_BOARD(
       request(`http://localhost/api/v1/stories/${crypto.randomUUID()}/boards`, {
         method: "POST",
@@ -182,7 +221,7 @@ describe("Board-owned Graph API", () => {
     const { cookie, workspaceId } = await createSession("Graph Validation Owner");
     const story = await createStory(cookie, workspaceId);
     const board = await createBoard(cookie, workspaceId, story.id);
-    const invalid = await CREATE_NODE(
+    const invalidId = await CREATE_NODE(
       request(`http://localhost/api/v1/boards/${board.id}/nodes`, {
         method: "POST",
         cookie,
@@ -190,10 +229,27 @@ describe("Board-owned Graph API", () => {
       }),
       boardContext(board.id),
     );
-    expect(invalid.status).toBe(400);
+    expect(invalidId.status).toBe(400);
+
+    const invalidProperties = await CREATE_NODE(
+      request(`http://localhost/api/v1/boards/${board.id}/nodes`, {
+        method: "POST",
+        cookie,
+        body: {
+          workspaceId,
+          id: crypto.randomUUID(),
+          name: "Invalid properties",
+          x: 0,
+          y: 0,
+          properties: { age: 20 },
+        },
+      }),
+      boardContext(board.id),
+    );
+    expect(invalidProperties.status).toBe(400);
   });
 
-  it("updates Board metadata/tags and keeps same-named Nodes independent across Boards", async () => {
+  it("updates Board metadata, tags, graph settings and keeps same-named Nodes independent across Boards", async () => {
     const { cookie, workspaceId } = await createSession("Board Isolation Owner");
     const story = await createStory(cookie, workspaceId);
     const firstBoard = await createBoard(cookie, workspaceId, story.id, "Characters", ["인물"]);
@@ -208,6 +264,11 @@ describe("Board-owned Graph API", () => {
           name: "Main Characters",
           description: "Primary cast",
           tags: ["인물", "핵심"],
+          graphSettings: {
+            defaultEdgeRouting: "curved",
+            snapToGrid: true,
+            layoutMode: "free",
+          },
         },
       }),
       boardContext(firstBoard.id),
@@ -216,6 +277,11 @@ describe("Board-owned Graph API", () => {
     await expect(boardUpdate.json()).resolves.toMatchObject({
       name: "Main Characters",
       tags: ["인물", "핵심"],
+      graphSettings: {
+        defaultEdgeRouting: "curved",
+        snapToGrid: true,
+        layoutMode: "free",
+      },
     });
 
     const firstAlice = await createNode(cookie, workspaceId, firstBoard.id, "Alice", 100, 80);
@@ -233,14 +299,27 @@ describe("Board-owned Graph API", () => {
     await expect(rename.json()).resolves.toMatchObject({ name: "Alicia", x: 150, version: 2 });
 
     const firstSnapshot = await GET_SNAPSHOT(
-      request(`http://localhost/api/v1/boards/${firstBoard.id}/snapshot?workspaceId=${workspaceId}`, { cookie }),
+      request(
+        `http://localhost/api/v1/boards/${firstBoard.id}/snapshot?workspaceId=${workspaceId}`,
+        { cookie },
+      ),
       boardContext(firstBoard.id),
     );
     const secondSnapshot = await GET_SNAPSHOT(
-      request(`http://localhost/api/v1/boards/${secondBoard.id}/snapshot?workspaceId=${workspaceId}`, { cookie }),
+      request(
+        `http://localhost/api/v1/boards/${secondBoard.id}/snapshot?workspaceId=${workspaceId}`,
+        { cookie },
+      ),
       boardContext(secondBoard.id),
     );
     await expect(firstSnapshot.json()).resolves.toMatchObject({
+      board: {
+        graphSettings: {
+          defaultEdgeRouting: "curved",
+          snapToGrid: true,
+          layoutMode: "free",
+        },
+      },
       nodes: [expect.objectContaining({ id: firstAlice.id, name: "Alicia", x: 150 })],
     });
     await expect(secondSnapshot.json()).resolves.toMatchObject({
@@ -248,7 +327,189 @@ describe("Board-owned Graph API", () => {
     });
   });
 
-  it("uses Board-scoped Node/Edge CAS and returns 409 for stale writes", async () => {
+  it("round-trips V2 Node and Edge semantics, presentation, routing, and opposite relationships", async () => {
+    const { cookie, workspaceId } = await createSession("Graph V2 Round Trip Owner");
+    const story = await createStory(cookie, workspaceId);
+    const board = await createBoard(cookie, workspaceId, story.id);
+    const source = await createNode(cookie, workspaceId, board.id, "Alice", 40, 60, {
+      kind: "person",
+      properties: {
+        profile: {
+          age: "20",
+          aliases: ["A", "Leader"],
+        },
+      },
+      presentation: {
+        shape: "ellipse",
+        fillColor: "#fff",
+        borderColor: "#111",
+        borderWidth: 2,
+        textColor: "#222",
+      },
+    });
+    const target = await createNode(cookie, workspaceId, board.id, "Bob", 240, 60);
+
+    expect(source).toMatchObject({
+      kind: "person",
+      properties: { profile: { age: "20", aliases: ["A", "Leader"] } },
+      presentation: {
+        shape: "ellipse",
+        fillColor: "#fff",
+        borderColor: "#111",
+        borderWidth: 2,
+        textColor: "#222",
+      },
+    });
+
+    const forward = await createEdge(
+      cookie,
+      workspaceId,
+      board.id,
+      source.id,
+      target.id,
+      "protects",
+      {
+        direction: "DIRECTED",
+        kind: "protection",
+        properties: { since: "2024" },
+        presentation: {
+          strokeColor: "#333",
+          strokeWidth: 2,
+          strokeStyle: "dashed",
+          labelColor: "#111",
+        },
+        routing: {
+          type: "curved",
+          sourcePort: "right",
+          targetPort: "left",
+          waypoints: [{ x: 140, y: 90 }],
+        },
+      },
+    );
+    const reverse = await createEdge(
+      cookie,
+      workspaceId,
+      board.id,
+      target.id,
+      source.id,
+      "distrusts",
+      {
+        direction: "DIRECTED",
+        kind: "distrust",
+      },
+    );
+
+    expect(forward).toMatchObject({
+      direction: "DIRECTED",
+      kind: "protection",
+      properties: { since: "2024" },
+      presentation: {
+        strokeColor: "#333",
+        strokeWidth: 2,
+        strokeStyle: "dashed",
+        labelColor: "#111",
+      },
+      routing: {
+        type: "curved",
+        sourcePort: "right",
+        targetPort: "left",
+        waypoints: [{ x: 140, y: 90 }],
+      },
+    });
+    expect(reverse).toMatchObject({
+      sourceNodeId: target.id,
+      targetNodeId: source.id,
+      direction: "DIRECTED",
+      name: "distrusts",
+    });
+
+    const nodeUpdate = await UPDATE_NODE(
+      request(`http://localhost/api/v1/boards/${board.id}/nodes/${source.id}`, {
+        method: "PATCH",
+        cookie,
+        body: {
+          workspaceId,
+          expectedVersion: source.version,
+          kind: "character",
+          properties: { role: "lead" },
+          presentation: {
+            shape: "diamond",
+            fillColor: null,
+            borderColor: null,
+            borderWidth: 3,
+            textColor: null,
+          },
+        },
+      }),
+      boardNodeContext(board.id, source.id),
+    );
+    expect(nodeUpdate.status).toBe(200);
+    await expect(nodeUpdate.json()).resolves.toMatchObject({
+      kind: "character",
+      properties: { role: "lead" },
+      presentation: {
+        shape: "diamond",
+        borderWidth: 3,
+      },
+      version: source.version + 1,
+    });
+
+    const edgeUpdate = await UPDATE_EDGE(
+      request(`http://localhost/api/v1/boards/${board.id}/edges/${forward.id}`, {
+        method: "PATCH",
+        cookie,
+        body: {
+          workspaceId,
+          expectedVersion: forward.version,
+          direction: "UNDIRECTED",
+          kind: "bond",
+          presentation: {
+            strokeColor: null,
+            strokeWidth: 3,
+            strokeStyle: "dotted",
+            labelColor: null,
+          },
+          routing: {
+            type: "straight",
+            sourcePort: "bottom",
+            targetPort: "top",
+            waypoints: [],
+          },
+        },
+      }),
+      boardEdgeContext(board.id, forward.id),
+    );
+    expect(edgeUpdate.status).toBe(200);
+    await expect(edgeUpdate.json()).resolves.toMatchObject({
+      direction: "UNDIRECTED",
+      kind: "bond",
+      presentation: { strokeWidth: 3, strokeStyle: "dotted" },
+      routing: {
+        type: "straight",
+        sourcePort: "bottom",
+        targetPort: "top",
+        waypoints: [],
+      },
+      version: forward.version + 1,
+    });
+
+    const snapshotResponse = await GET_SNAPSHOT(
+      request(`http://localhost/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`, {
+        cookie,
+      }),
+      boardContext(board.id),
+    );
+    expect(snapshotResponse.status).toBe(200);
+    const snapshot = await snapshotResponse.json();
+    expect(snapshot.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: forward.id, direction: "UNDIRECTED", kind: "bond" }),
+        expect.objectContaining({ id: reverse.id, direction: "DIRECTED", name: "distrusts" }),
+      ]),
+    );
+  });
+
+  it("uses Board-scoped Node/Edge CAS and returns 409 for stale V2 writes", async () => {
     const { cookie, workspaceId } = await createSession("Graph CAS Owner");
     const story = await createStory(cookie, workspaceId);
     const board = await createBoard(cookie, workspaceId, story.id);
@@ -260,7 +521,18 @@ describe("Board-owned Graph API", () => {
       request(`http://localhost/api/v1/boards/${board.id}/nodes/${source.id}`, {
         method: "PATCH",
         cookie,
-        body: { workspaceId, expectedVersion: source.version, y: 99 },
+        body: {
+          workspaceId,
+          expectedVersion: source.version,
+          y: 99,
+          presentation: {
+            shape: "rounded-rect",
+            fillColor: null,
+            borderColor: null,
+            borderWidth: 2,
+            textColor: null,
+          },
+        },
       }),
       boardNodeContext(board.id, source.id),
     );
@@ -270,7 +542,7 @@ describe("Board-owned Graph API", () => {
       request(`http://localhost/api/v1/boards/${board.id}/nodes/${source.id}`, {
         method: "PATCH",
         cookie,
-        body: { workspaceId, expectedVersion: source.version, y: 100 },
+        body: { workspaceId, expectedVersion: source.version, kind: "stale" },
       }),
       boardNodeContext(board.id, source.id),
     );
@@ -280,7 +552,17 @@ describe("Board-owned Graph API", () => {
       request(`http://localhost/api/v1/boards/${board.id}/edges/${edge.id}`, {
         method: "PATCH",
         cookie,
-        body: { workspaceId, expectedVersion: edge.version, name: "protects" },
+        body: {
+          workspaceId,
+          expectedVersion: edge.version,
+          name: "protects",
+          routing: {
+            type: "curved",
+            sourcePort: "auto",
+            targetPort: "auto",
+            waypoints: [],
+          },
+        },
       }),
       boardEdgeContext(board.id, edge.id),
     );
@@ -290,7 +572,7 @@ describe("Board-owned Graph API", () => {
       request(`http://localhost/api/v1/boards/${board.id}/edges/${edge.id}`, {
         method: "PATCH",
         cookie,
-        body: { workspaceId, expectedVersion: edge.version, name: "stale" },
+        body: { workspaceId, expectedVersion: edge.version, direction: "UNDIRECTED" },
       }),
       boardEdgeContext(board.id, edge.id),
     );
@@ -306,16 +588,21 @@ describe("Board-owned Graph API", () => {
     const edge = await createEdge(cookie, workspaceId, board.id, source.id, target.id);
 
     const remove = await DELETE_NODE(
-      request(`http://localhost/api/v1/boards/${board.id}/nodes/${source.id}?workspaceId=${workspaceId}`, {
-        method: "DELETE",
-        cookie,
-      }),
+      request(
+        `http://localhost/api/v1/boards/${board.id}/nodes/${source.id}?workspaceId=${workspaceId}`,
+        {
+          method: "DELETE",
+          cookie,
+        },
+      ),
       boardNodeContext(board.id, source.id),
     );
     expect(remove.status).toBe(204);
 
     const deletedSnapshotResponse = await GET_SNAPSHOT(
-      request(`http://localhost/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`, { cookie }),
+      request(`http://localhost/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`, {
+        cookie,
+      }),
       boardContext(board.id),
     );
     const deletedSnapshot = await deletedSnapshotResponse.json();
@@ -350,10 +637,13 @@ describe("Board-owned Graph API", () => {
     const edge = await createEdge(cookie, workspaceId, board.id, source.id, target.id);
 
     const remove = await DELETE_EDGE(
-      request(`http://localhost/api/v1/boards/${board.id}/edges/${edge.id}?workspaceId=${workspaceId}`, {
-        method: "DELETE",
-        cookie,
-      }),
+      request(
+        `http://localhost/api/v1/boards/${board.id}/edges/${edge.id}?workspaceId=${workspaceId}`,
+        {
+          method: "DELETE",
+          cookie,
+        },
+      ),
       boardEdgeContext(board.id, edge.id),
     );
     expect(remove.status).toBe(204);

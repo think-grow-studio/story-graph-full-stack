@@ -33,6 +33,15 @@ function createNode(nodeId: string): EditorCommand {
     name: "Node",
     position: { x: 0, y: 0 },
     createdAt,
+
+    description: "",
+    kind: "entity",
+    iconKey: null,
+    properties: {},
+    width: null,
+    height: null,
+    zIndex: 0,
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
   };
 }
 
@@ -46,6 +55,14 @@ function createEdge(id = edgeId): EditorCommand {
     targetNodeId: bobId,
     name: "knows",
     createdAt,
+
+    direction: "DIRECTED",
+    description: "",
+    kind: "relationship",
+    iconKey: null,
+    properties: {},
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
   };
 }
 
@@ -70,6 +87,10 @@ describe("EditorSaveQueue Board-owned contract", () => {
         name: "Alice",
         description: "",
         properties: {},
+
+        kind: "entity",
+        iconKey: null,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
       },
       { type: "delete-node", boardId, workspaceId, nodeId: aliceId },
       {
@@ -89,10 +110,12 @@ describe("EditorSaveQueue Board-owned contract", () => {
           width: null,
           height: null,
           zIndex: 0,
-          style: {},
+          presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
           version: 1,
           createdAt,
           updatedAt: createdAt,
+
+          kind: "entity",
         },
         edges: [],
       },
@@ -108,6 +131,12 @@ describe("EditorSaveQueue Board-owned contract", () => {
         name: "knows",
         description: "",
         properties: {},
+
+        direction: "DIRECTED",
+        kind: "relationship",
+        iconKey: null,
+        presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+        routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
       },
       { type: "delete-edge", boardId, workspaceId, edgeId },
       {
@@ -124,11 +153,14 @@ describe("EditorSaveQueue Board-owned contract", () => {
           description: "",
           iconKey: null,
           properties: {},
-          style: {},
-          labelPresentation: {},
+          presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+          routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
           version: 1,
           createdAt,
           updatedAt: createdAt,
+
+          direction: "DIRECTED",
+          kind: "relationship",
         },
       },
     ];
@@ -243,6 +275,12 @@ describe("EditorSaveQueue Board-owned contract", () => {
       name: "knows",
       description: "",
       properties: {},
+
+      direction: "DIRECTED",
+      kind: "relationship",
+      iconKey: null,
+      presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+      routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     });
     await flushMicrotasks();
     queue.enqueue(

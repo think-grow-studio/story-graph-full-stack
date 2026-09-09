@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   doublePrecision,
   foreignKey,
   index,
@@ -10,8 +12,43 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 
-import type { JsonObject } from "@/backend/modules/graph/domain/graph";
+import type {
+  EdgeDirection,
+  EdgePresentation,
+  EdgeRouting,
+  GraphProperties,
+  GraphSettings,
+  NodePresentation,
+} from "@/backend/modules/graph/domain/graph";
 import { story } from "./story.schema";
+
+const defaultGraphSettings: GraphSettings = {
+  defaultEdgeRouting: "orthogonal",
+  snapToGrid: false,
+  layoutMode: "free",
+};
+
+const defaultNodePresentation: NodePresentation = {
+  shape: "rounded-rect",
+  fillColor: null,
+  borderColor: null,
+  borderWidth: null,
+  textColor: null,
+};
+
+const defaultEdgePresentation: EdgePresentation = {
+  strokeColor: null,
+  strokeWidth: null,
+  strokeStyle: "solid",
+  labelColor: null,
+};
+
+const defaultEdgeRouting: EdgeRouting = {
+  type: "orthogonal",
+  sourcePort: "auto",
+  targetPort: "auto",
+  waypoints: [],
+};
 
 export const board = pgTable(
   "board",
@@ -22,6 +59,10 @@ export const board = pgTable(
       .references(() => story.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description").default("").notNull(),
+    graphSettings: jsonb("graph_settings")
+      .$type<GraphSettings>()
+      .default(defaultGraphSettings)
+      .notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -37,14 +78,18 @@ export const graphNode = pgTable(
       .references(() => board.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description").default("").notNull(),
+    kind: text("kind").default("entity").notNull(),
     iconKey: text("icon_key"),
-    properties: jsonb("properties").$type<JsonObject>().default({}).notNull(),
+    properties: jsonb("properties").$type<GraphProperties>().default({}).notNull(),
     x: doublePrecision("x").default(0).notNull(),
     y: doublePrecision("y").default(0).notNull(),
     width: doublePrecision("width"),
     height: doublePrecision("height"),
     zIndex: integer("z_index").default(0).notNull(),
-    style: jsonb("style").$type<JsonObject>().default({}).notNull(),
+    presentation: jsonb("presentation")
+      .$type<NodePresentation>()
+      .default(defaultNodePresentation)
+      .notNull(),
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -64,14 +109,19 @@ export const graphEdge = pgTable(
       .references(() => board.id, { onDelete: "cascade" }),
     sourceNodeId: text("source_node_id").notNull(),
     targetNodeId: text("target_node_id").notNull(),
+    direction: text("direction").$type<EdgeDirection>().notNull(),
     name: text("name").notNull(),
     description: text("description").default("").notNull(),
+    kind: text("kind").default("relationship").notNull(),
     iconKey: text("icon_key"),
-    properties: jsonb("properties").$type<JsonObject>().default({}).notNull(),
-    style: jsonb("style").$type<JsonObject>().default({}).notNull(),
-    labelPresentation: jsonb("label_presentation")
-      .$type<JsonObject>()
-      .default({})
+    properties: jsonb("properties").$type<GraphProperties>().default({}).notNull(),
+    presentation: jsonb("presentation")
+      .$type<EdgePresentation>()
+      .default(defaultEdgePresentation)
+      .notNull(),
+    routing: jsonb("routing")
+      .$type<EdgeRouting>()
+      .default(defaultEdgeRouting)
       .notNull(),
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -82,6 +132,10 @@ export const graphEdge = pgTable(
     index("graph_edge_board_id_idx").on(table.boardId),
     index("graph_edge_source_node_id_idx").on(table.sourceNodeId),
     index("graph_edge_target_node_id_idx").on(table.targetNodeId),
+    check(
+      "graph_edge_direction_check",
+      sql`${table.direction} in ('DIRECTED', 'UNDIRECTED')`,
+    ),
     foreignKey({
       name: "graph_edge_source_board_fk",
       columns: [table.sourceNodeId, table.boardId],

@@ -1,7 +1,13 @@
 import { ApplicationError } from "@/backend/common/errors/application-error";
 import type { StoryRepository } from "@/backend/modules/story/domain/story.repository";
 import type { WorkspaceAccessService } from "@/backend/modules/workspace/domain/workspace-access.service";
-import type { GraphEdge, JsonObject } from "../../domain/graph";
+import type {
+  EdgeDirection,
+  EdgePresentation,
+  EdgeRouting,
+  GraphEdge,
+  GraphProperties,
+} from "../../domain/graph";
 import type { GraphRepository } from "../../domain/graph.repository";
 
 export async function updateEdge(
@@ -11,12 +17,14 @@ export async function updateEdge(
     boardId: string;
     edgeId: string;
     expectedVersion: number;
+    direction?: EdgeDirection;
     name?: string;
     description?: string;
+    kind?: string;
     iconKey?: string | null;
-    properties?: JsonObject;
-    style?: JsonObject;
-    labelPresentation?: JsonObject;
+    properties?: GraphProperties;
+    presentation?: EdgePresentation;
+    routing?: EdgeRouting;
   },
   dependencies: {
     stories: StoryRepository;
@@ -49,14 +57,16 @@ export async function updateEdge(
     boardId: board.id,
     id: existing.id,
     expectedVersion: input.expectedVersion,
+    ...(input.direction !== undefined ? { direction: input.direction } : {}),
     ...(input.name !== undefined ? { name: input.name } : {}),
     ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.kind !== undefined ? { kind: input.kind } : {}),
     ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
     ...(input.properties !== undefined ? { properties: input.properties } : {}),
-    ...(input.style !== undefined ? { style: input.style } : {}),
-    ...(input.labelPresentation !== undefined
-      ? { labelPresentation: input.labelPresentation }
+    ...(input.presentation !== undefined
+      ? { presentation: input.presentation }
       : {}),
+    ...(input.routing !== undefined ? { routing: input.routing } : {}),
   });
 
   if (!updated) {

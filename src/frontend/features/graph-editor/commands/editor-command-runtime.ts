@@ -30,7 +30,10 @@ export function applyEditorCommand(
         ...current,
         name: command.name,
         description: command.description,
+        kind: command.kind,
+        iconKey: command.iconKey,
         properties: command.properties,
+        presentation: command.presentation,
       });
       return true;
     }
@@ -54,9 +57,14 @@ export function applyEditorCommand(
       if (!current) return false;
       store.getState().replaceEdge({
         ...current,
+        direction: command.direction,
         name: command.name,
         description: command.description,
+        kind: command.kind,
+        iconKey: command.iconKey,
         properties: command.properties,
+        presentation: command.presentation,
+        routing: command.routing,
       });
       return true;
     }
@@ -197,15 +205,16 @@ function toOptimisticNode(command: CreateNodeCommand): GraphNodeResponse {
     id: command.nodeId,
     boardId: command.boardId,
     name: command.name,
-    description: "",
-    iconKey: null,
-    properties: {},
+    description: command.description,
+    kind: command.kind,
+    iconKey: command.iconKey,
+    properties: command.properties,
     x: command.position.x,
     y: command.position.y,
-    width: null,
-    height: null,
-    zIndex: 0,
-    style: {},
+    width: command.width,
+    height: command.height,
+    zIndex: command.zIndex,
+    presentation: command.presentation,
     version: 1,
     createdAt: command.createdAt,
     updatedAt: command.createdAt,
@@ -218,12 +227,14 @@ function toOptimisticEdge(command: CreateEdgeCommand): GraphEdgeResponse {
     boardId: command.boardId,
     sourceNodeId: command.sourceNodeId,
     targetNodeId: command.targetNodeId,
+    direction: command.direction,
     name: command.name,
-    description: "",
-    iconKey: null,
-    properties: {},
-    style: {},
-    labelPresentation: {},
+    description: command.description,
+    kind: command.kind,
+    iconKey: command.iconKey,
+    properties: command.properties,
+    presentation: command.presentation,
+    routing: command.routing,
     version: 1,
     createdAt: command.createdAt,
     updatedAt: command.createdAt,
@@ -266,6 +277,7 @@ function mergePersistedNode(
     ...persisted,
     name: current.name,
     description: current.description,
+    kind: current.kind,
     iconKey: current.iconKey,
     properties: current.properties,
     x: current.x,
@@ -273,7 +285,7 @@ function mergePersistedNode(
     width: current.width,
     height: current.height,
     zIndex: current.zIndex,
-    style: current.style,
+    presentation: current.presentation,
   };
 }
 
@@ -283,11 +295,13 @@ function mergePersistedEdge(
 ): GraphEdgeResponse {
   return {
     ...persisted,
+    direction: current.direction,
     name: current.name,
     description: current.description,
+    kind: current.kind,
     iconKey: current.iconKey,
     properties: current.properties,
-    style: current.style,
-    labelPresentation: current.labelPresentation,
+    presentation: current.presentation,
+    routing: current.routing,
   };
 }

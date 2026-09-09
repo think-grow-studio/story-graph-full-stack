@@ -24,11 +24,13 @@ function alice(overrides: Partial<GraphNodeResponse> = {}): GraphNodeResponse {
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 3,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+
+    kind: "entity",
   };
 }
 
@@ -44,6 +46,8 @@ function hydratedStore() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: [alice()],
     edges: [],
@@ -81,6 +85,10 @@ describe("executeEditorCommand compatibility helper", () => {
       name: "Alicia",
       description: "",
       properties: {},
+
+      kind: "entity",
+      iconKey: null,
+      presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     });
 
     expect(updateNode).toHaveBeenCalledWith(
@@ -106,6 +114,10 @@ describe("executeEditorCommand compatibility helper", () => {
         name: "Alicia",
         description: "",
         properties: {},
+
+        kind: "entity",
+        iconKey: null,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
       }),
     ).rejects.toThrow("offline");
 

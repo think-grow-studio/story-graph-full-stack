@@ -30,10 +30,12 @@ function alice(): GraphNodeResponse {
     width: 180,
     height: 90,
     zIndex: 3,
-    style: { tint: "violet" },
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 3,
     createdAt: now,
     updatedAt: now,
+
+    kind: "entity",
   };
 }
 
@@ -46,7 +48,7 @@ function bob(): GraphNodeResponse {
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 2,
   };
 }
@@ -61,11 +63,14 @@ function relationship(): GraphEdgeResponse {
     description: "Old friends",
     iconKey: null,
     properties: {},
-    style: { stroke: "dashed" },
-    labelPresentation: { hidden: false },
+    presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
+    routing: { type: "orthogonal", sourcePort: "auto", targetPort: "auto", waypoints: [] as Array<{ x: number; y: number }> },
     version: 4,
     createdAt: now,
     updatedAt: now,
+
+    direction: "DIRECTED",
+    kind: "relationship",
   };
 }
 
@@ -81,6 +86,8 @@ function hydratedStore() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: [alice(), bob()],
     edges: [relationship()],

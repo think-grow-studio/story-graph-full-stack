@@ -17,6 +17,7 @@ import type {
   DeletedNodeSnapshot,
   GraphEdge,
   GraphNode,
+  GraphSettings,
   RestorableGraphEdge,
   RestorableGraphNode,
 } from "../domain/graph";
@@ -32,6 +33,7 @@ export class DrizzleGraphRepository implements GraphRepository {
     name: string;
     description: string;
     tags: string[];
+    graphSettings: GraphSettings;
   }): Promise<Board> {
     return db.transaction(async (tx) => {
       const [created] = await tx
@@ -41,6 +43,7 @@ export class DrizzleGraphRepository implements GraphRepository {
           storyId: input.storyId,
           name: input.name,
           description: input.description,
+          graphSettings: input.graphSettings,
         })
         .returning();
 
@@ -59,6 +62,7 @@ export class DrizzleGraphRepository implements GraphRepository {
     name?: string;
     description?: string;
     tags?: string[];
+    graphSettings?: GraphSettings;
   }): Promise<Board | null> {
     return db.transaction(async (tx) => {
       const [existing] = await tx
@@ -69,13 +73,20 @@ export class DrizzleGraphRepository implements GraphRepository {
       if (!existing) return null;
 
       let updated = existing;
-      if (input.name !== undefined || input.description !== undefined) {
+      if (
+        input.name !== undefined ||
+        input.description !== undefined ||
+        input.graphSettings !== undefined
+      ) {
         const [next] = await tx
           .update(board)
           .set({
             ...(input.name !== undefined ? { name: input.name } : {}),
             ...(input.description !== undefined
               ? { description: input.description }
+              : {}),
+            ...(input.graphSettings !== undefined
+              ? { graphSettings: input.graphSettings }
               : {}),
             updatedAt: new Date(),
           })
@@ -199,6 +210,7 @@ export class DrizzleGraphRepository implements GraphRepository {
     expectedVersion: number;
     name?: string;
     description?: string;
+    kind?: string;
     iconKey?: string | null;
     properties?: GraphNode["properties"];
     x?: number;
@@ -206,7 +218,7 @@ export class DrizzleGraphRepository implements GraphRepository {
     width?: number | null;
     height?: number | null;
     zIndex?: number;
-    style?: GraphNode["style"];
+    presentation?: GraphNode["presentation"];
   }): Promise<GraphNode | null> {
     const [updated] = await db
       .update(graphNode)
@@ -215,6 +227,7 @@ export class DrizzleGraphRepository implements GraphRepository {
         ...(input.description !== undefined
           ? { description: input.description }
           : {}),
+        ...(input.kind !== undefined ? { kind: input.kind } : {}),
         ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
         ...(input.properties !== undefined
           ? { properties: input.properties }
@@ -224,7 +237,9 @@ export class DrizzleGraphRepository implements GraphRepository {
         ...(input.width !== undefined ? { width: input.width } : {}),
         ...(input.height !== undefined ? { height: input.height } : {}),
         ...(input.zIndex !== undefined ? { zIndex: input.zIndex } : {}),
-        ...(input.style !== undefined ? { style: input.style } : {}),
+        ...(input.presentation !== undefined
+          ? { presentation: input.presentation }
+          : {}),
         version: sql`${graphNode.version} + 1`,
         updatedAt: new Date(),
       })
@@ -358,28 +373,32 @@ export class DrizzleGraphRepository implements GraphRepository {
     boardId: string;
     id: string;
     expectedVersion: number;
+    direction?: GraphEdge["direction"];
     name?: string;
     description?: string;
+    kind?: string;
     iconKey?: string | null;
     properties?: GraphEdge["properties"];
-    style?: GraphEdge["style"];
-    labelPresentation?: GraphEdge["labelPresentation"];
+    presentation?: GraphEdge["presentation"];
+    routing?: GraphEdge["routing"];
   }): Promise<GraphEdge | null> {
     const [updated] = await db
       .update(graphEdge)
       .set({
+        ...(input.direction !== undefined ? { direction: input.direction } : {}),
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.description !== undefined
           ? { description: input.description }
           : {}),
+        ...(input.kind !== undefined ? { kind: input.kind } : {}),
         ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
         ...(input.properties !== undefined
           ? { properties: input.properties }
           : {}),
-        ...(input.style !== undefined ? { style: input.style } : {}),
-        ...(input.labelPresentation !== undefined
-          ? { labelPresentation: input.labelPresentation }
+        ...(input.presentation !== undefined
+          ? { presentation: input.presentation }
           : {}),
+        ...(input.routing !== undefined ? { routing: input.routing } : {}),
         version: sql`${graphEdge.version} + 1`,
         updatedAt: new Date(),
       })

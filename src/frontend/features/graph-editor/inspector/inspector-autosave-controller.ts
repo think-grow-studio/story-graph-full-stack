@@ -61,6 +61,8 @@ export function createInspectorAutosaveController({
         workspaceId,
         nodeId,
         expectedVersion: node.version,
+        iconKey: node.iconKey,
+        presentation: node.presentation,
         ...evaluation.input,
       });
       return;
@@ -81,6 +83,13 @@ export function createInspectorAutosaveController({
       workspaceId,
       edgeId,
       expectedVersion: edge.version,
+      direction: draft.direction ?? edge.direction,
+      iconKey: edge.iconKey,
+      presentation: edge.presentation,
+      routing: {
+        ...edge.routing,
+        type: draft.routingType ?? edge.routing.type,
+      },
       ...evaluation.input,
     });
   }

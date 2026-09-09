@@ -31,10 +31,12 @@ function alice(): GraphNodeResponse {
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
     version: 3,
     createdAt: now,
     updatedAt: now,
+
+    kind: "entity",
   };
 }
 
@@ -50,6 +52,8 @@ function stores() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: [alice()],
     edges: [],
@@ -110,6 +114,10 @@ describe("useInspectorAutosave", () => {
         nodeId,
         expectedVersion: 3,
         name: "Alicia",
+
+        kind: "entity",
+        iconKey: null,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
       }),
     );
   });

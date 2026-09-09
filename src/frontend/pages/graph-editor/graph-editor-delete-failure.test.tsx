@@ -66,6 +66,33 @@ const bobId = "44444444-4444-4444-8444-444444444444";
 const edgeId = "55555555-5555-4555-8555-555555555555";
 const now = "2026-09-06T00:00:00.000Z";
 
+function graphNode(id: string, name: string, x: number) {
+  return {
+    id,
+    boardId,
+    name,
+    description: "",
+    kind: "entity",
+    iconKey: null,
+    properties: {},
+    x,
+    y: 100,
+    width: null,
+    height: null,
+    zIndex: 0,
+    presentation: {
+      shape: "rounded-rect" as const,
+      fillColor: null,
+      borderColor: null,
+      borderWidth: null,
+      textColor: null,
+    },
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 function snapshot() {
   return {
     story: { id: storyId, name: "Novel" },
@@ -75,57 +102,39 @@ function snapshot() {
       name: "Characters",
       description: "",
       tags: [],
+      graphSettings: {
+        defaultEdgeRouting: "orthogonal" as const,
+        snapToGrid: false,
+        layoutMode: "free" as const,
+      },
       createdAt: now,
       updatedAt: now,
     },
-    nodes: [
-      {
-        id: aliceId,
-        boardId,
-        name: "Alice",
-        description: "",
-        iconKey: null,
-        properties: {},
-        x: 100,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: bobId,
-        boardId,
-        name: "Bob",
-        description: "",
-        iconKey: null,
-        properties: {},
-        x: 400,
-        y: 100,
-        width: null,
-        height: null,
-        zIndex: 0,
-        style: {},
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      },
-    ],
+    nodes: [graphNode(aliceId, "Alice", 100), graphNode(bobId, "Bob", 400)],
     edges: [
       {
         id: edgeId,
         boardId,
         sourceNodeId: aliceId,
         targetNodeId: bobId,
+        direction: "DIRECTED" as const,
         name: "knows",
         description: "",
+        kind: "relationship",
         iconKey: null,
         properties: {},
-        style: {},
-        labelPresentation: {},
+        presentation: {
+          strokeColor: null,
+          strokeWidth: null,
+          strokeStyle: "solid" as const,
+          labelColor: null,
+        },
+        routing: {
+          type: "orthogonal" as const,
+          sourcePort: "auto" as const,
+          targetPort: "auto" as const,
+          waypoints: [] as Array<{ x: number; y: number }>,
+        },
         version: 1,
         createdAt: now,
         updatedAt: now,
@@ -163,12 +172,14 @@ describe("Graph Editor failed direct Node deletion", () => {
     await user.click(screen.getByRole("button", { name: "노드 삭제" }));
 
     await waitFor(() => expect(mocks.deleteNode).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Unable to delete Node.")).toBeInTheDocument();
     expect(
-      await screen.findByText("Unable to delete Node."),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Select Alice" })).not.toBeInTheDocument();
+      screen.queryByRole("button", { name: "Select Alice" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByTestId("canvas-edge")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "노드" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "노드" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("저장 오류")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
   });

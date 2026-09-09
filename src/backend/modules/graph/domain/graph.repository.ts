@@ -4,9 +4,14 @@ import type {
   CreateGraphEdge,
   CreateGraphNode,
   DeletedNodeSnapshot,
+  EdgeDirection,
+  EdgePresentation,
+  EdgeRouting,
   GraphEdge,
   GraphNode,
-  JsonObject,
+  GraphProperties,
+  GraphSettings,
+  NodePresentation,
   RestorableGraphEdge,
   RestorableGraphNode,
 } from "./graph";
@@ -17,12 +22,14 @@ export interface GraphRepository {
     name: string;
     description: string;
     tags: string[];
+    graphSettings: GraphSettings;
   }): Promise<Board>;
   updateBoard(input: {
     id: string;
     name?: string;
     description?: string;
     tags?: string[];
+    graphSettings?: GraphSettings;
   }): Promise<Board | null>;
   listBoards(storyId: string): Promise<Board[]>;
   findBoard(id: string): Promise<Board | null>;
@@ -36,14 +43,15 @@ export interface GraphRepository {
     expectedVersion: number;
     name?: string;
     description?: string;
+    kind?: string;
     iconKey?: string | null;
-    properties?: JsonObject;
+    properties?: GraphProperties;
     x?: number;
     y?: number;
     width?: number | null;
     height?: number | null;
     zIndex?: number;
-    style?: JsonObject;
+    presentation?: NodePresentation;
   }): Promise<GraphNode | null>;
   deleteNode(boardId: string, nodeId: string): Promise<DeletedNodeSnapshot | null>;
   restoreNode(input: {
@@ -58,12 +66,14 @@ export interface GraphRepository {
     boardId: string;
     id: string;
     expectedVersion: number;
+    direction?: EdgeDirection;
     name?: string;
     description?: string;
+    kind?: string;
     iconKey?: string | null;
-    properties?: JsonObject;
-    style?: JsonObject;
-    labelPresentation?: JsonObject;
+    properties?: GraphProperties;
+    presentation?: EdgePresentation;
+    routing?: EdgeRouting;
   }): Promise<GraphEdge | null>;
   deleteEdge(boardId: string, edgeId: string): Promise<GraphEdge | null>;
   restoreEdge(input: {

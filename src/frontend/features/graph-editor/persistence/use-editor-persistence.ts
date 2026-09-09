@@ -33,8 +33,16 @@ export function useEditorPersistence(
       createNode.mutateAsync({
         id: command.nodeId,
         name: command.name,
+        description: command.description,
+        kind: command.kind,
+        iconKey: command.iconKey,
+        properties: command.properties,
         x: command.position.x,
         y: command.position.y,
+        width: command.width,
+        height: command.height,
+        zIndex: command.zIndex,
+        presentation: command.presentation,
       }),
     moveNode: (command) =>
       updateNode.mutateAsync({
@@ -49,7 +57,10 @@ export function useEditorPersistence(
         expectedVersion: command.expectedVersion,
         name: command.name,
         description: command.description,
+        kind: command.kind,
+        iconKey: command.iconKey,
         properties: command.properties,
+        presentation: command.presentation,
       }),
     deleteNode: (command) =>
       deleteNode.mutateAsync({
@@ -66,15 +77,27 @@ export function useEditorPersistence(
         id: command.edgeId,
         sourceNodeId: command.sourceNodeId,
         targetNodeId: command.targetNodeId,
+        direction: command.direction,
         name: command.name,
+        description: command.description,
+        kind: command.kind,
+        iconKey: command.iconKey,
+        properties: command.properties,
+        presentation: command.presentation,
+        routing: command.routing,
       }),
     updateEdge: (command) =>
       updateEdge.mutateAsync({
         edgeId: command.edgeId,
         expectedVersion: command.expectedVersion,
+        direction: command.direction,
         name: command.name,
         description: command.description,
+        kind: command.kind,
+        iconKey: command.iconKey,
         properties: command.properties,
+        presentation: command.presentation,
+        routing: command.routing,
       }),
     deleteEdge: (command) =>
       deleteEdge.mutateAsync({

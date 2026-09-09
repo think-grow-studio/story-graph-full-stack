@@ -1,4 +1,10 @@
-import type { GraphEdgeResponse } from "@/contracts/graph/graph.contract";
+import type {
+  EdgeDirection,
+  EdgePresentation,
+  EdgeRouting,
+  GraphEdgeResponse,
+  GraphProperties,
+} from "@/contracts/graph/graph.contract";
 
 export type CreateEdgeCommand = {
   type: "create-edge";
@@ -7,7 +13,14 @@ export type CreateEdgeCommand = {
   edgeId: string;
   sourceNodeId: string;
   targetNodeId: string;
+  direction: EdgeDirection;
   name: string;
+  description: string;
+  kind: string;
+  iconKey: string | null;
+  properties: GraphProperties;
+  presentation: EdgePresentation;
+  routing: EdgeRouting;
   createdAt: string;
 };
 
@@ -17,9 +30,14 @@ export type UpdateEdgeCommand = {
   workspaceId: string;
   edgeId: string;
   expectedVersion: number;
+  direction: EdgeDirection;
   name: string;
   description: string;
-  properties: Record<string, unknown>;
+  kind: string;
+  iconKey: string | null;
+  properties: GraphProperties;
+  presentation: EdgePresentation;
+  routing: EdgeRouting;
 };
 
 export type DeleteEdgeCommand = {

@@ -26,6 +26,8 @@ function createStore() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+
+      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
     },
     nodes: [
       {
@@ -40,10 +42,12 @@ function createStore() {
         width: null,
         height: null,
         zIndex: 0,
-        style: {},
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
         version: 3,
         createdAt: now,
         updatedAt: now,
+
+        kind: "entity",
       },
     ],
     edges: [],
@@ -61,6 +65,10 @@ function updateNode(name: string): EditorCommand {
     name,
     description: "Original",
     properties: { role: "lead" },
+
+    kind: "entity",
+    iconKey: null,
+    presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
   };
 }
 
@@ -102,7 +110,11 @@ describe("useEditorHistory", () => {
     expect(store.getState().nodes[0]?.name).toBe("Alice");
     expect(result.current.snapshot).toMatchObject({ undoCount: 0, redoCount: 1 });
     expect(onReplayCommand).toHaveBeenLastCalledWith(
-      expect.objectContaining({ type: "update-node", nodeId, name: "Alice" }),
+      expect.objectContaining({ type: "update-node", nodeId, name: "Alice" ,
+        kind: "entity",
+        iconKey: null,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
+      }),
     );
 
     act(() => {
@@ -162,6 +174,15 @@ describe("useEditorHistory", () => {
         name: "Bob",
         position: { x: 0, y: 0 },
         createdAt: now,
+
+        description: "",
+        kind: "entity",
+        iconKey: null,
+        properties: {},
+        width: null,
+        height: null,
+        zIndex: 0,
+        presentation: { shape: "rounded-rect", fillColor: null, borderColor: null, borderWidth: null, textColor: null },
       });
     });
     expect(result.current.snapshot).toMatchObject({ undoCount: 0, redoCount: 0 });

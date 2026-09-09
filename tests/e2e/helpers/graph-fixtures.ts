@@ -55,6 +55,9 @@ export async function createE2ENode(
   return response.json();
 }
 
+type E2EEdgePort = "auto" | "top" | "right" | "bottom" | "left";
+type E2EEdgeRoutingType = "orthogonal" | "straight" | "curved";
+
 export async function createE2EEdge(
   request: APIRequestContext,
   boardId: string,
@@ -64,8 +67,16 @@ export async function createE2EEdge(
     sourceNodeId: string;
     targetNodeId: string;
     name: string;
+    direction?: "DIRECTED" | "UNDIRECTED";
     description?: string;
+    kind?: string;
     properties?: Record<string, unknown>;
+    routing?: {
+      type: E2EEdgeRoutingType;
+      sourcePort: E2EEdgePort;
+      targetPort: E2EEdgePort;
+      waypoints: Array<{ x: number; y: number }>;
+    };
   },
 ) {
   const id = input.id ?? crypto.randomUUID();
@@ -75,9 +86,23 @@ export async function createE2EEdge(
       id,
       sourceNodeId: input.sourceNodeId,
       targetNodeId: input.targetNodeId,
+      direction: input.direction ?? "DIRECTED",
       name: input.name,
       description: input.description ?? "",
+      kind: input.kind ?? "relationship",
       properties: input.properties ?? {},
+      presentation: {
+        strokeColor: null,
+        strokeWidth: null,
+        strokeStyle: "solid",
+        labelColor: null,
+      },
+      routing: input.routing ?? {
+        type: "orthogonal",
+        sourcePort: "auto",
+        targetPort: "auto",
+        waypoints: [],
+      },
     },
   });
   expect(response.status()).toBe(201);

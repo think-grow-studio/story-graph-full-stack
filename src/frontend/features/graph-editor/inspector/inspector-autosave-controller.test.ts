@@ -30,19 +30,34 @@ function alice(overrides: Partial<GraphNodeResponse> = {}): GraphNodeResponse {
     width: null,
     height: null,
     zIndex: 0,
-    style: {},
+    presentation: {
+      shape: "rounded-rect",
+      fillColor: null,
+      borderColor: null,
+      borderWidth: null,
+      textColor: null,
+    },
     version: 3,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+    kind: "entity",
   };
 }
 
 function bob(): GraphNodeResponse {
-  return alice({ id: bobId, name: "Bob", description: "Friend", x: 400, version: 7 });
+  return alice({
+    id: bobId,
+    name: "Bob",
+    description: "Friend",
+    x: 400,
+    version: 7,
+  });
 }
 
-function relationship(overrides: Partial<GraphEdgeResponse> = {}): GraphEdgeResponse {
+function relationship(
+  overrides: Partial<GraphEdgeResponse> = {},
+): GraphEdgeResponse {
   return {
     id: edgeId,
     boardId,
@@ -51,20 +66,35 @@ function relationship(overrides: Partial<GraphEdgeResponse> = {}): GraphEdgeResp
     name: "knows",
     description: "Old friends",
     iconKey: null,
-    properties: { since: 2020 },
-    style: {},
-    labelPresentation: {},
+    properties: { since: "2020" },
+    presentation: {
+      strokeColor: null,
+      strokeWidth: null,
+      strokeStyle: "solid",
+      labelColor: null,
+    },
+    routing: {
+      type: "orthogonal",
+      sourcePort: "auto",
+      targetPort: "auto",
+      waypoints: [] as Array<{ x: number; y: number }>,
+    },
     version: 4,
     createdAt: now,
     updatedAt: now,
     ...overrides,
+    direction: "DIRECTED",
+    kind: "relationship",
   };
 }
 
 function setup() {
   const graphStore = createGraphEditorStore();
   graphStore.getState().hydrate({
-    story: { id: "11111111-1111-4111-8111-111111111111", name: "Novel" },
+    story: {
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "Novel",
+    },
     board: {
       id: boardId,
       storyId: "11111111-1111-4111-8111-111111111111",
@@ -73,14 +103,23 @@ function setup() {
       tags: [],
       createdAt: now,
       updatedAt: now,
+      graphSettings: {
+        defaultEdgeRouting: "orthogonal",
+        snapToGrid: false,
+        layoutMode: "free",
+      },
     },
     nodes: [alice(), bob()],
     edges: [relationship()],
   });
 
   const draftStore = createInspectorDraftStore();
-  draftStore.getState().ensureDraft(toInspectorEntityKey("node", aliceId), alice());
-  draftStore.getState().ensureDraft(toInspectorEntityKey("node", bobId), bob());
+  draftStore
+    .getState()
+    .ensureDraft(toInspectorEntityKey("node", aliceId), alice());
+  draftStore
+    .getState()
+    .ensureDraft(toInspectorEntityKey("node", bobId), bob());
   draftStore
     .getState()
     .ensureDraft(toInspectorEntityKey("edge", edgeId), relationship());
@@ -105,13 +144,16 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 describe("Board-owned inspector autosave controller", () => {
-  it("debounces rapid Node edits and dispatches one direct update with expectedVersion", async () => {
+  it("debounces rapid Node edits and dispatches structured fields with expectedVersion", async () => {
     const { draftStore, dispatch, controller } = setup();
     const key = toInspectorEntityKey("node", aliceId);
 
     draftStore.getState().updateDraft(key, { name: "Alic" });
     await vi.advanceTimersByTimeAsync(300);
-    draftStore.getState().updateDraft(key, { name: "Alicia" });
+    draftStore.getState().updateDraft(key, {
+      name: "Alicia",
+      kind: "person",
+    });
     await vi.advanceTimersByTimeAsync(499);
     expect(dispatch).not.toHaveBeenCalled();
 
@@ -125,12 +167,21 @@ describe("Board-owned inspector autosave controller", () => {
       name: "Alicia",
       description: "Protagonist",
       properties: { role: "lead" },
+      kind: "person",
+      iconKey: null,
+      presentation: {
+        shape: "rounded-rect",
+        fillColor: null,
+        borderColor: null,
+        borderWidth: null,
+        textColor: null,
+      },
     });
 
     controller.dispose();
   });
 
-  it("builds Relationship updates from the latest direct Edge version", async () => {
+  it("builds Relationship updates from structured properties, direction, routing, and latest version", async () => {
     const { graphStore, draftStore, dispatch, controller } = setup();
     const key = toInspectorEntityKey("edge", edgeId);
 
@@ -138,7 +189,10 @@ describe("Board-owned inspector autosave controller", () => {
     draftStore.getState().updateDraft(key, {
       name: "best friend",
       description: "Childhood friends",
-      propertiesText: '{"since":2012}',
+      kind: "friendship",
+      properties: { since: "2012" },
+      direction: "UNDIRECTED",
+      routingType: "curved",
     });
     await vi.advanceTimersByTimeAsync(500);
 
@@ -150,7 +204,22 @@ describe("Board-owned inspector autosave controller", () => {
       expectedVersion: 9,
       name: "best friend",
       description: "Childhood friends",
-      properties: { since: 2012 },
+      properties: { since: "2012" },
+      direction: "UNDIRECTED",
+      kind: "friendship",
+      iconKey: null,
+      presentation: {
+        strokeColor: null,
+        strokeWidth: null,
+        strokeStyle: "solid",
+        labelColor: null,
+      },
+      routing: {
+        type: "curved",
+        sourcePort: "auto",
+        targetPort: "auto",
+        waypoints: [] as Array<{ x: number; y: number }>,
+      },
     });
 
     controller.dispose();
@@ -173,6 +242,7 @@ describe("Board-owned inspector autosave controller", () => {
       type: "update-node",
       nodeId: aliceId,
       expectedVersion: 3,
+      kind: "entity",
     });
 
     await vi.advanceTimersByTimeAsync(250);
@@ -181,22 +251,25 @@ describe("Board-owned inspector autosave controller", () => {
       type: "update-node",
       nodeId: bobId,
       expectedVersion: 7,
+      kind: "entity",
     });
 
     controller.dispose();
   });
 
-  it("does not dispatch invalid or semantically unchanged drafts", async () => {
+  it("does not dispatch invalid or semantically unchanged structured drafts", async () => {
     const { draftStore, dispatch, controller } = setup();
     const key = toInspectorEntityKey("node", aliceId);
 
-    draftStore.getState().updateDraft(key, { propertiesText: '{"role":' });
+    draftStore.getState().updateDraft(key, {
+      properties: { role: 21 as never },
+    });
     await vi.advanceTimersByTimeAsync(500);
     expect(dispatch).not.toHaveBeenCalled();
 
     draftStore.getState().updateDraft(key, {
       name: "Alice",
-      propertiesText: '{ "role": "lead" }',
+      properties: { role: "lead" },
     });
     await vi.advanceTimersByTimeAsync(500);
     expect(dispatch).not.toHaveBeenCalled();

@@ -19,8 +19,8 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1788658587530,
-      "tag": "0002_board_owned_graph",
+      "when": 1788747708606,
+      "tag": "0002_graph_editor_v2",
       "breakpoints": true
     }
   ]
