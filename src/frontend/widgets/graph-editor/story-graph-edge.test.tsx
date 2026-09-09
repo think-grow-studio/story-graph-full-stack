@@ -118,6 +118,19 @@ describe("StoryGraphEdge", () => {
     expect(screen.getByTestId("relationship-label")).toHaveAttribute("data-lane-offset", "18");
   });
 
+  it("expands relationship bundle lanes when the bundle is active", () => {
+    renderEdge({
+      laneIndex: 2,
+      laneCount: 3,
+      bundleExpanded: true,
+    } as unknown as Partial<StoryGraphFlowEdge["data"]>);
+
+    expect(screen.getByTestId("relationship-label")).toHaveAttribute(
+      "data-lane-offset",
+      "28",
+    );
+  });
+
   it("exposes the relationship label as an explicit selection surface", () => {
     const onSelect = vi.fn();
     renderEdge({ onSelect } as unknown as Partial<StoryGraphFlowEdge["data"]>);
