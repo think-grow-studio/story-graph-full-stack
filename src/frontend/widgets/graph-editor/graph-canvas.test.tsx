@@ -69,6 +69,7 @@ type FlowEdgeSnapshot = {
   data: {
     laneIndex: number;
     laneCount: number;
+    bundleExpanded?: boolean;
     visualState?: string;
   };
 };
@@ -186,6 +187,67 @@ describe("GraphCanvas", () => {
       "edge-b": "secondary",
       "edge-c": "dimmed",
     });
+    expect(
+      Object.fromEntries(
+        flowEdges.map((edge) => [edge.id, edge.data.bundleExpanded]),
+      ),
+    ).toEqual({
+      "edge-a": true,
+      "edge-b": true,
+      "edge-c": false,
+    });
+  });
+
+  it("expands a whole relationship bundle while one of its Edges is hovered", () => {
+    render(
+      <GraphCanvas
+        edges={[
+          graphEdge("edge-a", "node-a", "node-b"),
+          graphEdge("edge-b", "node-b", "node-a"),
+          graphEdge("edge-c", "node-a", "node-c"),
+        ]}
+        nodes={[
+          { id: "node-a", name: "A", position: { x: 0, y: 0 }, width: 100, height: 80 },
+          { id: "node-b", name: "B", position: { x: 200, y: 0 }, width: 100, height: 80 },
+          { id: "node-c", name: "C", position: { x: 0, y: 200 }, width: 100, height: 80 },
+        ]}
+        onConnectNodes={vi.fn()}
+        onNodeDragStop={vi.fn()}
+        onNodePositionChange={vi.fn()}
+      />,
+    );
+
+    act(() => {
+      (
+        flowMocks.props?.onEdgeMouseEnter as
+          | ((event: unknown, edge: { id: string }) => void)
+          | undefined
+      )?.({}, { id: "edge-a" });
+    });
+
+    let flowEdges = flowMocks.props?.edges as FlowEdgeSnapshot[];
+    expect(
+      Object.fromEntries(
+        flowEdges.map((edge) => [edge.id, edge.data.bundleExpanded]),
+      ),
+    ).toEqual({
+      "edge-a": true,
+      "edge-b": true,
+      "edge-c": false,
+    });
+
+    act(() => {
+      (
+        flowMocks.props?.onEdgeMouseLeave as
+          | ((event: unknown, edge: { id: string }) => void)
+          | undefined
+      )?.({}, { id: "edge-a" });
+    });
+
+    flowEdges = flowMocks.props?.edges as FlowEdgeSnapshot[];
+    expect(flowEdges.every((edge) => edge.data.bundleExpanded === false)).toBe(
+      true,
+    );
   });
 
   it("marks Node data active only while a connection gesture is in progress", () => {
