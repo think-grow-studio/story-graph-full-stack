@@ -32,6 +32,12 @@ function waitForNodeRestore(page: Page, boardId: string, nodeId: string) {
   );
 }
 
+function relationshipRailTrigger(page: Page) {
+  return page.getByRole("button", {
+    name: /^(Alice와 Bob|Bob와 Alice) 관계 보기$/,
+  });
+}
+
 test("Graph Editor persists direct Node delete Undo and Redo with incident Relationship", async ({
   context,
   page,
@@ -77,11 +83,11 @@ test("Graph Editor persists direct Node delete Undo and Redo with incident Relat
 
     const aliceElement = page.locator(`.react-flow__node[data-id="${alice.id}"]`);
     const bobElement = page.locator(`.react-flow__node[data-id="${bob.id}"]`);
-    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
-    const edgeSelection = page.getByRole("button", { name: "관계 선택: knows" });
+    const rail = page.locator(".react-flow__edge");
     await expect(aliceElement).toContainText("Alice");
     await expect(bobElement).toContainText("Bob");
-    await expect(edgeSelection).toBeVisible();
+    await expect(rail).toHaveCount(1);
+    await expect(relationshipRailTrigger(page)).toBeVisible();
 
     await aliceElement.click();
     await expect(page.getByRole("heading", { name: "노드" })).toBeVisible();
@@ -95,7 +101,7 @@ test("Graph Editor persists direct Node delete Undo and Redo with incident Relat
     await page.getByRole("button", { name: "노드 삭제" }).click();
     expect((await deletePromise).status()).toBe(204);
     await expect(aliceElement).toHaveCount(0);
-    await expect(edgeElement).toHaveCount(0);
+    await expect(rail).toHaveCount(0);
     await expect(bobElement).toBeVisible();
     await expect(page.getByText("저장됨")).toBeVisible();
 
@@ -108,21 +114,23 @@ test("Graph Editor persists direct Node delete Undo and Redo with incident Relat
       edges: [expect.objectContaining({ id: edge.id, version: edge.version })],
     });
     await expect(aliceElement).toBeVisible();
-    await expect(edgeSelection).toBeVisible();
+    await expect(rail).toHaveCount(1);
+    await expect(relationshipRailTrigger(page)).toBeVisible();
     await expect(page.getByText("저장됨")).toBeVisible();
 
     const redoPromise = waitForNodeDelete(page, board.id, alice.id);
     await page.getByRole("button", { name: "Redo" }).click();
     expect((await redoPromise).status()).toBe(204);
     await expect(aliceElement).toHaveCount(0);
-    await expect(edgeElement).toHaveCount(0);
+    await expect(rail).toHaveCount(0);
     await expect(bobElement).toBeVisible();
 
     const finalUndoPromise = waitForNodeRestore(page, board.id, alice.id);
     await page.getByRole("button", { name: "Undo" }).click();
     expect((await finalUndoPromise).status()).toBe(200);
     await expect(aliceElement).toBeVisible();
-    await expect(edgeSelection).toBeVisible();
+    await expect(rail).toHaveCount(1);
+    await expect(relationshipRailTrigger(page)).toBeVisible();
     await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
@@ -133,7 +141,8 @@ test("Graph Editor persists direct Node delete Undo and Redo with incident Relat
     await expect(
       page.locator(`.react-flow__node[data-id="${bob.id}"]`),
     ).toBeVisible();
-    await expect(edgeSelection).toBeVisible();
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+    await expect(relationshipRailTrigger(page)).toBeVisible();
 
     const snapshotResponse = await context.request.get(
       `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,
