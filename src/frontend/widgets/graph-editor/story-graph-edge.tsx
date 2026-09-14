@@ -23,26 +23,33 @@ export type RelationshipVisualState =
   | "secondary"
   | "dimmed";
 
-export type StoryGraphEdgeData = {
+export type RelationshipRailItem = {
+  id: string;
   label: string;
+  sourceLabel: string;
+  targetLabel: string;
   direction: EdgeDirection;
+};
+
+export type StoryGraphEdgeData = {
+  relationships: RelationshipRailItem[];
+  pairLabel: string;
+  popoverOpen: boolean;
+  selectedRelationshipId?: string | null;
   routingType: EdgeRouting["type"];
   sourcePort: ResolvedPort;
   targetPort: ResolvedPort;
   waypoints: EdgeRouting["waypoints"];
-  laneIndex: number;
-  laneCount: number;
-  laneOrientation?: "forward" | "reverse";
-  bundleExpanded?: boolean;
   visualState: RelationshipVisualState;
   presentation: EdgePresentation;
-  onSelect?: (edgeId: string) => void;
+  onSelectRelationship?: (edgeId: string) => void;
+  onRequestOpen?: () => void;
+  onRequestClose?: () => void;
+  onTogglePinned?: () => void;
+  onDismiss?: () => void;
 };
 
 export type StoryGraphFlowEdge = Edge<StoryGraphEdgeData, "storyGraph">;
-
-const compactLaneGap = 18;
-const expandedLaneGap = 28;
 
 export function StoryGraphEdge({
   id,
@@ -54,17 +61,11 @@ export function StoryGraphEdge({
   sourcePosition,
   targetPosition,
   interactionWidth,
+  markerStart,
   markerEnd,
 }: EdgeProps<StoryGraphFlowEdge>) {
   if (!data) return null;
 
-  const baseLaneOffset = getLaneOffset(
-    data.laneIndex,
-    data.laneCount,
-    Boolean(data.bundleExpanded),
-  );
-  const laneOffset =
-    data.laneOrientation === "reverse" ? -baseLaneOffset : baseLaneOffset;
   const [path, labelX, labelY] = getRoutePath({
     routingType: data.routingType,
     sourceX,
@@ -73,18 +74,26 @@ export function StoryGraphEdge({
     targetY,
     sourcePosition,
     targetPosition,
-    laneOffset,
   });
-  const strokeWidth = getStrokeWidth(
+  const baseStrokeWidth = getStrokeWidth(
     data.visualState,
     data.presentation.strokeWidth,
   );
+  const strokeWidth = data.popoverOpen
+    ? Math.max(baseStrokeWidth, 2)
+    : baseStrokeWidth;
   const opacity =
     data.visualState === "dimmed"
       ? 0.2
       : data.visualState === "secondary"
         ? 0.65
         : 1;
+  const firstRelationship = data.relationships[0];
+  const pairLabel =
+    data.pairLabel ||
+    (firstRelationship
+      ? `${firstRelationship.sourceLabel}와 ${firstRelationship.targetLabel}`
+      : "관계");
 
   return (
     <>
@@ -92,8 +101,10 @@ export function StoryGraphEdge({
         id={id}
         interactionWidth={interactionWidth}
         markerEnd={markerEnd}
+        markerStart={markerStart}
         path={path}
         style={{
+          cursor: "pointer",
           opacity,
           stroke: data.presentation.strokeColor ?? "var(--sg-brand)",
           strokeDasharray:
@@ -105,38 +116,102 @@ export function StoryGraphEdge({
           strokeWidth,
         }}
       />
+
       <EdgeLabelRenderer>
         <button
-          aria-label={`관계 선택: ${data.label}`}
-          className="nodrag nopan pointer-events-auto absolute cursor-pointer rounded border-0 bg-[var(--sg-surface)] px-1.5 py-0.5 text-xs font-medium text-[var(--sg-ink)] shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--sg-focus)]"
-          data-lane-offset={baseLaneOffset}
-          data-testid="relationship-label"
-          data-visual-state={data.visualState}
+          aria-label={`${pairLabel} 관계 보기`}
+          className="nodrag nopan pointer-events-auto absolute h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--sg-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sg-surface)]"
+          data-testid="relationship-rail-trigger"
+          onBlur={data.onRequestClose}
           onClick={(event) => {
             event.stopPropagation();
-            data.onSelect?.(id);
+            data.onTogglePinned?.();
           }}
+          onFocus={data.onRequestOpen}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            event.stopPropagation();
+            data.onDismiss?.();
+          }}
+          onPointerEnter={data.onRequestOpen}
+          onPointerLeave={data.onRequestClose}
           style={{
-            opacity,
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
           }}
           type="button"
         >
-          {data.label}
+          <span className="sr-only">관계 보기</span>
         </button>
+
+        {data.popoverOpen ? (
+          <div
+            aria-label={`${pairLabel} 관계`}
+            className="nodrag nopan pointer-events-auto absolute w-[min(300px,calc(100vw-32px))] overflow-hidden rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] shadow-[0_10px_30px_rgba(23,25,29,0.12)]"
+            data-testid="relationship-card"
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.stopPropagation();
+              data.onDismiss?.();
+            }}
+            onPointerEnter={data.onRequestOpen}
+            onPointerLeave={data.onRequestClose}
+            role="region"
+            style={{
+              opacity,
+              transform: `translate(-50%, calc(-100% - 14px)) translate(${labelX}px, ${labelY}px)`,
+            }}
+          >
+            <div className="border-b border-[var(--sg-line)] px-3 py-2 text-[11px] font-medium text-[var(--sg-muted)]">
+              관계 {data.relationships.length}개
+            </div>
+            <div className="grid p-1.5">
+              {data.relationships.map((relationship) => {
+                const selected =
+                  relationship.id === data.selectedRelationshipId;
+                const directionSymbol =
+                  relationship.direction === "DIRECTED" ? "→" : "—";
+                const accessibleLabel = `${relationship.sourceLabel} ${directionSymbol} ${relationship.targetLabel}: ${relationship.label}`;
+
+                return (
+                  <button
+                    aria-label={accessibleLabel}
+                    className={`cursor-pointer rounded-[var(--sg-radius-sm)] px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[color:var(--sg-focus)] ${
+                      selected
+                        ? "bg-[var(--sg-canvas)]"
+                        : "bg-transparent hover:bg-[var(--sg-canvas)]"
+                    }`}
+                    data-relationship-id={relationship.id}
+                    data-selected={selected ? "true" : "false"}
+                    key={relationship.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      data.onSelectRelationship?.(relationship.id);
+                      data.onDismiss?.();
+                    }}
+                    type="button"
+                  >
+                    <span className="block truncate text-xs font-medium text-[var(--sg-muted)]">
+                      {relationship.sourceLabel}
+                      <span
+                        aria-hidden="true"
+                        className="mx-1.5 text-[var(--sg-brand-strong)]"
+                      >
+                        {directionSymbol}
+                      </span>
+                      {relationship.targetLabel}
+                    </span>
+                    <span className="mt-1 block text-sm font-semibold leading-5 text-[var(--sg-ink)]">
+                      {relationship.label || "이름 없는 관계"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </EdgeLabelRenderer>
     </>
   );
-}
-
-export function getLaneOffset(
-  laneIndex: number,
-  laneCount: number,
-  expanded = false,
-) {
-  if (laneCount <= 1) return 0;
-  const laneGap = expanded ? expandedLaneGap : compactLaneGap;
-  return (laneIndex - (laneCount - 1) / 2) * laneGap;
 }
 
 function getStrokeWidth(
@@ -157,7 +232,6 @@ function getRoutePath({
   targetY,
   sourcePosition,
   targetPosition,
-  laneOffset,
 }: {
   routingType: EdgeRouting["type"];
   sourceX: number;
@@ -166,27 +240,18 @@ function getRoutePath({
   targetY: number;
   sourcePosition: Position;
   targetPosition: Position;
-  laneOffset: number;
 }): [string, number, number] {
   if (routingType === "straight") {
-    const [path, labelX, labelY] = getStraightPath({
+    return getStraightPath({
       sourceX,
       sourceY,
       targetX,
       targetY,
     });
-    const labelOffset = getNormalOffset(
-      sourceX,
-      sourceY,
-      targetX,
-      targetY,
-      laneOffset,
-    );
-    return [path, labelX + labelOffset.x, labelY + labelOffset.y];
   }
 
   if (routingType === "curved") {
-    const [path, labelX, labelY] = getBezierPath({
+    return getBezierPath({
       sourceX,
       sourceY,
       targetX,
@@ -194,24 +259,9 @@ function getRoutePath({
       sourcePosition,
       targetPosition,
     });
-    const labelOffset = getNormalOffset(
-      sourceX,
-      sourceY,
-      targetX,
-      targetY,
-      laneOffset,
-    );
-    return [path, labelX + labelOffset.x, labelY + labelOffset.y];
   }
 
-  const center = getOffsetCenter(
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    laneOffset,
-  );
-  const [path, labelX, labelY] = getSmoothStepPath({
+  return getSmoothStepPath({
     sourceX,
     sourceY,
     targetX,
@@ -219,51 +269,5 @@ function getRoutePath({
     sourcePosition,
     targetPosition,
     borderRadius: 8,
-    ...(laneOffset
-      ? {
-          centerX: center.x,
-          centerY: center.y,
-        }
-      : {}),
   });
-  return [path, labelX, labelY];
-}
-
-function getOffsetCenter(
-  sourceX: number,
-  sourceY: number,
-  targetX: number,
-  targetY: number,
-  laneOffset: number,
-) {
-  const offset = getNormalOffset(
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    laneOffset,
-  );
-  return {
-    x: (sourceX + targetX) / 2 + offset.x,
-    y: (sourceY + targetY) / 2 + offset.y,
-  };
-}
-
-function getNormalOffset(
-  sourceX: number,
-  sourceY: number,
-  targetX: number,
-  targetY: number,
-  laneOffset: number,
-) {
-  if (!laneOffset) return { x: 0, y: 0 };
-
-  const dx = targetX - sourceX;
-  const dy = targetY - sourceY;
-  const length = Math.hypot(dx, dy) || 1;
-
-  return {
-    x: (-dy / length) * laneOffset,
-    y: (dx / length) * laneOffset,
-  };
 }
