@@ -1,13 +1,16 @@
 "use client";
 
+import type { GraphEdgeResponse } from "@/contracts/graph/graph.contract";
+import {
+  SelectField,
+  TextAreaField,
+  TextField,
+} from "@/frontend/shared/ui/form-field";
 import type {
   InspectorDraft,
   InspectorDraftPatch,
 } from "./inspector-draft-model";
-import {
-  TextAreaField,
-  TextField,
-} from "@/frontend/shared/ui/form-field";
+import { PropertyEditor } from "./properties/property-editor";
 
 type RelationshipDirectionEditorProps = {
   active: boolean;
@@ -19,11 +22,19 @@ type RelationshipDirectionEditorProps = {
   onToggle: (active: boolean) => void;
 };
 
+type RelationshipAdvancedEditorProps = {
+  draft: InspectorDraft;
+  label: string;
+  validationError?: string | null;
+  onDraftChange: (patch: InspectorDraftPatch) => void;
+};
+
 export type RelationshipPairInspectorProps = {
   leftLabel: string;
   rightLabel: string;
   forward: Omit<RelationshipDirectionEditorProps, "label">;
   reverse: Omit<RelationshipDirectionEditorProps, "label">;
+  advanced?: RelationshipAdvancedEditorProps;
   undirectedCount?: number;
 };
 
@@ -32,10 +43,11 @@ export function RelationshipPairInspector({
   rightLabel,
   forward,
   reverse,
+  advanced,
   undirectedCount = 0,
 }: RelationshipPairInspectorProps) {
   return (
-    <aside className="rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] p-5 shadow-[0_1px_2px_rgba(23,25,29,0.03)]">
+    <aside className="self-start rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] p-5 shadow-[0_1px_2px_rgba(23,25,29,0.03)]">
       <div className="border-b border-[var(--sg-line)] pb-4">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--sg-muted)]">
           Inspector
@@ -62,6 +74,8 @@ export function RelationshipPairInspector({
           방향 없는 관계 {undirectedCount}개는 그대로 유지됩니다.
         </p>
       ) : null}
+
+      {advanced ? <RelationshipAdvancedEditor {...advanced} /> : null}
     </aside>
   );
 }
@@ -110,6 +124,11 @@ function RelationshipDirectionEditor({
             rows={3}
             value={draft.description}
           />
+          {!draft.name.trim() ? (
+            <p className="text-xs leading-5 text-[var(--sg-danger)]" role="alert">
+              관계 문구를 입력해 주세요.
+            </p>
+          ) : null}
           {extraCount > 0 ? (
             <p className="text-xs leading-5 text-[var(--sg-muted)]">
               같은 방향에 기존 관계가 {extraCount}개 더 있습니다. 현재 대표 관계를
@@ -123,5 +142,51 @@ function RelationshipDirectionEditor({
         </p>
       )}
     </section>
+  );
+}
+
+function RelationshipAdvancedEditor({
+  draft,
+  label,
+  validationError,
+  onDraftChange,
+}: RelationshipAdvancedEditorProps) {
+  return (
+    <details className="mt-4 border-t border-[var(--sg-line)] pt-4">
+      <summary className="cursor-pointer text-xs font-semibold text-[var(--sg-muted)] outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--sg-focus)]">
+        고급 설정
+      </summary>
+      <p className="mt-2 text-xs leading-5 text-[var(--sg-muted)]">{label}</p>
+      <div className="mt-3 grid gap-3">
+        <TextField
+          label="종류"
+          maxLength={100}
+          onChange={(event) => onDraftChange({ kind: event.target.value })}
+          value={draft.kind}
+        />
+        <SelectField
+          label="선 모양"
+          onChange={(event) =>
+            onDraftChange({
+              routingType: event.target.value as GraphEdgeResponse["routing"]["type"],
+            })
+          }
+          value={draft.routingType ?? "orthogonal"}
+        >
+          <option value="orthogonal">직각</option>
+          <option value="straight">직선</option>
+          <option value="curved">곡선</option>
+        </SelectField>
+        <PropertyEditor
+          onChange={(properties) => onDraftChange({ properties })}
+          value={draft.properties}
+        />
+        {validationError ? (
+          <p className="text-xs leading-5 text-[var(--sg-danger)]" role="alert">
+            {validationError}
+          </p>
+        ) : null}
+      </div>
+    </details>
   );
 }
