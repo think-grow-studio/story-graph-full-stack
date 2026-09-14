@@ -182,8 +182,10 @@ describe("shared relationship rail", () => {
       />,
     );
 
-    expect(screen.getByText("→ 좋아한다")).toBeVisible();
-    expect(screen.getByText("← 잊었다")).toBeVisible();
+    expect(screen.getByText("좋아한다")).toBeVisible();
+    expect(screen.getByText("잊었다")).toBeVisible();
+    expect(screen.getByText("→")).toBeInTheDocument();
+    expect(screen.getByText("←")).toBeInTheDocument();
   });
 
   it("selects the representative Relationship when the single rail is clicked", () => {
