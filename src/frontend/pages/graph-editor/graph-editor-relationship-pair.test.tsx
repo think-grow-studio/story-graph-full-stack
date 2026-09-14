@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getBootstrap: vi.fn(),
@@ -149,6 +149,8 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+afterEach(() => cleanup());
 
 beforeEach(() => {
   vi.clearAllMocks();
