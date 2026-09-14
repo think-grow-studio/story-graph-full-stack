@@ -59,6 +59,7 @@ function edgeData(
         sourceLabel: "피터 파커",
         targetLabel: "MJ",
         direction: "DIRECTED",
+        orientation: "forward",
       },
       {
         id: "edge-b",
@@ -66,6 +67,7 @@ function edgeData(
         sourceLabel: "MJ",
         targetLabel: "피터 파커",
         direction: "DIRECTED",
+        orientation: "reverse",
       },
     ],
     pairLabel: "피터 파커와 MJ",
@@ -139,12 +141,17 @@ describe("StoryGraphEdge", () => {
     );
   });
 
-  it("keeps Relationship names off the canvas while the card is closed", () => {
+  it("keeps concise directional Relationship names visible on the canvas", () => {
     render(<StoryGraphEdge {...edgeProps(edgeData())} />);
 
     expect(screen.queryByTestId("relationship-card")).not.toBeInTheDocument();
-    expect(screen.queryByText("좋아한다")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "피터 파커와 MJ 관계 보기" })).toBeVisible();
+    expect(screen.getByText("좋아한다")).toBeVisible();
+    expect(screen.getByText("잊었다")).toBeVisible();
+    expect(screen.getByText("→")).toBeInTheDocument();
+    expect(screen.getByText("←")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "피터 파커와 MJ 관계 보기" }),
+    ).toBeVisible();
   });
 
   it("shows semantic direction and names together in the open card", () => {
@@ -159,7 +166,7 @@ describe("StoryGraphEdge", () => {
     ).toBeVisible();
   });
 
-  it("selects a semantic Relationship from the card and dismisses the card", () => {
+  it("selects a semantic Relationship from the preview card and dismisses it", () => {
     const onSelectRelationship = vi.fn();
     const onDismiss = vi.fn();
     render(
@@ -178,15 +185,13 @@ describe("StoryGraphEdge", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
-  it("opens from keyboard focus, pins from click, and dismisses with Escape", () => {
+  it("opens preview from keyboard focus, selects the pair on click, and dismisses with Escape", () => {
     const onRequestOpen = vi.fn();
-    const onTogglePinned = vi.fn();
+    const onSelectPair = vi.fn();
     const onDismiss = vi.fn();
     render(
       <StoryGraphEdge
-        {...edgeProps(
-          edgeData({ onRequestOpen, onTogglePinned, onDismiss }),
-        )}
+        {...edgeProps(edgeData({ onRequestOpen, onSelectPair, onDismiss }))}
       />,
     );
 
@@ -198,16 +203,14 @@ describe("StoryGraphEdge", () => {
     fireEvent.keyDown(trigger, { key: "Escape" });
 
     expect(onRequestOpen).toHaveBeenCalled();
-    expect(onTogglePinned).toHaveBeenCalledTimes(1);
+    expect(onSelectPair).toHaveBeenCalledTimes(1);
     expect(onDismiss).toHaveBeenCalledTimes(1);
     expect(trigger).toHaveClass("focus-visible:ring-[color:var(--sg-focus)]");
   });
 
   it("forwards a wide interaction target for stable rail hover", () => {
     render(
-      <StoryGraphEdge
-        {...edgeProps(edgeData(), { interactionWidth: 48 })}
-      />,
+      <StoryGraphEdge {...edgeProps(edgeData(), { interactionWidth: 48 })} />,
     );
 
     expect(screen.getByTestId("base-edge")).toHaveAttribute(
@@ -220,18 +223,19 @@ describe("StoryGraphEdge", () => {
     ["selected", "3"],
     ["secondary", "2"],
     ["dimmed", "1"],
-  ] as const)("uses non-color emphasis for %s state", (visualState, expectedWidth) => {
-    render(
-      <StoryGraphEdge
-        {...edgeProps(edgeData({ visualState }))}
-      />,
-    );
+  ] as const)(
+    "uses non-color emphasis for %s state",
+    (visualState, expectedWidth) => {
+      render(
+        <StoryGraphEdge {...edgeProps(edgeData({ visualState }))} />,
+      );
 
-    expect(screen.getByTestId("base-edge")).toHaveAttribute(
-      "data-stroke-width",
-      expectedWidth,
-    );
-  });
+      expect(screen.getByTestId("base-edge")).toHaveAttribute(
+        "data-stroke-width",
+        expectedWidth,
+      );
+    },
+  );
 
   it("uses durable Story Graph tokens for the default rail stroke", () => {
     render(<StoryGraphEdge {...edgeProps(edgeData())} />);
