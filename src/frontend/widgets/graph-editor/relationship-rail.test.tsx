@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -100,7 +100,6 @@ describe("shared relationship rail", () => {
     );
 
     const flowEdges = mocks.flowProps?.edges as Array<{
-      id: string;
       source: string;
       target: string;
       markerStart?: unknown;
@@ -109,8 +108,7 @@ describe("shared relationship rail", () => {
         relationships: Array<{
           id: string;
           label: string;
-          sourceLabel: string;
-          targetLabel: string;
+          orientation: string;
         }>;
       };
     }>;
@@ -123,25 +121,20 @@ describe("shared relationship rail", () => {
       markerEnd: { type: "arrowclosed" },
     });
     expect(flowEdges[0]?.data.relationships).toEqual([
-      {
+      expect.objectContaining({
         id: "edge-a",
         label: "좋아한다",
-        sourceLabel: "피터 파커",
-        targetLabel: "MJ",
-        direction: "DIRECTED",
-      },
-      {
+        orientation: "forward",
+      }),
+      expect.objectContaining({
         id: "edge-b",
         label: "잊었다",
-        sourceLabel: "MJ",
-        targetLabel: "피터 파커",
-        direction: "DIRECTED",
-      },
+        orientation: "reverse",
+      }),
     ]);
   });
 
-  it("shows an interactive relationship card only while the rail is open", () => {
-    const onSelectRelationship = vi.fn();
+  it("keeps the relationship summary visible on the single rail", () => {
     const data = {
       relationships: [
         {
@@ -150,6 +143,7 @@ describe("shared relationship rail", () => {
           sourceLabel: "피터 파커",
           targetLabel: "MJ",
           direction: "DIRECTED" as const,
+          orientation: "forward" as const,
         },
         {
           id: "edge-b",
@@ -157,20 +151,17 @@ describe("shared relationship rail", () => {
           sourceLabel: "MJ",
           targetLabel: "피터 파커",
           direction: "DIRECTED" as const,
+          orientation: "reverse" as const,
         },
       ],
-      popoverOpen: true,
-      selectedRelationshipId: null,
+      pairLabel: "피터 파커와 MJ",
+      popoverOpen: false,
       routingType: "orthogonal" as const,
       sourcePort: "right" as const,
       targetPort: "left" as const,
       waypoints: [],
       visualState: "idle" as const,
       presentation,
-      onSelectRelationship,
-      onRequestOpen: vi.fn(),
-      onRequestClose: vi.fn(),
-      onTogglePinned: vi.fn(),
     } as unknown as NonNullable<StoryGraphFlowEdge["data"]>;
 
     render(
@@ -191,25 +182,35 @@ describe("shared relationship rail", () => {
       />,
     );
 
-    expect(screen.getByTestId("base-edge")).toHaveAttribute(
-      "data-marker-start",
-      "url(#start)",
-    );
-    expect(screen.getByTestId("base-edge")).toHaveAttribute(
-      "data-marker-end",
-      "url(#end)",
+    expect(screen.getByText("좋아한다")).toBeVisible();
+    expect(screen.getByText("잊었다")).toBeVisible();
+    expect(screen.getByText("→")).toBeInTheDocument();
+    expect(screen.getByText("←")).toBeInTheDocument();
+  });
+
+  it("selects the representative Relationship when the single rail is clicked", () => {
+    const onSelectEdge = vi.fn();
+    render(
+      <GraphCanvas
+        edges={[graphEdge("edge-a", "좋아한다", "node-a", "node-b")]}
+        nodes={[
+          { id: "node-a", name: "피터 파커", position: { x: 0, y: 0 } },
+          { id: "node-b", name: "MJ", position: { x: 240, y: 0 } },
+        ]}
+        onConnectNodes={vi.fn()}
+        onNodeDragStop={vi.fn()}
+        onNodePositionChange={vi.fn()}
+        onSelectEdge={onSelectEdge}
+      />,
     );
 
-    const first = screen.getByRole("button", {
-      name: "피터 파커 → MJ: 좋아한다",
-    });
-    const second = screen.getByRole("button", {
-      name: "MJ → 피터 파커: 잊었다",
-    });
-    expect(first).toBeVisible();
-    expect(second).toBeVisible();
+    const onEdgeClick = mocks.flowProps?.onEdgeClick as
+      | ((event: unknown, edge: StoryGraphFlowEdge) => void)
+      | undefined;
+    const edge = (mocks.flowProps?.edges as StoryGraphFlowEdge[])[0];
+    expect(onEdgeClick).toBeTypeOf("function");
+    onEdgeClick?.({}, edge);
 
-    fireEvent.click(second);
-    expect(onSelectRelationship).toHaveBeenCalledWith("edge-b");
+    expect(onSelectEdge).toHaveBeenCalledWith("edge-a");
   });
 });

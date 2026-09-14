@@ -245,7 +245,7 @@ beforeEach(() => {
     name: "best friend",
     description: "Childhood friends",
     properties: { since: "2012" },
-    direction: "UNDIRECTED",
+    direction: "DIRECTED",
     routing: {
       ...snapshot().edges[0].routing,
       type: "curved",
@@ -348,7 +348,7 @@ describe("Graph Editor inspector", () => {
     });
   });
 
-  it("autosaves structured Relationship controls after 500 ms", async () => {
+  it("autosaves pair Relationship controls after 500 ms", async () => {
     const user = userEvent.setup();
     const { queryClient } = renderPage();
 
@@ -356,25 +356,27 @@ describe("Graph Editor inspector", () => {
       await screen.findByRole("button", { name: "Select knows" }),
     );
     expect(screen.getByRole("heading", { name: "관계" })).toBeInTheDocument();
-    expect(screen.getByLabelText("방향")).toHaveValue("DIRECTED");
+    expect(screen.getByText("Alice ↔ Bob")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Alice → Bob 활성화" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Bob → Alice 활성화" }),
+    ).not.toBeChecked();
+    expect(screen.getByLabelText("Alice → Bob 관계")).toHaveValue("knows");
+    expect(screen.getByLabelText("Alice → Bob 설명")).toHaveValue("Old friends");
     expect(screen.getByLabelText("선 모양")).toHaveValue("orthogonal");
     expect(screen.getByLabelText("since 값")).toHaveValue("2020");
-    expect(
-      screen.queryByRole("button", { name: "Save Relationship" }),
-    ).not.toBeInTheDocument();
 
     vi.useFakeTimers();
-    fireEvent.change(screen.getByLabelText("이름"), {
+    fireEvent.change(screen.getByLabelText("Alice → Bob 관계"), {
       target: { value: "best friend" },
     });
-    fireEvent.change(screen.getByLabelText("설명"), {
+    fireEvent.change(screen.getByLabelText("Alice → Bob 설명"), {
       target: { value: "Childhood friends" },
     });
     fireEvent.change(screen.getByLabelText("since 값"), {
       target: { value: "2012" },
-    });
-    fireEvent.change(screen.getByLabelText("방향"), {
-      target: { value: "UNDIRECTED" },
     });
     fireEvent.change(screen.getByLabelText("선 모양"), {
       target: { value: "curved" },
@@ -390,7 +392,7 @@ describe("Graph Editor inspector", () => {
       workspaceId: "workspace-1",
       expectedVersion: 4,
       name: "best friend",
-      direction: "UNDIRECTED",
+      direction: "DIRECTED",
       description: "Childhood friends",
       kind: "relationship",
       iconKey: null,
@@ -420,7 +422,7 @@ describe("Graph Editor inspector", () => {
         expect.objectContaining({
           id: edgeId,
           name: "best friend",
-          direction: "UNDIRECTED",
+          direction: "DIRECTED",
           version: 5,
         }),
       );

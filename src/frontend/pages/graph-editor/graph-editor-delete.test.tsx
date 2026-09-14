@@ -230,18 +230,18 @@ describe("Graph Editor direct deletion", () => {
     ).toBeInTheDocument();
   });
 
-  it("deletes one Relationship while keeping both Nodes and restores it with Undo", async () => {
+  it("turns one Relationship direction off while keeping both Nodes and restores it with Undo", async () => {
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Select knows" }));
-    expect(
-      screen.getByText(
-        "이 관계를 이 보드에서 삭제합니다. 현재 세션에서 Undo할 수 있습니다.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Alice ↔ Bob")).toBeInTheDocument();
+    const forwardToggle = screen.getByRole("checkbox", {
+      name: "Alice → Bob 활성화",
+    });
+    expect(forwardToggle).toBeChecked();
 
-    await user.click(screen.getByRole("button", { name: "관계 삭제" }));
+    await user.click(forwardToggle);
 
     await waitFor(() => expect(mocks.deleteEdge).toHaveBeenCalledTimes(1));
     expect(mocks.deleteEdge).toHaveBeenCalledWith({

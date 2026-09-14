@@ -51,7 +51,7 @@ function relationshipRailTrigger(page: Page, left: string, right: string) {
   });
 }
 
-async function selectRelationship(
+async function selectRelationshipPair(
   page: Page,
   source: string,
   target: string,
@@ -60,11 +60,9 @@ async function selectRelationship(
   const trigger = relationshipRailTrigger(page, source, target);
   await expect(trigger).toBeVisible();
   await trigger.click();
-  const row = page.getByRole("button", {
-    name: `${source} → ${target}: ${name}`,
-  });
-  await expect(row).toBeVisible();
-  await row.click();
+  await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
+  await expect(page.getByText(`${source} ↔ ${target}`)).toBeVisible();
+  await expect(page.getByLabel(`${source} → ${target} 관계`)).toHaveValue(name);
 }
 
 async function connectByDrag(
@@ -184,7 +182,9 @@ test("Graph V2 keeps semantic Relationships distinct behind one shared rail", as
     await expect(page.locator(".react-flow__edge")).toHaveCount(1);
     const railTrigger = relationshipRailTrigger(page, "Alice", "Bob");
     await expect(railTrigger).toBeVisible();
-    await railTrigger.click();
+    await expect(railTrigger).toContainText("친구라고 생각함");
+    await expect(railTrigger).toContainText("친구라고 속임");
+    await railTrigger.hover();
     await expect(page.getByText("관계 3개")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Alice → Bob: 친구라고 생각함" }),
@@ -319,10 +319,14 @@ test("Graph V2 projects Node and Relationship focus onto shared rails", async ({
     await expect(unrelatedRail).toHaveAttribute("data-visual-state", "dimmed");
 
     await primaryRail.click();
-    await page
-      .getByRole("button", { name: "Alice → Bob: 친구라고 생각함" })
-      .click();
     await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
+    await expect(page.getByText("Alice ↔ Bob")).toBeVisible();
+    await expect(
+      page.getByRole("checkbox", { name: "Alice → Bob 활성화" }),
+    ).toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: "Bob → Alice 활성화" }),
+    ).toBeChecked();
     await expect(primaryRail).toHaveAttribute("data-visual-state", "selected");
     await expect(unrelatedRail).toHaveAttribute("data-visual-state", "dimmed");
     await expect(aliceNode).toHaveCSS("opacity", "1");
@@ -376,8 +380,8 @@ test("Graph V2 persists routing and nested properties edited through the Inspect
 
     await page.goto(`/stories/${story.id}/boards/${board.id}`);
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
-    await selectRelationship(page, "Alice", "Bob", "knows");
-    await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
+    await selectRelationshipPair(page, "Alice", "Bob", "knows");
+    await page.getByText("고급 설정").click();
     await expect(page.getByLabel("선 모양")).toHaveValue("orthogonal");
 
     const straightPromise = waitForPatch(
@@ -424,7 +428,8 @@ test("Graph V2 persists routing and nested properties edited through the Inspect
     await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
-    await selectRelationship(page, "Alice", "Bob", "knows");
+    await selectRelationshipPair(page, "Alice", "Bob", "knows");
+    await page.getByText("고급 설정").click();
     await expect(page.getByLabel("선 모양")).toHaveValue("curved");
     await expect(page.getByLabel("role 값")).toHaveValue("lead");
 

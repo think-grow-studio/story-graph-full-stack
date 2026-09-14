@@ -72,10 +72,11 @@ type FlowEdgeSnapshot = {
       sourceLabel: string;
       targetLabel: string;
       direction: string;
+      orientation: string;
     }>;
     popoverOpen: boolean;
     visualState: string;
-    onTogglePinned?: () => void;
+    onSelectPair?: () => void;
     onRequestOpen?: () => void;
     onRequestClose?: () => void;
   };
@@ -87,9 +88,27 @@ type DragNodeSnapshot = {
 };
 
 const nodes = [
-  { id: "node-a", name: "Alice", position: { x: 0, y: 0 }, width: 100, height: 80 },
-  { id: "node-b", name: "Bob", position: { x: 200, y: 0 }, width: 100, height: 80 },
-  { id: "node-c", name: "Carol", position: { x: 0, y: 200 }, width: 100, height: 80 },
+  {
+    id: "node-a",
+    name: "Alice",
+    position: { x: 0, y: 0 },
+    width: 100,
+    height: 80,
+  },
+  {
+    id: "node-b",
+    name: "Bob",
+    position: { x: 200, y: 0 },
+    width: 100,
+    height: 80,
+  },
+  {
+    id: "node-c",
+    name: "Carol",
+    position: { x: 0, y: 200 },
+    width: 100,
+    height: 80,
+  },
 ];
 
 describe("GraphCanvas", () => {
@@ -160,6 +179,7 @@ describe("GraphCanvas", () => {
         sourceLabel: "Alice",
         targetLabel: "Bob",
         direction: "DIRECTED",
+        orientation: "forward",
       },
       {
         id: "edge-c",
@@ -167,6 +187,7 @@ describe("GraphCanvas", () => {
         sourceLabel: "Alice",
         targetLabel: "Bob",
         direction: "DIRECTED",
+        orientation: "forward",
       },
       {
         id: "edge-b",
@@ -174,6 +195,7 @@ describe("GraphCanvas", () => {
         sourceLabel: "Bob",
         targetLabel: "Alice",
         direction: "DIRECTED",
+        orientation: "reverse",
       },
     ]);
   });
@@ -217,15 +239,18 @@ describe("GraphCanvas", () => {
 
     const flowEdges = flowMocks.props?.edges as FlowEdgeSnapshot[];
     expect(
-      Object.fromEntries(flowEdges.map((edge) => [edge.id, edge.data.visualState])),
+      Object.fromEntries(
+        flowEdges.map((edge) => [edge.id, edge.data.visualState]),
+      ),
     ).toEqual({
       "node-a:node-b": "selected",
       "node-a:node-c": "dimmed",
     });
   });
 
-  it("pins a relationship card on rail click and dismisses it on pane click", () => {
+  it("selects the relationship pair on rail click and clears it on pane click", () => {
     const onClearSelection = vi.fn();
+    const onSelectEdge = vi.fn();
     render(
       <GraphCanvas
         edges={[graphEdge("edge-a", "node-a", "node-b")]}
@@ -234,10 +259,11 @@ describe("GraphCanvas", () => {
         onConnectNodes={vi.fn()}
         onNodeDragStop={vi.fn()}
         onNodePositionChange={vi.fn()}
+        onSelectEdge={onSelectEdge}
       />,
     );
 
-    let [rail] = flowMocks.props?.edges as FlowEdgeSnapshot[];
+    const [rail] = flowMocks.props?.edges as FlowEdgeSnapshot[];
     expect(rail?.data.popoverOpen).toBe(false);
 
     act(() => {
@@ -248,15 +274,12 @@ describe("GraphCanvas", () => {
       )?.({}, rail!);
     });
 
-    [rail] = flowMocks.props?.edges as FlowEdgeSnapshot[];
-    expect(rail?.data.popoverOpen).toBe(true);
+    expect(onSelectEdge).toHaveBeenCalledWith("edge-a");
 
     act(() => {
       (flowMocks.props?.onPaneClick as (() => void) | undefined)?.();
     });
 
-    [rail] = flowMocks.props?.edges as FlowEdgeSnapshot[];
-    expect(rail?.data.popoverOpen).toBe(false);
     expect(onClearSelection).toHaveBeenCalledTimes(1);
   });
 
@@ -277,7 +300,12 @@ describe("GraphCanvas", () => {
         flowMocks.props?.onConnect as
           | ((connection: Record<string, unknown>) => void)
           | undefined
-      )?.({ source: "node-a", target: "node-b", sourceHandle: "top", targetHandle: "left" });
+      )?.({
+        source: "node-a",
+        target: "node-b",
+        sourceHandle: "top",
+        targetHandle: "left",
+      });
     });
 
     expect(onConnectNodes).toHaveBeenCalledWith("node-a", "node-b");

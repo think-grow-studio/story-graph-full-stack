@@ -74,6 +74,7 @@ function railData(): NonNullable<StoryGraphFlowEdge["data"]> {
         sourceLabel: "A",
         targetLabel: "B",
         direction: "DIRECTED",
+        orientation: "forward",
       },
     ],
     pairLabel: "A와 B",
@@ -104,8 +105,20 @@ describe("relationship rail direction rendering", () => {
           graphEdge("reverse", "node-b", "node-a"),
         ]}
         nodes={[
-          { id: "node-a", name: "A", position: { x: 0, y: 0 }, width: 100, height: 80 },
-          { id: "node-b", name: "B", position: { x: 200, y: 0 }, width: 100, height: 80 },
+          {
+            id: "node-a",
+            name: "A",
+            position: { x: 0, y: 0 },
+            width: 100,
+            height: 80,
+          },
+          {
+            id: "node-b",
+            name: "B",
+            position: { x: 200, y: 0 },
+            width: 100,
+            height: 80,
+          },
         ]}
         onConnectNodes={vi.fn()}
         onNodeDragStop={vi.fn()}
@@ -132,8 +145,20 @@ describe("relationship rail direction rendering", () => {
           graphEdge("undirected", "node-b", "node-a", "UNDIRECTED"),
         ]}
         nodes={[
-          { id: "node-a", name: "A", position: { x: 0, y: 0 }, width: 100, height: 80 },
-          { id: "node-b", name: "B", position: { x: 200, y: 0 }, width: 100, height: 80 },
+          {
+            id: "node-a",
+            name: "A",
+            position: { x: 0, y: 0 },
+            width: 100,
+            height: 80,
+          },
+          {
+            id: "node-b",
+            name: "B",
+            position: { x: 200, y: 0 },
+            width: 100,
+            height: 80,
+          },
         ]}
         onConnectNodes={vi.fn()}
         onNodeDragStop={vi.fn()}
