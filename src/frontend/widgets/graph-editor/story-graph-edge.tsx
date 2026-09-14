@@ -122,6 +122,7 @@ export function StoryGraphEdge({
           aria-label={`${pairLabel} 관계 보기`}
           className="nodrag nopan pointer-events-auto absolute h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--sg-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sg-surface)]"
           data-testid="relationship-rail-trigger"
+          data-visual-state={data.visualState}
           onBlur={data.onRequestClose}
           onClick={(event) => {
             event.stopPropagation();
