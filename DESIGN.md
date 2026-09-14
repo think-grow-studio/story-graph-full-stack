@@ -88,15 +88,21 @@ Every Node exposes stable `top`, `right`, `bottom`, and `left` loose-connection 
 
 ### Selection and focus
 
-Selected Nodes use a Graph Indigo border plus a structural ring so selection is not encoded by color alone. During a connection gesture, potential target Nodes use the graph-target soft tint and visible ports. Selecting a Node emphasizes its connected subgraph and dims unrelated Nodes/Relationships; selecting a Relationship emphasizes its endpoints and keeps same-bundle sibling Relationships as secondary context. Selected Relationships use stronger stroke width in addition to color. Clicking the empty canvas or pressing Escape when no modal workflow owns Escape clears graph focus.
+Selected Nodes use a Graph Indigo border plus a structural ring so selection is not encoded by color alone. During a connection gesture, potential target Nodes use the graph-target soft tint and visible ports. Selecting a Node emphasizes its connected subgraph and dims unrelated Nodes/Relationships. Selecting a Relationship emphasizes its shared rail and endpoints while unrelated rails dim. Selected Relationships use stronger stroke width in addition to color. Clicking the empty canvas or pressing Escape when no modal workflow owns Escape clears graph focus.
 
-### Relationship routing and bundles
+### Relationship routing and rails
 
-Orthogonal routing is the creation default. Straight and curved routing are explicit per-Relationship choices and persist on that Relationship; changing the Board default does not silently rewrite existing Relationships. Multiple semantic Relationships between the same unordered Node pair remain independent records and render in deterministic separate lanes. Opposite directed meanings never overwrite each other.
+Orthogonal routing is the creation default. Straight and curved routing remain explicit per-Relationship choices and persist on that Relationship; changing the Board default does not silently rewrite existing Relationships.
+
+Multiple semantic Relationships between the same unordered Node pair remain independent records, but they render as one shared visual rail. Direction is summarized at the Node/rail endpoints: a directed Relationship toward either Node adds an arrow marker at that endpoint, so opposite directed meanings naturally produce arrows at both ends. Relationship names are not permanently painted on the canvas.
+
+Hovering the rail reveals a compact relationship card at the rail midpoint. The same card is available through click/tap and keyboard focus so hover is never the only discovery path. Each row states the semantic direction and Relationship name (for example, `피터 파커 → MJ` / `좋아한다`). Selecting a row selects that Relationship and reuses the existing Inspector for editing; the card itself does not introduce a second editing model. The card uses existing Surface, Line, Ink, Muted, Graph Indigo, radius, and focus tokens and stays visually secondary to the graph.
+
+A shared rail uses one deterministic representative Relationship for its persisted route and stroke presentation. This is a visual projection rule only: every Relationship keeps its own semantic data, routing, presentation, autosave, history, and conflict behavior. A future pair-level presentation model may replace the representative rule, but the current UI must never duplicate semantic records merely to draw the rail.
 
 ### Semantic data versus presentation
 
-Node/Relationship `properties` are semantic user data with string scalar leaves and structured object/array nesting. Presentation (`NodePresentation`, `EdgePresentation`) and Relationship routing (`EdgeRouting`) are persisted separately from semantic properties. Bundle expansion, focus/dimming, port hover, selected state, and target-pick state are transient frontend projections and must never enter persisted graph data. The Inspector edits properties through structured key/value controls; raw JSON editing is not part of the product UI.
+Node/Relationship `properties` are semantic user data with string scalar leaves and structured object/array nesting. Presentation (`NodePresentation`, `EdgePresentation`) and Relationship routing (`EdgeRouting`) are persisted separately from semantic properties. Rail hover/pin state, focus/dimming, port hover, selected state, and target-pick state are transient frontend projections and must never enter persisted graph data. The Inspector edits properties through structured key/value controls; raw JSON editing is not part of the product UI.
 
 Inspector fields follow the same labels, validation, save/error, and keyboard language as the rest of Story Graph. Autosave, Undo/Redo, and CAS conflict handling remain behaviorally independent from visual focus state.
 

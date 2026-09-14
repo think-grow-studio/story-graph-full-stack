@@ -19,6 +19,28 @@ function waitForPath(page: Page, method: string, pathname: string) {
   });
 }
 
+function relationshipRailTrigger(page: Page, left: string, right: string) {
+  return page.getByRole("button", {
+    name: new RegExp(`^(${left}와 ${right}|${right}와 ${left}) 관계 보기$`),
+  });
+}
+
+async function selectRelationship(
+  page: Page,
+  source: string,
+  target: string,
+  name: string,
+) {
+  const trigger = relationshipRailTrigger(page, source, target);
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  const row = page.getByRole("button", {
+    name: `${source} → ${target}: ${name}`,
+  });
+  await expect(row).toBeVisible();
+  await row.click();
+}
+
 test("author can create a Story, Board, Nodes and Relationship from visible product UI", async ({
   context,
   page,
@@ -157,9 +179,8 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
       name: "knows",
       version: 1,
     });
-    const edge = page.locator(`.react-flow__edge[data-id="${edgeId}"]`);
-    await expect(edge).toBeVisible();
-    await expect(page.getByText("knows", { exact: true })).toBeVisible();
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+    await expect(relationshipRailTrigger(page, "Alice", "Bob")).toBeVisible();
     await expect(page.getByText("저장됨")).toBeVisible();
 
     await alice.click();
@@ -176,7 +197,7 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
     await expect(page.getByText("저장됨")).toBeVisible();
     await expect(alice).toContainText("Alicia");
 
-    await edge.locator(".react-flow__edge-path").click({ force: true });
+    await selectRelationship(page, "Alicia", "Bob", "knows");
     await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
     const updateEdgePromise = waitForPath(
       page,
@@ -188,7 +209,13 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
     const updateEdge = await updateEdgePromise;
     expect(updateEdge.status()).toBe(200);
     await expect(page.getByText("저장됨")).toBeVisible();
-    await expect(page.getByText("protects", { exact: true })).toBeVisible();
+
+    const updatedRailTrigger = relationshipRailTrigger(page, "Alicia", "Bob");
+    await updatedRailTrigger.click();
+    await expect(
+      page.getByRole("button", { name: "Alicia → Bob: protects" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
 
     await page.reload();
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
@@ -198,10 +225,13 @@ test("author can create a Story, Board, Nodes and Relationship from visible prod
     await expect(
       page.locator(`.react-flow__node[data-id="${bobId}"]`),
     ).toContainText("Bob");
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+    const reloadedRailTrigger = relationshipRailTrigger(page, "Alicia", "Bob");
+    await expect(reloadedRailTrigger).toBeVisible();
+    await reloadedRailTrigger.click();
     await expect(
-      page.locator(`.react-flow__edge[data-id="${edgeId}"]`),
+      page.getByRole("button", { name: "Alicia → Bob: protects" }),
     ).toBeVisible();
-    await expect(page.getByText("protects", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Redo" })).toBeDisabled();
 

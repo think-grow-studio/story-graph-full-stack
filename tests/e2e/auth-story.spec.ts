@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   cleanupE2EIdentity,
@@ -15,6 +15,43 @@ import {
 test.afterAll(async () => {
   await closeE2EAuthDatabase();
 });
+
+function relationshipRailTrigger(page: Page, left: string, right: string) {
+  return page.getByRole("button", {
+    name: new RegExp(`^(${left}와 ${right}|${right}와 ${left}) 관계 보기$`),
+  });
+}
+
+async function expectRelationship(
+  page: Page,
+  source: string,
+  target: string,
+  name: string,
+) {
+  const trigger = relationshipRailTrigger(page, source, target);
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  await expect(
+    page.getByRole("button", { name: `${source} → ${target}: ${name}` }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+}
+
+async function selectRelationship(
+  page: Page,
+  source: string,
+  target: string,
+  name: string,
+) {
+  const trigger = relationshipRailTrigger(page, source, target);
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  const row = page.getByRole("button", {
+    name: `${source} → ${target}: ${name}`,
+  });
+  await expect(row).toBeVisible();
+  await row.click();
+}
 
 test("Google is the only authentication entry", async ({ page }) => {
   await page.goto("/login");
@@ -375,14 +412,10 @@ test("Graph Editor creates a direct Relationship and restores it after reload", 
       name: "sister",
       version: 1,
     });
-    await expect(
-      page.getByRole("button", { name: "관계 선택: sister" }),
-    ).toBeVisible();
+    await expectRelationship(page, "Alice", "Bob", "sister");
 
     await page.reload();
-    await expect(
-      page.getByRole("button", { name: "관계 선택: sister" }),
-    ).toBeVisible();
+    await expectRelationship(page, "Alice", "Bob", "sister");
 
     const snapshotResponse = await context.request.get(
       `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,
@@ -481,7 +514,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
     expect(updatedNode.version).toBeGreaterThan(1);
     await expect(page.getByText("저장됨")).toBeVisible();
 
-    await page.getByRole("button", { name: "관계 선택: knows" }).click();
+    await selectRelationship(page, "Alicia", "Bob", "knows");
     await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
     const edgeUpdatePromise = page.waitForResponse((response) => {
       if (
@@ -519,9 +552,7 @@ test("Graph Editor edits direct Node and Relationship rows through the Inspector
     await expect(
       page.locator(`.react-flow__node[data-id="${alice.id}"]`),
     ).toContainText("Alicia");
-    await expect(
-      page.getByRole("button", { name: "관계 선택: best friend" }),
-    ).toBeVisible();
+    await expectRelationship(page, "Alicia", "Bob", "best friend");
 
     const snapshotResponse = await context.request.get(
       `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,

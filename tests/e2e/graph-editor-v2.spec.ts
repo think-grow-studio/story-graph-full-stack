@@ -45,6 +45,28 @@ function waitForPatch(
   });
 }
 
+function relationshipRailTrigger(page: Page, left: string, right: string) {
+  return page.getByRole("button", {
+    name: new RegExp(`^(${left}와 ${right}|${right}와 ${left}) 관계 보기$`),
+  });
+}
+
+async function selectRelationship(
+  page: Page,
+  source: string,
+  target: string,
+  name: string,
+) {
+  const trigger = relationshipRailTrigger(page, source, target);
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  const row = page.getByRole("button", {
+    name: `${source} → ${target}: ${name}`,
+  });
+  await expect(row).toBeVisible();
+  await row.click();
+}
+
 async function connectByDrag(
   page: Page,
   sourceNodeId: string,
@@ -74,7 +96,7 @@ async function connectByDrag(
   await page.mouse.up();
 }
 
-test("Graph V2 keeps opposite and parallel Relationships distinct", async ({
+test("Graph V2 keeps semantic Relationships distinct behind one shared rail", async ({
   context,
   page,
 }) => {
@@ -159,25 +181,20 @@ test("Graph V2 keeps opposite and parallel Relationships distinct", async ({
     expect(parallelCreate.status()).toBe(201);
     const parallelEdge = await parallelCreate.json();
 
-    const firstLabel = page.getByRole("button", {
-      name: "관계 선택: 친구라고 생각함",
-    });
-    const oppositeLabel = page.getByRole("button", {
-      name: "관계 선택: 친구라고 속임",
-    });
-    const parallelLabel = page.getByRole("button", {
-      name: "관계 선택: 함께 여행함",
-    });
-
-    await expect(firstLabel).toBeVisible();
-    await expect(oppositeLabel).toBeVisible();
-    await expect(parallelLabel).toBeVisible();
-    const laneOffsets = await Promise.all(
-      [firstLabel, oppositeLabel, parallelLabel].map((label) =>
-        label.getAttribute("data-lane-offset"),
-      ),
-    );
-    expect(new Set(laneOffsets).size).toBe(3);
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+    const railTrigger = relationshipRailTrigger(page, "Alice", "Bob");
+    await expect(railTrigger).toBeVisible();
+    await railTrigger.click();
+    await expect(page.getByText("관계 3개")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Alice → Bob: 친구라고 생각함" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Bob → Alice: 친구라고 속임" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Alice → Bob: 함께 여행함" }),
+    ).toBeVisible();
 
     const snapshotResponse = await context.request.get(
       `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,
@@ -213,7 +230,7 @@ test("Graph V2 keeps opposite and parallel Relationships distinct", async ({
   }
 });
 
-test("Graph V2 projects Node and Relationship focus across bundles", async ({
+test("Graph V2 projects Node and Relationship focus onto shared rails", async ({
   context,
   page,
 }) => {
@@ -288,56 +305,26 @@ test("Graph V2 projects Node and Relationship focus across bundles", async ({
       `.react-flow__node[data-id="${charlie.id}"]`,
     );
     const danaNode = page.locator(`.react-flow__node[data-id="${dana.id}"]`);
-    const firstLabel = page.getByRole("button", {
-      name: "관계 선택: 친구라고 생각함",
-    });
-    const oppositeLabel = page.getByRole("button", {
-      name: "관계 선택: 친구라고 속임",
-    });
-    const parallelLabel = page.getByRole("button", {
-      name: "관계 선택: 함께 여행함",
-    });
-    const unrelatedLabel = page.getByRole("button", {
-      name: "관계 선택: unrelated",
-    });
+    const primaryRail = relationshipRailTrigger(page, "Alice", "Bob");
+    const unrelatedRail = relationshipRailTrigger(page, "Charlie", "Dana");
 
-    await expect(firstLabel).toBeVisible();
-    await expect(oppositeLabel).toBeVisible();
-    await expect(parallelLabel).toBeVisible();
-    await expect(unrelatedLabel).toBeVisible();
+    await expect(primaryRail).toBeVisible();
+    await expect(unrelatedRail).toBeVisible();
 
     await aliceNode.click();
     await expect(charlieNode).toHaveCSS("opacity", "0.25");
     await expect(danaNode).toHaveCSS("opacity", "0.25");
     await expect(bobNode).toHaveCSS("opacity", "1");
-    await expect(firstLabel).toHaveAttribute("data-visual-state", "selected");
-    await expect(oppositeLabel).toHaveAttribute(
-      "data-visual-state",
-      "selected",
-    );
-    await expect(parallelLabel).toHaveAttribute(
-      "data-visual-state",
-      "selected",
-    );
-    await expect(unrelatedLabel).toHaveAttribute(
-      "data-visual-state",
-      "dimmed",
-    );
+    await expect(primaryRail).toHaveAttribute("data-visual-state", "selected");
+    await expect(unrelatedRail).toHaveAttribute("data-visual-state", "dimmed");
 
-    await firstLabel.click();
-    await expect(firstLabel).toHaveAttribute("data-visual-state", "selected");
-    await expect(oppositeLabel).toHaveAttribute(
-      "data-visual-state",
-      "secondary",
-    );
-    await expect(parallelLabel).toHaveAttribute(
-      "data-visual-state",
-      "secondary",
-    );
-    await expect(unrelatedLabel).toHaveAttribute(
-      "data-visual-state",
-      "dimmed",
-    );
+    await primaryRail.click();
+    await page
+      .getByRole("button", { name: "Alice → Bob: 친구라고 생각함" })
+      .click();
+    await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
+    await expect(primaryRail).toHaveAttribute("data-visual-state", "selected");
+    await expect(unrelatedRail).toHaveAttribute("data-visual-state", "dimmed");
     await expect(aliceNode).toHaveCSS("opacity", "1");
     await expect(bobNode).toHaveCSS("opacity", "1");
     await expect(charlieNode).toHaveCSS("opacity", "0.25");
@@ -389,9 +376,7 @@ test("Graph V2 persists routing and nested properties edited through the Inspect
 
     await page.goto(`/stories/${story.id}/boards/${board.id}`);
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
-    await page
-      .getByRole("button", { name: "관계 선택: knows" })
-      .click();
+    await selectRelationship(page, "Alice", "Bob", "knows");
     await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
     await expect(page.getByLabel("선 모양")).toHaveValue("orthogonal");
 
@@ -439,9 +424,7 @@ test("Graph V2 persists routing and nested properties edited through the Inspect
     await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
-    await page
-      .getByRole("button", { name: "관계 선택: knows" })
-      .click();
+    await selectRelationship(page, "Alice", "Bob", "knows");
     await expect(page.getByLabel("선 모양")).toHaveValue("curved");
     await expect(page.getByLabel("role 값")).toHaveValue("lead");
 
