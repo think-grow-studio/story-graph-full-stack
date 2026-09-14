@@ -103,7 +103,6 @@ export function GraphCanvas({
 }: GraphCanvasProps) {
   const [connectionActive, setConnectionActive] = useState(false);
   const [hoveredRailId, setHoveredRailId] = useState<string | null>(null);
-  const [pinnedRailId, setPinnedRailId] = useState<string | null>(null);
   const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
@@ -140,22 +139,10 @@ export function GraphCanvas({
     [clearHoverCloseTimer],
   );
 
-  const togglePinnedRail = useCallback(
-    (railId: string) => {
-      clearHoverCloseTimer();
-      setHoveredRailId(railId);
-      setPinnedRailId((current) => (current === railId ? null : railId));
-    },
-    [clearHoverCloseTimer],
-  );
-
   const dismissRail = useCallback(
     (railId?: string) => {
       clearHoverCloseTimer();
       setHoveredRailId((current) =>
-        !railId || current === railId ? null : current,
-      );
-      setPinnedRailId((current) =>
         !railId || current === railId ? null : current,
       );
     },
@@ -260,13 +247,20 @@ export function GraphCanvas({
           relationships: bundle.edges.map((edge) => ({
             id: edge.id,
             label: edge.name,
-            sourceLabel: nodeById.get(edge.sourceNodeId)?.name ?? edge.sourceNodeId,
-            targetLabel: nodeById.get(edge.targetNodeId)?.name ?? edge.targetNodeId,
+            sourceLabel:
+              nodeById.get(edge.sourceNodeId)?.name ?? edge.sourceNodeId,
+            targetLabel:
+              nodeById.get(edge.targetNodeId)?.name ?? edge.targetNodeId,
             direction: edge.direction,
+            orientation:
+              edge.direction === "UNDIRECTED"
+                ? "undirected"
+                : edge.sourceNodeId === sourceNodeId
+                  ? "forward"
+                  : "reverse",
           })),
           pairLabel: `${sourceLabel}와 ${targetLabel}`,
-          popoverOpen:
-            hoveredRailId === railId || pinnedRailId === railId,
+          popoverOpen: hoveredRailId === railId,
           selectedRelationshipId: selectedEdgeId,
           routingType: route.routingType,
           sourcePort: route.sourcePort,
@@ -279,10 +273,10 @@ export function GraphCanvas({
             focus.secondaryEdgeIds,
           ),
           presentation: representative.presentation,
+          onSelectPair: () => onSelectEdge?.(representative.id),
           onSelectRelationship: onSelectEdge,
           onRequestOpen: () => requestOpenRail(railId),
           onRequestClose: () => requestCloseRail(railId),
-          onTogglePinned: () => togglePinnedRail(railId),
           onDismiss: () => dismissRail(railId),
         },
       } satisfies FlowEdge;
@@ -296,11 +290,9 @@ export function GraphCanvas({
     hoveredRailId,
     nodes,
     onSelectEdge,
-    pinnedRailId,
     requestCloseRail,
     requestOpenRail,
     selectedEdgeId,
-    togglePinnedRail,
   ]);
 
   useImperativeHandle(ref, () => ({
@@ -358,7 +350,7 @@ export function GraphCanvas({
         onConnect={handleConnect}
         onConnectEnd={() => setConnectionActive(false)}
         onConnectStart={() => setConnectionActive(true)}
-        onEdgeClick={(_, edge) => edge.data?.onTogglePinned?.()}
+        onEdgeClick={(_, edge) => edge.data?.onSelectPair?.()}
         onEdgeMouseEnter={(_, edge) => edge.data?.onRequestOpen?.()}
         onEdgeMouseLeave={(_, edge) => edge.data?.onRequestClose?.()}
         onInit={(instance) => {
