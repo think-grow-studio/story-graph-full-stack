@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   cleanupE2EIdentity,
@@ -15,6 +15,27 @@ import {
 test.afterAll(async () => {
   await closeE2EAuthDatabase();
 });
+
+function relationshipRailTrigger(page: Page, left: string, right: string) {
+  return page.getByRole("button", {
+    name: new RegExp(`^(${left}와 ${right}|${right}와 ${left}) 관계 보기$`),
+  });
+}
+
+async function expectRelationship(
+  page: Page,
+  source: string,
+  target: string,
+  name: string,
+) {
+  const trigger = relationshipRailTrigger(page, source, target);
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  await expect(
+    page.getByRole("button", { name: `${source} → ${target}: ${name}` }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+}
 
 test("Boards keep same-named Nodes and Relationships independent", async ({
   context,
@@ -158,7 +179,7 @@ test("Boards keep same-named Nodes and Relationships independent", async ({
     await page.goto(`/stories/${story.id}/boards/${boardA.id}`);
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
     await expect(page.getByText("Queen Alice", { exact: true })).toBeVisible();
-    await expect(page.getByText("protects", { exact: true })).toBeVisible();
+    await expectRelationship(page, "Queen Alice", "Bob", "protects");
     await page.getByRole("button", { name: "노드 추가" }).click();
     await expect(page.getByLabel("기존 노드")).toHaveCount(0);
     await page.getByRole("button", { name: "취소" }).click();
@@ -166,7 +187,7 @@ test("Boards keep same-named Nodes and Relationships independent", async ({
     await page.goto(`/stories/${story.id}/boards/${boardB.id}`);
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
     await expect(page.getByText("Alice", { exact: true })).toBeVisible();
-    await expect(page.getByText("knows", { exact: true })).toBeVisible();
+    await expectRelationship(page, "Alice", "Bob", "knows");
     await expect(page.getByText("Queen Alice", { exact: true })).toHaveCount(0);
   } finally {
     await cleanupE2EIdentity(identity);
