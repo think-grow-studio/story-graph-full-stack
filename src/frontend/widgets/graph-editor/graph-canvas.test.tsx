@@ -12,6 +12,7 @@ vi.mock("@xyflow/react", () => ({
   ConnectionMode: { Loose: "loose" },
   Controls: () => null,
   Handle: () => null,
+  MarkerType: { ArrowClosed: "arrowclosed" },
   MiniMap: () => null,
   Position: { Top: "top", Right: "right", Bottom: "bottom", Left: "left" },
   ReactFlow: (props: Record<string, unknown>) => {
@@ -66,9 +67,11 @@ type FlowEdgeSnapshot = {
   type: string;
   sourceHandle: string;
   targetHandle: string;
+  markerEnd?: unknown;
   data: {
     laneIndex: number;
     laneCount: number;
+    laneOrientation?: string;
     bundleExpanded?: boolean;
     visualState?: string;
   };
@@ -153,6 +156,14 @@ describe("GraphCanvas", () => {
     expect(flowEdges.map((edge) => [edge.data.laneIndex, edge.data.laneCount])).toEqual([
       [0, 2],
       [1, 2],
+    ]);
+    expect(flowEdges.map((edge) => edge.data.laneOrientation)).toEqual([
+      "forward",
+      "reverse",
+    ]);
+    expect(flowEdges.map((edge) => edge.markerEnd)).toEqual([
+      { type: "arrowclosed" },
+      { type: "arrowclosed" },
     ]);
     expect(flowEdges[0]).toMatchObject({ sourceHandle: "right", targetHandle: "left" });
     expect(flowEdges[1]).toMatchObject({ sourceHandle: "left", targetHandle: "right" });

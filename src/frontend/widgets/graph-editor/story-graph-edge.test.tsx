@@ -35,7 +35,6 @@ vi.mock("@xyflow/react", () => ({
   getBezierPath: geometry.bezier,
   getSmoothStepPath: geometry.smooth,
   getStraightPath: geometry.straight,
-  MarkerType: { ArrowClosed: "arrowclosed" },
 }));
 
 import { StoryGraphEdge, type StoryGraphFlowEdge } from "./story-graph-edge";
@@ -102,7 +101,7 @@ describe("StoryGraphEdge", () => {
     expect(screen.getByTestId("base-edge")).toHaveAttribute("data-edge-id", "edge-1");
   });
 
-  it("renders a target arrow only for directed semantic relationships", () => {
+  it("forwards React Flow's resolved marker URL to BaseEdge", () => {
     const directed: NonNullable<StoryGraphFlowEdge["data"]> = {
       label: "knows",
       direction: "DIRECTED",
@@ -115,18 +114,20 @@ describe("StoryGraphEdge", () => {
       visualState: "idle",
       presentation: { strokeColor: null, strokeWidth: null, strokeStyle: "solid", labelColor: null },
     };
-    const undirected: NonNullable<StoryGraphFlowEdge["data"]> = {
-      ...directed,
-      label: "siblings",
-      direction: "UNDIRECTED",
-    };
 
     const { rerender } = render(
-      <StoryGraphEdge {...storyGraphEdgeProps(directed)} />,
+      <StoryGraphEdge
+        {...storyGraphEdgeProps(directed, {
+          markerEnd: "url(#react-flow-arrow)",
+        })}
+      />,
     );
-    expect(screen.getByTestId("base-edge")).toHaveAttribute("data-marker-end", "arrowclosed");
+    expect(screen.getByTestId("base-edge")).toHaveAttribute(
+      "data-marker-end",
+      "url(#react-flow-arrow)",
+    );
 
-    rerender(<StoryGraphEdge {...storyGraphEdgeProps(undirected)} />);
+    rerender(<StoryGraphEdge {...storyGraphEdgeProps(directed)} />);
     expect(screen.getByTestId("base-edge")).toHaveAttribute("data-marker-end", "");
   });
 

@@ -4,6 +4,7 @@ import {
   Background,
   ConnectionMode,
   Controls,
+  MarkerType,
   ReactFlow,
   type OnConnect,
   type OnNodeDrag,
@@ -168,6 +169,10 @@ export function GraphCanvas({
           sourceHandle: route.sourcePort,
           targetHandle: route.targetPort,
           interactionWidth: relationshipInteractionWidth,
+          markerEnd:
+            edge.direction === "DIRECTED"
+              ? { type: MarkerType.ArrowClosed }
+              : undefined,
           data: {
             label: edge.name,
             direction: route.direction,
@@ -177,6 +182,8 @@ export function GraphCanvas({
             waypoints: route.waypoints,
             laneIndex: route.laneIndex,
             laneCount: route.laneCount,
+            laneOrientation:
+              edge.sourceNodeId === bundle.nodeIds[0] ? "forward" : "reverse",
             bundleExpanded,
             visualState: getRelationshipVisualState(
               edge.id,
