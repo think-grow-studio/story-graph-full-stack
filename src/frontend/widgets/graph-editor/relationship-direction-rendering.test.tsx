@@ -15,7 +15,9 @@ vi.mock("@xyflow/react", () => ({
   },
   ConnectionMode: { Loose: "loose" },
   Controls: () => null,
-  EdgeLabelRenderer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  EdgeLabelRenderer: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   Handle: () => null,
   MarkerType: { ArrowClosed: "arrowclosed" },
   Position: { Top: "top", Right: "right", Bottom: "bottom", Left: "left" },
@@ -41,8 +43,6 @@ const presentation = {
   labelColor: null,
 };
 
-type StoryGraphEdgeProps = Parameters<typeof StoryGraphEdge>[0];
-
 function graphEdge(
   id: string,
   sourceNodeId: string,
@@ -65,41 +65,27 @@ function graphEdge(
   };
 }
 
-function edgeData(overrides: Record<string, unknown> = {}) {
+function railData(): NonNullable<StoryGraphFlowEdge["data"]> {
   return {
-    label: "좋아한다",
-    direction: "DIRECTED" as const,
-    routingType: "orthogonal" as const,
-    sourcePort: "right" as const,
-    targetPort: "left" as const,
+    relationships: [
+      {
+        id: "edge-a",
+        label: "좋아한다",
+        sourceLabel: "A",
+        targetLabel: "B",
+        direction: "DIRECTED",
+      },
+    ],
+    pairLabel: "A와 B",
+    popoverOpen: false,
+    selectedRelationshipId: null,
+    routingType: "orthogonal",
+    sourcePort: "right",
+    targetPort: "left",
     waypoints: [],
-    laneIndex: 0,
-    laneCount: 2,
-    laneOrientation: "forward",
-    visualState: "idle" as const,
+    visualState: "idle",
     presentation,
-    ...overrides,
-  } as unknown as NonNullable<StoryGraphFlowEdge["data"]>;
-}
-
-function renderStoryEdge(
-  data: NonNullable<StoryGraphFlowEdge["data"]>,
-  overrides: Partial<StoryGraphEdgeProps> = {},
-) {
-  const props = {
-    id: "edge-a",
-    data,
-    sourceX: 0,
-    sourceY: 0,
-    targetX: 100,
-    targetY: 0,
-    sourcePosition: "right",
-    targetPosition: "left",
-    selected: false,
-    ...overrides,
-  } as unknown as StoryGraphEdgeProps;
-
-  render(<StoryGraphEdge {...props} />);
+  };
 }
 
 afterEach(() => {
@@ -109,18 +95,17 @@ afterEach(() => {
   mocks.smoothCalls.length = 0;
 });
 
-describe("directed relationship rendering regressions", () => {
-  it("configures a React Flow marker for directed edges only", () => {
+describe("relationship rail direction rendering", () => {
+  it("summarizes opposite directed Relationships as arrows at both rail endpoints", () => {
     render(
       <GraphCanvas
         edges={[
-          graphEdge("directed", "node-a", "node-b", "DIRECTED"),
-          graphEdge("undirected", "node-a", "node-c", "UNDIRECTED"),
+          graphEdge("forward", "node-a", "node-b"),
+          graphEdge("reverse", "node-b", "node-a"),
         ]}
         nodes={[
           { id: "node-a", name: "A", position: { x: 0, y: 0 }, width: 100, height: 80 },
           { id: "node-b", name: "B", position: { x: 200, y: 0 }, width: 100, height: 80 },
-          { id: "node-c", name: "C", position: { x: 0, y: 200 }, width: 100, height: 80 },
         ]}
         onConnectNodes={vi.fn()}
         onNodeDragStop={vi.fn()}
@@ -128,52 +113,89 @@ describe("directed relationship rendering regressions", () => {
       />,
     );
 
-    const flowEdges = mocks.flowProps?.edges as Array<{
-      id: string;
+    const rails = mocks.flowProps?.edges as Array<{
+      markerStart?: unknown;
       markerEnd?: unknown;
     }>;
-    expect(flowEdges.find((edge) => edge.id === "directed")?.markerEnd).toEqual({
-      type: "arrowclosed",
+    expect(rails).toHaveLength(1);
+    expect(rails[0]).toMatchObject({
+      markerStart: { type: "arrowclosed" },
+      markerEnd: { type: "arrowclosed" },
     });
-    expect(flowEdges.find((edge) => edge.id === "undirected")?.markerEnd).toBeUndefined();
   });
 
-  it("forwards React Flow's resolved marker URL to BaseEdge", () => {
-    renderStoryEdge(edgeData(), { markerEnd: "url(#react-flow-arrow)" });
-
-    expect(mocks.baseEdgeProps?.markerEnd).toBe("url(#react-flow-arrow)");
-  });
-
-  it("keeps node handle endpoints exact while opposite directions occupy opposite lanes", () => {
-    renderStoryEdge(edgeData({ laneIndex: 0, laneOrientation: "forward" }));
-    const forwardCall = mocks.smoothCalls.at(-1);
-
-    cleanup();
-    renderStoryEdge(
-      edgeData({
-        label: "잊었다",
-        laneIndex: 1,
-        laneOrientation: "reverse",
-        sourcePort: "left",
-        targetPort: "right",
-      }),
-      {
-        id: "edge-b",
-        sourceX: 100,
-        targetX: 0,
-        sourcePosition: "left" as StoryGraphEdgeProps["sourcePosition"],
-        targetPosition: "right" as StoryGraphEdgeProps["targetPosition"],
-      },
+  it("keeps an undirected meaning from inventing an arrow", () => {
+    render(
+      <GraphCanvas
+        edges={[
+          graphEdge("forward", "node-a", "node-b", "DIRECTED"),
+          graphEdge("undirected", "node-b", "node-a", "UNDIRECTED"),
+        ]}
+        nodes={[
+          { id: "node-a", name: "A", position: { x: 0, y: 0 }, width: 100, height: 80 },
+          { id: "node-b", name: "B", position: { x: 200, y: 0 }, width: 100, height: 80 },
+        ]}
+        onConnectNodes={vi.fn()}
+        onNodeDragStop={vi.fn()}
+        onNodePositionChange={vi.fn()}
+      />,
     );
-    const reverseCall = mocks.smoothCalls.at(-1);
 
-    expect(forwardCall).toMatchObject({ sourceX: 0, sourceY: 0, targetX: 100, targetY: 0 });
-    expect(reverseCall).toMatchObject({ sourceX: 100, sourceY: 0, targetX: 0, targetY: 0 });
+    const [rail] = mocks.flowProps?.edges as Array<{
+      markerStart?: unknown;
+      markerEnd?: unknown;
+    }>;
+    expect(rail?.markerStart).toBeUndefined();
+    expect(rail?.markerEnd).toEqual({ type: "arrowclosed" });
+  });
 
-    const forwardCenterY = Number(forwardCall?.centerY);
-    const reverseCenterY = Number(reverseCall?.centerY);
-    expect(Number.isFinite(forwardCenterY)).toBe(true);
-    expect(Number.isFinite(reverseCenterY)).toBe(true);
-    expect(Math.sign(forwardCenterY)).toBe(-Math.sign(reverseCenterY));
+  it("forwards React Flow's resolved start and end marker URLs to BaseEdge", () => {
+    render(
+      <StoryGraphEdge
+        {...({
+          id: "node-a:node-b",
+          data: railData(),
+          sourceX: 0,
+          sourceY: 0,
+          targetX: 100,
+          targetY: 0,
+          sourcePosition: "right",
+          targetPosition: "left",
+          selected: false,
+          markerStart: "url(#reverse-arrow)",
+          markerEnd: "url(#forward-arrow)",
+        } as unknown as Parameters<typeof StoryGraphEdge>[0])}
+      />,
+    );
+
+    expect(mocks.baseEdgeProps?.markerStart).toBe("url(#reverse-arrow)");
+    expect(mocks.baseEdgeProps?.markerEnd).toBe("url(#forward-arrow)");
+  });
+
+  it("keeps the exact node handle endpoints with no lane displacement", () => {
+    render(
+      <StoryGraphEdge
+        {...({
+          id: "node-a:node-b",
+          data: railData(),
+          sourceX: 0,
+          sourceY: 12,
+          targetX: 100,
+          targetY: 12,
+          sourcePosition: "right",
+          targetPosition: "left",
+          selected: false,
+        } as unknown as Parameters<typeof StoryGraphEdge>[0])}
+      />,
+    );
+
+    expect(mocks.smoothCalls.at(-1)).toMatchObject({
+      sourceX: 0,
+      sourceY: 12,
+      targetX: 100,
+      targetY: 12,
+    });
+    expect(mocks.smoothCalls.at(-1)).not.toHaveProperty("centerX");
+    expect(mocks.smoothCalls.at(-1)).not.toHaveProperty("centerY");
   });
 });
