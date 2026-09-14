@@ -32,6 +32,17 @@ function waitForEdgeRestore(page: Page, boardId: string, edgeId: string) {
   );
 }
 
+async function selectKnowsRelationship(page: Page) {
+  const railTrigger = page.getByRole("button", {
+    name: /^(Alice와 Bob|Bob와 Alice) 관계 보기$/,
+  });
+  await expect(railTrigger).toBeVisible();
+  await railTrigger.click();
+  const row = page.getByRole("button", { name: "Alice → Bob: knows" });
+  await expect(row).toBeVisible();
+  await row.click();
+}
+
 test("Graph Editor persists direct Relationship delete Undo and Redo", async ({
   context,
   page,
@@ -75,10 +86,9 @@ test("Graph Editor persists direct Relationship delete Undo and Redo", async ({
     await page.goto(`/stories/${story.id}/boards/${board.id}`);
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
 
-    const edgeElement = page.locator(`.react-flow__edge[data-id="${edge.id}"]`);
-    const edgeSelection = page.getByRole("button", { name: "관계 선택: knows" });
-    await expect(edgeSelection).toBeVisible();
-    await edgeSelection.click();
+    const rail = page.locator(".react-flow__edge");
+    await expect(rail).toHaveCount(1);
+    await selectKnowsRelationship(page);
     await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
     await expect(
       page.getByText(
@@ -89,7 +99,7 @@ test("Graph Editor persists direct Relationship delete Undo and Redo", async ({
     const deletePromise = waitForEdgeDelete(page, board.id, edge.id);
     await page.getByRole("button", { name: "관계 삭제" }).click();
     expect((await deletePromise).status()).toBe(204);
-    await expect(edgeElement).toHaveCount(0);
+    await expect(rail).toHaveCount(0);
     await expect(page.getByText("저장됨")).toBeVisible();
 
     const undoPromise = waitForEdgeRestore(page, board.id, edge.id);
@@ -101,23 +111,25 @@ test("Graph Editor persists direct Relationship delete Undo and Redo", async ({
       boardId: board.id,
       version: edge.version,
     });
-    await expect(edgeSelection).toBeVisible();
+    await expect(rail).toHaveCount(1);
     await expect(page.getByText("저장됨")).toBeVisible();
 
     const redoPromise = waitForEdgeDelete(page, board.id, edge.id);
     await page.getByRole("button", { name: "Redo" }).click();
     expect((await redoPromise).status()).toBe(204);
-    await expect(edgeElement).toHaveCount(0);
+    await expect(rail).toHaveCount(0);
 
     const finalUndoPromise = waitForEdgeRestore(page, board.id, edge.id);
     await page.getByRole("button", { name: "Undo" }).click();
     expect((await finalUndoPromise).status()).toBe(200);
-    await expect(edgeSelection).toBeVisible();
+    await expect(rail).toHaveCount(1);
     await expect(page.getByText("저장됨")).toBeVisible();
 
     await page.reload();
     await expect(page.getByLabel("Graph canvas")).toBeVisible();
-    await expect(edgeSelection).toBeVisible();
+    await expect(rail).toHaveCount(1);
+    await selectKnowsRelationship(page);
+    await expect(page.getByRole("heading", { name: "관계" })).toBeVisible();
 
     const snapshotResponse = await context.request.get(
       `/api/v1/boards/${board.id}/snapshot?workspaceId=${workspaceId}`,
