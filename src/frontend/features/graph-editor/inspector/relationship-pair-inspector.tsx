@@ -46,6 +46,21 @@ export function RelationshipPairInspector({
   advanced,
   undirectedCount = 0,
 }: RelationshipPairInspectorProps) {
+  const fallbackAdvanced = forward.draft
+    ? {
+        draft: forward.draft,
+        label: `${leftLabel} → ${rightLabel}`,
+        onDraftChange: forward.onDraftChange,
+      }
+    : reverse.draft
+      ? {
+          draft: reverse.draft,
+          label: `${rightLabel} → ${leftLabel}`,
+          onDraftChange: reverse.onDraftChange,
+        }
+      : undefined;
+  const advancedEditor = advanced ?? fallbackAdvanced;
+
   return (
     <aside className="self-start rounded-[var(--sg-radius-md)] border border-[var(--sg-line)] bg-[var(--sg-surface)] p-5 shadow-[0_1px_2px_rgba(23,25,29,0.03)]">
       <div className="border-b border-[var(--sg-line)] pb-4">
@@ -75,7 +90,7 @@ export function RelationshipPairInspector({
         </p>
       ) : null}
 
-      {advanced ? <RelationshipAdvancedEditor {...advanced} /> : null}
+      {advancedEditor ? <RelationshipAdvancedEditor {...advancedEditor} /> : null}
     </aside>
   );
 }
