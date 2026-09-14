@@ -81,6 +81,11 @@ type FlowEdgeSnapshot = {
   };
 };
 
+type DragNodeSnapshot = {
+  id: string;
+  position: { x: number; y: number };
+};
+
 const nodes = [
   { id: "node-a", name: "Alice", position: { x: 0, y: 0 }, width: 100, height: 80 },
   { id: "node-b", name: "Bob", position: { x: 200, y: 0 }, width: 100, height: 80 },
@@ -294,18 +299,21 @@ describe("GraphCanvas", () => {
     );
 
     act(() => {
-      (flowMocks.props?.onNodeDragStart as ((event: unknown, node: any) => void))?.(
-        {},
-        { id: "node-a", position: { x: 0, y: 0 } },
-      );
-      (flowMocks.props?.onNodeDrag as ((event: unknown, node: any) => void))?.(
-        {},
-        { id: "node-a", position: { x: 20, y: 30 } },
-      );
-      (flowMocks.props?.onNodeDragStop as ((event: unknown, node: any) => void))?.(
-        {},
-        { id: "node-a", position: { x: 40, y: 50 } },
-      );
+      (
+        flowMocks.props?.onNodeDragStart as
+          | ((event: unknown, node: DragNodeSnapshot) => void)
+          | undefined
+      )?.({}, { id: "node-a", position: { x: 0, y: 0 } });
+      (
+        flowMocks.props?.onNodeDrag as
+          | ((event: unknown, node: DragNodeSnapshot) => void)
+          | undefined
+      )?.({}, { id: "node-a", position: { x: 20, y: 30 } });
+      (
+        flowMocks.props?.onNodeDragStop as
+          | ((event: unknown, node: DragNodeSnapshot) => void)
+          | undefined
+      )?.({}, { id: "node-a", position: { x: 40, y: 50 } });
     });
 
     expect(onNodeDragStart).toHaveBeenCalledWith("node-a");
