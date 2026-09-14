@@ -11,6 +11,8 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import {
+  useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -80,6 +82,7 @@ const edgeTypes = { storyGraph: StoryGraphEdge };
 const defaultNodeWidth = 112;
 const defaultNodeHeight = 48;
 const relationshipInteractionWidth = 48;
+const railHoverCloseDelayMs = 120;
 
 type FlowNode = StoryGraphFlowNode;
 type FlowEdge = StoryGraphFlowEdge;
@@ -99,9 +102,66 @@ export function GraphCanvas({
   ref,
 }: GraphCanvasProps) {
   const [connectionActive, setConnectionActive] = useState(false);
-  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [hoveredRailId, setHoveredRailId] = useState<string | null>(null);
+  const [pinnedRailId, setPinnedRailId] = useState<string | null>(null);
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (hoverCloseTimerRef.current === null) return;
+    clearTimeout(hoverCloseTimerRef.current);
+    hoverCloseTimerRef.current = null;
+  }, []);
+
+  useEffect(
+    () => () => {
+      clearHoverCloseTimer();
+    },
+    [clearHoverCloseTimer],
+  );
+
+  const requestOpenRail = useCallback(
+    (railId: string) => {
+      clearHoverCloseTimer();
+      setHoveredRailId(railId);
+    },
+    [clearHoverCloseTimer],
+  );
+
+  const requestCloseRail = useCallback(
+    (railId: string) => {
+      clearHoverCloseTimer();
+      hoverCloseTimerRef.current = setTimeout(() => {
+        setHoveredRailId((current) => (current === railId ? null : current));
+        hoverCloseTimerRef.current = null;
+      }, railHoverCloseDelayMs);
+    },
+    [clearHoverCloseTimer],
+  );
+
+  const togglePinnedRail = useCallback(
+    (railId: string) => {
+      clearHoverCloseTimer();
+      setHoveredRailId(railId);
+      setPinnedRailId((current) => (current === railId ? null : railId));
+    },
+    [clearHoverCloseTimer],
+  );
+
+  const dismissRail = useCallback(
+    (railId?: string) => {
+      clearHoverCloseTimer();
+      setHoveredRailId((current) =>
+        !railId || current === railId ? null : current,
+      );
+      setPinnedRailId((current) =>
+        !railId || current === railId ? null : current,
+      );
+    },
+    [clearHoverCloseTimer],
+  );
+
   const focus = useMemo(
     () => projectGraphFocus({ selectedNodeId, selectedEdgeId, edges }),
     [edges, selectedEdgeId, selectedNodeId],
@@ -122,7 +182,9 @@ export function GraphCanvas({
       })),
     [connectionActive, focus.focusedNodeIds, hasFocus, nodes, selectedNodeId],
   );
+
   const flowEdges = useMemo<FlowEdge[]>(() => {
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
     const boundsById = new Map(
       nodes.map((node) => [
         node.id,
@@ -135,77 +197,110 @@ export function GraphCanvas({
       ]),
     );
 
-    return buildRelationshipBundles(edges).flatMap((bundle) => {
-      const bundleExpanded = bundle.edges.some(
-        (edge) => edge.id === selectedEdgeId || edge.id === hoveredEdgeId,
-      );
-
-      return bundle.edges.map((edge, laneIndex) => {
-        const sourceNode = boundsById.get(edge.sourceNodeId);
-        const targetNode = boundsById.get(edge.targetNodeId);
-        const route = projectEdgeRoute({
-          edge,
-          sourceNode: sourceNode ?? {
-            x: 0,
-            y: 0,
-            width: defaultNodeWidth,
-            height: defaultNodeHeight,
-          },
-          targetNode: targetNode ?? {
-            x: 0,
-            y: 0,
-            width: defaultNodeWidth,
-            height: defaultNodeHeight,
-          },
-          laneIndex,
-          laneCount: bundle.edges.length,
-        });
-
-        return {
-          id: edge.id,
-          type: "storyGraph",
-          source: edge.sourceNodeId,
-          target: edge.targetNodeId,
-          sourceHandle: route.sourcePort,
-          targetHandle: route.targetPort,
-          interactionWidth: relationshipInteractionWidth,
-          markerEnd:
-            edge.direction === "DIRECTED"
-              ? { type: MarkerType.ArrowClosed }
-              : undefined,
-          data: {
-            label: edge.name,
-            direction: route.direction,
-            routingType: route.routingType,
-            sourcePort: route.sourcePort,
-            targetPort: route.targetPort,
-            waypoints: route.waypoints,
-            laneIndex: route.laneIndex,
-            laneCount: route.laneCount,
-            laneOrientation:
-              edge.sourceNodeId === bundle.nodeIds[0] ? "forward" : "reverse",
-            bundleExpanded,
-            visualState: getRelationshipVisualState(
-              edge.id,
-              hasFocus,
-              focus.focusedEdgeIds,
-              focus.secondaryEdgeIds,
-            ),
-            presentation: edge.presentation,
-            onSelect: onSelectEdge,
-          },
-        } satisfies FlowEdge;
+    return buildRelationshipBundles(edges).map((bundle) => {
+      const [sourceNodeId, targetNodeId] = bundle.nodeIds;
+      const representative = bundle.edges[0];
+      const sourceNode = boundsById.get(sourceNodeId) ?? {
+        x: 0,
+        y: 0,
+        width: defaultNodeWidth,
+        height: defaultNodeHeight,
+      };
+      const targetNode = boundsById.get(targetNodeId) ?? {
+        x: 0,
+        y: 0,
+        width: defaultNodeWidth,
+        height: defaultNodeHeight,
+      };
+      const routeOwner =
+        representative.sourceNodeId === sourceNodeId
+          ? representative
+          : {
+              ...representative,
+              routing: {
+                ...representative.routing,
+                sourcePort: representative.routing.targetPort,
+                targetPort: representative.routing.sourcePort,
+              },
+            };
+      const route = projectEdgeRoute({
+        edge: routeOwner,
+        sourceNode,
+        targetNode,
+        laneIndex: 0,
+        laneCount: 1,
       });
+      const hasForwardDirection = bundle.edges.some(
+        (edge) =>
+          edge.direction === "DIRECTED" && edge.sourceNodeId === sourceNodeId,
+      );
+      const hasReverseDirection = bundle.edges.some(
+        (edge) =>
+          edge.direction === "DIRECTED" && edge.sourceNodeId === targetNodeId,
+      );
+      const sourceLabel = nodeById.get(sourceNodeId)?.name ?? sourceNodeId;
+      const targetLabel = nodeById.get(targetNodeId)?.name ?? targetNodeId;
+      const railId = bundle.key;
+
+      return {
+        id: railId,
+        type: "storyGraph",
+        source: sourceNodeId,
+        target: targetNodeId,
+        sourceHandle: route.sourcePort,
+        targetHandle: route.targetPort,
+        interactionWidth: relationshipInteractionWidth,
+        markerStart: hasReverseDirection
+          ? { type: MarkerType.ArrowClosed }
+          : undefined,
+        markerEnd: hasForwardDirection
+          ? { type: MarkerType.ArrowClosed }
+          : undefined,
+        data: {
+          relationships: bundle.edges.map((edge) => ({
+            id: edge.id,
+            label: edge.name,
+            sourceLabel: nodeById.get(edge.sourceNodeId)?.name ?? edge.sourceNodeId,
+            targetLabel: nodeById.get(edge.targetNodeId)?.name ?? edge.targetNodeId,
+            direction: edge.direction,
+          })),
+          pairLabel: `${sourceLabel}와 ${targetLabel}`,
+          popoverOpen:
+            hoveredRailId === railId || pinnedRailId === railId,
+          selectedRelationshipId: selectedEdgeId,
+          routingType: route.routingType,
+          sourcePort: route.sourcePort,
+          targetPort: route.targetPort,
+          waypoints: route.waypoints,
+          visualState: getRelationshipRailVisualState(
+            bundle.edges.map((edge) => edge.id),
+            hasFocus,
+            focus.focusedEdgeIds,
+            focus.secondaryEdgeIds,
+          ),
+          presentation: representative.presentation,
+          onSelectRelationship: onSelectEdge,
+          onRequestOpen: () => requestOpenRail(railId),
+          onRequestClose: () => requestCloseRail(railId),
+          onTogglePinned: () => togglePinnedRail(railId),
+          onDismiss: () => dismissRail(railId),
+        },
+      } satisfies FlowEdge;
     });
   }, [
+    dismissRail,
     edges,
     focus.focusedEdgeIds,
     focus.secondaryEdgeIds,
     hasFocus,
-    hoveredEdgeId,
+    hoveredRailId,
     nodes,
     onSelectEdge,
+    pinnedRailId,
+    requestCloseRail,
+    requestOpenRail,
     selectedEdgeId,
+    togglePinnedRail,
   ]);
 
   useImperativeHandle(ref, () => ({
@@ -263,11 +358,9 @@ export function GraphCanvas({
         onConnect={handleConnect}
         onConnectEnd={() => setConnectionActive(false)}
         onConnectStart={() => setConnectionActive(true)}
-        onEdgeClick={(_, edge) => onSelectEdge?.(edge.id)}
-        onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
-        onEdgeMouseLeave={(_, edge) => {
-          setHoveredEdgeId((current) => (current === edge.id ? null : current));
-        }}
+        onEdgeClick={(_, edge) => edge.data?.onTogglePinned?.()}
+        onEdgeMouseEnter={(_, edge) => edge.data?.onRequestOpen?.()}
+        onEdgeMouseLeave={(_, edge) => edge.data?.onRequestClose?.()}
         onInit={(instance) => {
           instanceRef.current = instance;
         }}
@@ -275,7 +368,10 @@ export function GraphCanvas({
         onNodeDrag={handleNodeDrag}
         onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
-        onPaneClick={() => onClearSelection?.()}
+        onPaneClick={() => {
+          dismissRail();
+          onClearSelection?.();
+        }}
       >
         <Background />
         <Controls />
@@ -284,14 +380,14 @@ export function GraphCanvas({
   );
 }
 
-function getRelationshipVisualState(
-  edgeId: string,
+function getRelationshipRailVisualState(
+  edgeIds: string[],
   hasFocus: boolean,
   focusedEdgeIds: Set<string>,
   secondaryEdgeIds: Set<string>,
 ): RelationshipVisualState {
   if (!hasFocus) return "idle";
-  if (focusedEdgeIds.has(edgeId)) return "selected";
-  if (secondaryEdgeIds.has(edgeId)) return "secondary";
+  if (edgeIds.some((edgeId) => focusedEdgeIds.has(edgeId))) return "selected";
+  if (edgeIds.some((edgeId) => secondaryEdgeIds.has(edgeId))) return "secondary";
   return "dimmed";
 }
