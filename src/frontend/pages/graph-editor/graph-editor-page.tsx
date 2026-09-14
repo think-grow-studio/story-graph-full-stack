@@ -34,10 +34,12 @@ import {
   toInspectorEntityKey,
 } from "@/frontend/features/graph-editor/inspector/inspector-draft-model";
 import { createInspectorDraftStore } from "@/frontend/features/graph-editor/inspector/inspector-draft-store";
+import { RelationshipPairInspector } from "@/frontend/features/graph-editor/inspector/relationship-pair-inspector";
 import {
   useInspectorAutosave,
   useInspectorDraftState,
 } from "@/frontend/features/graph-editor/inspector/use-inspector-autosave";
+import { buildRelationshipBundles } from "@/frontend/features/graph-editor/model/relationship-bundle";
 import { useEditorPersistence } from "@/frontend/features/graph-editor/persistence/use-editor-persistence";
 import { useEditorSaveQueue } from "@/frontend/features/graph-editor/save-queue/use-editor-save-queue";
 import {
@@ -68,6 +70,8 @@ export function GraphEditorPage({
 type SelectedGraphEntity =
   | { kind: "node"; id: string }
   | { kind: "edge"; id: string };
+
+type PairDirection = "forward" | "reverse";
 
 function GraphEditorContent({
   storyId,
@@ -126,6 +130,61 @@ function GraphEditorContent({
     if (edge) inspectorSelection = { kind: "edge", entity: edge };
   }
 
+  const selectedRelationshipPair = useMemo(() => {
+    if (selectedEntity?.kind !== "edge") return null;
+
+    const bundle = buildRelationshipBundles(state.edges).find((candidate) =>
+      candidate.edges.some((edge) => edge.id === selectedEntity.id),
+    );
+    if (!bundle) return null;
+
+    const [leftNodeId, rightNodeId] = bundle.nodeIds;
+    const leftLabel =
+      state.nodes.find((node) => node.id === leftNodeId)?.name ?? leftNodeId;
+    const rightLabel =
+      state.nodes.find((node) => node.id === rightNodeId)?.name ?? rightNodeId;
+    const forwardEdges = bundle.edges.filter(
+      (edge) =>
+        edge.direction === "DIRECTED" && edge.sourceNodeId === leftNodeId,
+    );
+    const reverseEdges = bundle.edges.filter(
+      (edge) =>
+        edge.direction === "DIRECTED" && edge.sourceNodeId === rightNodeId,
+    );
+    const undirectedEdges = bundle.edges.filter(
+      (edge) => edge.direction === "UNDIRECTED",
+    );
+
+    return {
+      leftNodeId,
+      rightNodeId,
+      leftLabel,
+      rightLabel,
+      forwardEdges,
+      reverseEdges,
+      undirectedEdges,
+      allEdges: bundle.edges,
+    };
+  }, [selectedEntity, state.edges, state.nodes]);
+
+  const forwardPrimary = selectedRelationshipPair?.forwardEdges[0] ?? null;
+  const reversePrimary = selectedRelationshipPair?.reverseEdges[0] ?? null;
+  const forwardDraftKey = forwardPrimary
+    ? toInspectorEntityKey("edge", forwardPrimary.id)
+    : null;
+  const reverseDraftKey = reversePrimary
+    ? toInspectorEntityKey("edge", reversePrimary.id)
+    : null;
+
+  useEffect(() => {
+    for (const edge of [forwardPrimary, reversePrimary]) {
+      if (!edge) continue;
+      draftStore
+        .getState()
+        .ensureDraft(toInspectorEntityKey("edge", edge.id), edge);
+    }
+  }, [draftStore, forwardPrimary, reversePrimary]);
+
   const selectedDraftKey = inspectorSelection
     ? toInspectorEntityKey(
         inspectorSelection.kind,
@@ -142,6 +201,12 @@ function GraphEditorContent({
 
   const selectedDraft = selectedDraftKey
     ? draftState.drafts[selectedDraftKey]
+    : undefined;
+  const forwardDraft = forwardDraftKey
+    ? draftState.drafts[forwardDraftKey]
+    : undefined;
+  const reverseDraft = reverseDraftKey
+    ? draftState.drafts[reverseDraftKey]
     : undefined;
   const selectedDraftEvaluation =
     selectedDraft && inspectorSelection
@@ -359,6 +424,98 @@ function GraphEditorContent({
     if (operationId) setPendingConnection(null);
   }
 
+  function handleTogglePairDirection(
+    direction: PairDirection,
+    active: boolean,
+  ) {
+    if (!workspaceId || !selectedRelationshipPair) return;
+
+    const existingEdges =
+      direction === "forward"
+        ? selectedRelationshipPair.forwardEdges
+        : selectedRelationshipPair.reverseEdges;
+
+    if (active) {
+      if (existingEdges.length > 0) return;
+
+      const sourceNodeId =
+        direction === "forward"
+          ? selectedRelationshipPair.leftNodeId
+          : selectedRelationshipPair.rightNodeId;
+      const targetNodeId =
+        direction === "forward"
+          ? selectedRelationshipPair.rightNodeId
+          : selectedRelationshipPair.leftNodeId;
+      const routeTemplate = selectedRelationshipPair.allEdges[0]?.routing;
+      const presentationTemplate =
+        selectedRelationshipPair.allEdges[0]?.presentation;
+
+      history.dispatch({
+        type: "create-edge",
+        boardId,
+        workspaceId,
+        edgeId: crypto.randomUUID(),
+        sourceNodeId,
+        targetNodeId,
+        direction: "DIRECTED",
+        name: "관계",
+        description: "",
+        kind: "relationship",
+        iconKey: null,
+        properties: {},
+        presentation: presentationTemplate
+          ? { ...presentationTemplate }
+          : { ...defaultEdgePresentation },
+        routing: routeTemplate
+          ? {
+              ...routeTemplate,
+              waypoints: [...routeTemplate.waypoints],
+            }
+          : {
+              type:
+                snapshot.data?.board.graphSettings?.defaultEdgeRouting ??
+                "orthogonal",
+              sourcePort: "auto",
+              targetPort: "auto",
+              waypoints: [],
+            },
+        createdAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (existingEdges.length === 0) return;
+
+    for (const edge of existingEdges) {
+      const operationId = history.dispatch({
+        type: "delete-edge",
+        boardId,
+        edgeId: edge.id,
+        workspaceId,
+      });
+      if (operationId) {
+        draftStore
+          .getState()
+          .discardDraft(toInspectorEntityKey("edge", edge.id));
+      }
+    }
+
+    if (
+      selectedEntity?.kind === "edge" &&
+      existingEdges.some((edge) => edge.id === selectedEntity.id)
+    ) {
+      const fallbackEdge =
+        direction === "forward"
+          ? (selectedRelationshipPair.reverseEdges[0] ??
+            selectedRelationshipPair.undirectedEdges[0])
+          : (selectedRelationshipPair.forwardEdges[0] ??
+            selectedRelationshipPair.undirectedEdges[0]);
+      setSelectedEntity(
+        fallbackEdge ? { kind: "edge", id: fallbackEdge.id } : null,
+      );
+    }
+  }
+
   function handleNodeDragStart(nodeId: string) {
     const node = store
       .getState()
@@ -475,16 +632,26 @@ function GraphEditorContent({
     : "idle";
   const selectedLaneBusy =
     selectedLaneState === "pending" || selectedLaneState === "saving";
-  const selectedInspectorFailure = selectedLaneKey
-    ? [...saveQueue.snapshot.failedOperations]
-        .reverse()
-        .find(
-          (failure) =>
-            failure.laneKey === selectedLaneKey &&
-            (failure.command.type === "update-node" ||
-              failure.command.type === "update-edge"),
-        )
-    : undefined;
+  const forwardLaneState = forwardDraftKey
+    ? saveQueue.getLaneState(forwardDraftKey)
+    : "idle";
+  const reverseLaneState = reverseDraftKey
+    ? saveQueue.getLaneState(reverseDraftKey)
+    : "idle";
+  const forwardLaneBusy =
+    forwardLaneState === "pending" || forwardLaneState === "saving";
+  const reverseLaneBusy =
+    reverseLaneState === "pending" || reverseLaneState === "saving";
+  const selectedInspectorFailure =
+    selectedLaneKey && inspectorSelection?.kind === "node"
+      ? [...saveQueue.snapshot.failedOperations]
+          .reverse()
+          .find(
+            (failure) =>
+              failure.laneKey === selectedLaneKey &&
+              failure.command.type === "update-node",
+          )
+      : undefined;
   const inspectorError = selectedInspectorFailure
     ? getEditorFailureMessage(
         selectedInspectorFailure.command,
@@ -606,7 +773,46 @@ function GraphEditorContent({
             }
           />
         </div>
-        {inspectorSelection && selectedDraft && selectedDraftKey ? (
+
+        {selectedRelationshipPair ? (
+          <RelationshipPairInspector
+            forward={{
+              active: Boolean(forwardPrimary),
+              busy: forwardLaneBusy,
+              draft: forwardDraft,
+              extraCount: Math.max(
+                0,
+                selectedRelationshipPair.forwardEdges.length - 1,
+              ),
+              onDraftChange: (patch) => {
+                if (!forwardDraftKey) return;
+                draftStore.getState().updateDraft(forwardDraftKey, patch);
+              },
+              onToggle: (active) =>
+                handleTogglePairDirection("forward", active),
+            }}
+            leftLabel={selectedRelationshipPair.leftLabel}
+            reverse={{
+              active: Boolean(reversePrimary),
+              busy: reverseLaneBusy,
+              draft: reverseDraft,
+              extraCount: Math.max(
+                0,
+                selectedRelationshipPair.reverseEdges.length - 1,
+              ),
+              onDraftChange: (patch) => {
+                if (!reverseDraftKey) return;
+                draftStore.getState().updateDraft(reverseDraftKey, patch);
+              },
+              onToggle: (active) =>
+                handleTogglePairDirection("reverse", active),
+            }}
+            rightLabel={selectedRelationshipPair.rightLabel}
+            undirectedCount={selectedRelationshipPair.undirectedEdges.length}
+          />
+        ) : inspectorSelection?.kind === "node" &&
+          selectedDraft &&
+          selectedDraftKey ? (
           <GraphInspector
             draft={selectedDraft}
             error={inspectorError}
