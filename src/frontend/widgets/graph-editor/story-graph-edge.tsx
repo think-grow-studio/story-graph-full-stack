@@ -3,7 +3,6 @@
 import {
   BaseEdge,
   EdgeLabelRenderer,
-  MarkerType,
   getBezierPath,
   getSmoothStepPath,
   getStraightPath,
@@ -33,6 +32,7 @@ export type StoryGraphEdgeData = {
   waypoints: EdgeRouting["waypoints"];
   laneIndex: number;
   laneCount: number;
+  laneOrientation?: "forward" | "reverse";
   bundleExpanded?: boolean;
   visualState: RelationshipVisualState;
   presentation: EdgePresentation;
@@ -54,29 +54,26 @@ export function StoryGraphEdge({
   sourcePosition,
   targetPosition,
   interactionWidth,
+  markerEnd,
 }: EdgeProps<StoryGraphFlowEdge>) {
   if (!data) return null;
 
-  const laneOffset = getLaneOffset(
+  const baseLaneOffset = getLaneOffset(
     data.laneIndex,
     data.laneCount,
     Boolean(data.bundleExpanded),
   );
-  const offsetCoordinates = offsetEndpoints(
+  const laneOffset =
+    data.laneOrientation === "reverse" ? -baseLaneOffset : baseLaneOffset;
+  const [path, labelX, labelY] = getRoutePath({
+    routingType: data.routingType,
     sourceX,
     sourceY,
     targetX,
     targetY,
-    laneOffset,
-  );
-  const [path, labelX, labelY] = getRoutePath({
-    routingType: data.routingType,
-    sourceX: offsetCoordinates.sourceX,
-    sourceY: offsetCoordinates.sourceY,
-    targetX: offsetCoordinates.targetX,
-    targetY: offsetCoordinates.targetY,
     sourcePosition,
     targetPosition,
+    laneOffset,
   });
   const strokeWidth = getStrokeWidth(
     data.visualState,
@@ -94,9 +91,7 @@ export function StoryGraphEdge({
       <BaseEdge
         id={id}
         interactionWidth={interactionWidth}
-        markerEnd={
-          data.direction === "DIRECTED" ? MarkerType.ArrowClosed : undefined
-        }
+        markerEnd={markerEnd}
         path={path}
         style={{
           opacity,
@@ -154,29 +149,6 @@ function getStrokeWidth(
   return persistedWidth ?? 1.5;
 }
 
-function offsetEndpoints(
-  sourceX: number,
-  sourceY: number,
-  targetX: number,
-  targetY: number,
-  laneOffset: number,
-) {
-  if (!laneOffset) return { sourceX, sourceY, targetX, targetY };
-
-  const dx = targetX - sourceX;
-  const dy = targetY - sourceY;
-  const length = Math.hypot(dx, dy) || 1;
-  const offsetX = (-dy / length) * laneOffset;
-  const offsetY = (dx / length) * laneOffset;
-
-  return {
-    sourceX: sourceX + offsetX,
-    sourceY: sourceY + offsetY,
-    targetX: targetX + offsetX,
-    targetY: targetY + offsetY,
-  };
-}
-
 function getRoutePath({
   routingType,
   sourceX,
@@ -185,6 +157,7 @@ function getRoutePath({
   targetY,
   sourcePosition,
   targetPosition,
+  laneOffset,
 }: {
   routingType: EdgeRouting["type"];
   sourceX: number;
@@ -193,6 +166,7 @@ function getRoutePath({
   targetY: number;
   sourcePosition: Position;
   targetPosition: Position;
+  laneOffset: number;
 }): [string, number, number] {
   if (routingType === "straight") {
     const [path, labelX, labelY] = getStraightPath({
@@ -201,7 +175,14 @@ function getRoutePath({
       targetX,
       targetY,
     });
-    return [path, labelX, labelY];
+    const labelOffset = getNormalOffset(
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
+      laneOffset,
+    );
+    return [path, labelX + labelOffset.x, labelY + labelOffset.y];
   }
 
   if (routingType === "curved") {
@@ -213,9 +194,23 @@ function getRoutePath({
       sourcePosition,
       targetPosition,
     });
-    return [path, labelX, labelY];
+    const labelOffset = getNormalOffset(
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
+      laneOffset,
+    );
+    return [path, labelX + labelOffset.x, labelY + labelOffset.y];
   }
 
+  const center = getOffsetCenter(
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    laneOffset,
+  );
   const [path, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -224,6 +219,51 @@ function getRoutePath({
     sourcePosition,
     targetPosition,
     borderRadius: 8,
+    ...(laneOffset
+      ? {
+          centerX: center.x,
+          centerY: center.y,
+        }
+      : {}),
   });
   return [path, labelX, labelY];
+}
+
+function getOffsetCenter(
+  sourceX: number,
+  sourceY: number,
+  targetX: number,
+  targetY: number,
+  laneOffset: number,
+) {
+  const offset = getNormalOffset(
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    laneOffset,
+  );
+  return {
+    x: (sourceX + targetX) / 2 + offset.x,
+    y: (sourceY + targetY) / 2 + offset.y,
+  };
+}
+
+function getNormalOffset(
+  sourceX: number,
+  sourceY: number,
+  targetX: number,
+  targetY: number,
+  laneOffset: number,
+) {
+  if (!laneOffset) return { x: 0, y: 0 };
+
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+  const length = Math.hypot(dx, dy) || 1;
+
+  return {
+    x: (-dy / length) * laneOffset,
+    y: (dx / length) * laneOffset,
+  };
 }
