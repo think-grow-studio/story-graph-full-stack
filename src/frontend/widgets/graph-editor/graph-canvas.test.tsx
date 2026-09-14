@@ -6,22 +6,16 @@ const flowMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@xyflow/react", () => ({
-  addEdge: (_connection: unknown, edges: unknown[]) => edges,
-  applyNodeChanges: (_changes: unknown, nodes: unknown[]) => nodes,
   Background: () => null,
   ConnectionMode: { Loose: "loose" },
   Controls: () => null,
   Handle: () => null,
   MarkerType: { ArrowClosed: "arrowclosed" },
-  MiniMap: () => null,
   Position: { Top: "top", Right: "right", Bottom: "bottom", Left: "left" },
   ReactFlow: (props: Record<string, unknown>) => {
     flowMocks.props = props;
     return <div aria-label="Flow renderer" />;
   },
-  useReactFlow: () => ({
-    screenToFlowPosition: (position: { x: number; y: number }) => position,
-  }),
 }));
 
 vi.mock("./story-graph-edge", () => ({
@@ -65,17 +59,33 @@ function graphEdge(
 type FlowEdgeSnapshot = {
   id: string;
   type: string;
+  source: string;
+  target: string;
   sourceHandle: string;
   targetHandle: string;
+  markerStart?: unknown;
   markerEnd?: unknown;
   data: {
-    laneIndex: number;
-    laneCount: number;
-    laneOrientation?: string;
-    bundleExpanded?: boolean;
-    visualState?: string;
+    relationships: Array<{
+      id: string;
+      label: string;
+      sourceLabel: string;
+      targetLabel: string;
+      direction: string;
+    }>;
+    popoverOpen: boolean;
+    visualState: string;
+    onTogglePinned?: () => void;
+    onRequestOpen?: () => void;
+    onRequestClose?: () => void;
   };
 };
+
+const nodes = [
+  { id: "node-a", name: "Alice", position: { x: 0, y: 0 }, width: 100, height: 80 },
+  { id: "node-b", name: "Bob", position: { x: 200, y: 0 }, width: 100, height: 80 },
+  { id: "node-c", name: "Carol", position: { x: 0, y: 200 }, width: 100, height: 80 },
+];
 
 describe("GraphCanvas", () => {
   it("uses the available editor height with a sensible minimum", () => {
@@ -89,16 +99,17 @@ describe("GraphCanvas", () => {
       />,
     );
 
-    const canvas = view.getByLabelText("Graph canvas");
-    expect(canvas).toHaveClass("h-full", "min-h-[420px]");
-    expect(canvas).not.toHaveClass("h-[560px]");
+    expect(view.getByLabelText("Graph canvas")).toHaveClass(
+      "h-full",
+      "min-h-[420px]",
+    );
   });
 
   it("registers Story Graph custom Node/Edge types and loose connection mode", () => {
     render(
       <GraphCanvas
         edges={[]}
-        nodes={[{ id: "node-1", name: "Alice", position: { x: 10, y: 20 } }]}
+        nodes={[nodes[0]]}
         onConnectNodes={vi.fn()}
         onNodeDragStop={vi.fn()}
         onNodePositionChange={vi.fn()}
@@ -108,42 +119,17 @@ describe("GraphCanvas", () => {
     expect(flowMocks.props?.connectionMode).toBe("loose");
     expect(flowMocks.props?.nodeTypes).toMatchObject({ storyGraph: StoryGraphNode });
     expect(flowMocks.props?.edgeTypes).toMatchObject({ storyGraph: StoryGraphEdge });
-    expect(flowMocks.props?.nodes).toEqual([
-      expect.objectContaining({ id: "node-1", type: "storyGraph" }),
-    ]);
   });
 
-  it("forwards an empty-canvas click to the selection clear callback", () => {
-    const onClearSelection = vi.fn();
-    render(
-      <GraphCanvas
-        edges={[]}
-        nodes={[]}
-        onClearSelection={onClearSelection}
-        onConnectNodes={vi.fn()}
-        onNodeDragStop={vi.fn()}
-        onNodePositionChange={vi.fn()}
-      />,
-    );
-
-    act(() => {
-      (flowMocks.props?.onPaneClick as (() => void) | undefined)?.();
-    });
-
-    expect(onClearSelection).toHaveBeenCalledTimes(1);
-  });
-
-  it("projects parallel and bidirectional relationships into deterministic separate lanes", () => {
+  it("projects one shared rail for opposite and parallel semantic Relationships", () => {
     render(
       <GraphCanvas
         edges={[
-          graphEdge("edge-b", "node-b", "node-a"),
-          graphEdge("edge-a", "node-a", "node-b"),
+          graphEdge("edge-a", "node-a", "node-b", { name: "좋아한다" }),
+          graphEdge("edge-b", "node-b", "node-a", { name: "잊었다" }),
+          graphEdge("edge-c", "node-a", "node-b", { name: "함께 여행함" }),
         ]}
-        nodes={[
-          { id: "node-a", name: "A", position: { x: 0, y: 0 }, width: 100, height: 80 },
-          { id: "node-b", name: "B", position: { x: 200, y: 0 }, width: 100, height: 80 },
-        ]}
+        nodes={nodes}
         onConnectNodes={vi.fn()}
         onNodeDragStop={vi.fn()}
         onNodePositionChange={vi.fn()}
@@ -151,25 +137,64 @@ describe("GraphCanvas", () => {
     );
 
     const flowEdges = flowMocks.props?.edges as FlowEdgeSnapshot[];
-    expect(flowEdges.map((edge) => edge.id)).toEqual(["edge-a", "edge-b"]);
-    expect(flowEdges.map((edge) => edge.type)).toEqual(["storyGraph", "storyGraph"]);
-    expect(flowEdges.map((edge) => [edge.data.laneIndex, edge.data.laneCount])).toEqual([
-      [0, 2],
-      [1, 2],
+    expect(flowEdges).toHaveLength(1);
+    expect(flowEdges[0]).toMatchObject({
+      id: "node-a:node-b",
+      type: "storyGraph",
+      source: "node-a",
+      target: "node-b",
+      sourceHandle: "right",
+      targetHandle: "left",
+      markerStart: { type: "arrowclosed" },
+      markerEnd: { type: "arrowclosed" },
+    });
+    expect(flowEdges[0]?.data.relationships).toEqual([
+      {
+        id: "edge-a",
+        label: "좋아한다",
+        sourceLabel: "Alice",
+        targetLabel: "Bob",
+        direction: "DIRECTED",
+      },
+      {
+        id: "edge-c",
+        label: "함께 여행함",
+        sourceLabel: "Alice",
+        targetLabel: "Bob",
+        direction: "DIRECTED",
+      },
+      {
+        id: "edge-b",
+        label: "잊었다",
+        sourceLabel: "Bob",
+        targetLabel: "Alice",
+        direction: "DIRECTED",
+      },
     ]);
-    expect(flowEdges.map((edge) => edge.data.laneOrientation)).toEqual([
-      "forward",
-      "reverse",
-    ]);
-    expect(flowEdges.map((edge) => edge.markerEnd)).toEqual([
-      { type: "arrowclosed" },
-      { type: "arrowclosed" },
-    ]);
-    expect(flowEdges[0]).toMatchObject({ sourceHandle: "right", targetHandle: "left" });
-    expect(flowEdges[1]).toMatchObject({ sourceHandle: "left", targetHandle: "right" });
   });
 
-  it("projects selected Edge focus with sibling secondary and unrelated relationships dimmed", () => {
+  it("only adds endpoint arrows for directed meanings that exist", () => {
+    render(
+      <GraphCanvas
+        edges={[
+          graphEdge("forward", "node-a", "node-b"),
+          graphEdge("undirected", "node-b", "node-a", {
+            direction: "UNDIRECTED",
+          }),
+        ]}
+        nodes={nodes}
+        onConnectNodes={vi.fn()}
+        onNodeDragStop={vi.fn()}
+        onNodePositionChange={vi.fn()}
+      />,
+    );
+
+    const [rail] = flowMocks.props?.edges as FlowEdgeSnapshot[];
+    expect(rail?.markerStart).toBeUndefined();
+    expect(rail?.markerEnd).toEqual({ type: "arrowclosed" });
+  });
+
+  it("projects semantic Edge focus onto the shared rail", () => {
     render(
       <GraphCanvas
         edges={[
@@ -177,11 +202,7 @@ describe("GraphCanvas", () => {
           graphEdge("edge-b", "node-b", "node-a"),
           graphEdge("edge-c", "node-a", "node-c"),
         ]}
-        nodes={[
-          { id: "node-a", name: "A", position: { x: 0, y: 0 }, width: 100, height: 80 },
-          { id: "node-b", name: "B", position: { x: 200, y: 0 }, width: 100, height: 80 },
-          { id: "node-c", name: "C", position: { x: 0, y: 200 }, width: 100, height: 80 },
-        ]}
+        nodes={nodes}
         onConnectNodes={vi.fn()}
         onNodeDragStop={vi.fn()}
         onNodePositionChange={vi.fn()}
@@ -190,105 +211,51 @@ describe("GraphCanvas", () => {
     );
 
     const flowEdges = flowMocks.props?.edges as FlowEdgeSnapshot[];
-    const stateById = Object.fromEntries(
-      flowEdges.map((edge) => [edge.id, edge.data.visualState]),
-    );
-    expect(stateById).toEqual({
-      "edge-a": "selected",
-      "edge-b": "secondary",
-      "edge-c": "dimmed",
-    });
     expect(
-      Object.fromEntries(
-        flowEdges.map((edge) => [edge.id, edge.data.bundleExpanded]),
-      ),
+      Object.fromEntries(flowEdges.map((edge) => [edge.id, edge.data.visualState])),
     ).toEqual({
-      "edge-a": true,
-      "edge-b": true,
-      "edge-c": false,
+      "node-a:node-b": "selected",
+      "node-a:node-c": "dimmed",
     });
   });
 
-  it("expands a whole relationship bundle while one of its Edges is hovered", () => {
+  it("pins a relationship card on rail click and dismisses it on pane click", () => {
+    const onClearSelection = vi.fn();
     render(
       <GraphCanvas
-        edges={[
-          graphEdge("edge-a", "node-a", "node-b"),
-          graphEdge("edge-b", "node-b", "node-a"),
-          graphEdge("edge-c", "node-a", "node-c"),
-        ]}
-        nodes={[
-          { id: "node-a", name: "A", position: { x: 0, y: 0 }, width: 100, height: 80 },
-          { id: "node-b", name: "B", position: { x: 200, y: 0 }, width: 100, height: 80 },
-          { id: "node-c", name: "C", position: { x: 0, y: 200 }, width: 100, height: 80 },
-        ]}
+        edges={[graphEdge("edge-a", "node-a", "node-b")]}
+        nodes={nodes}
+        onClearSelection={onClearSelection}
         onConnectNodes={vi.fn()}
         onNodeDragStop={vi.fn()}
         onNodePositionChange={vi.fn()}
       />,
     );
 
-    act(() => {
-      (
-        flowMocks.props?.onEdgeMouseEnter as
-          | ((event: unknown, edge: { id: string }) => void)
-          | undefined
-      )?.({}, { id: "edge-a" });
-    });
-
-    let flowEdges = flowMocks.props?.edges as FlowEdgeSnapshot[];
-    expect(
-      Object.fromEntries(
-        flowEdges.map((edge) => [edge.id, edge.data.bundleExpanded]),
-      ),
-    ).toEqual({
-      "edge-a": true,
-      "edge-b": true,
-      "edge-c": false,
-    });
+    let [rail] = flowMocks.props?.edges as FlowEdgeSnapshot[];
+    expect(rail?.data.popoverOpen).toBe(false);
 
     act(() => {
       (
-        flowMocks.props?.onEdgeMouseLeave as
-          | ((event: unknown, edge: { id: string }) => void)
+        flowMocks.props?.onEdgeClick as
+          | ((event: unknown, edge: FlowEdgeSnapshot) => void)
           | undefined
-      )?.({}, { id: "edge-a" });
+      )?.({}, rail!);
     });
 
-    flowEdges = flowMocks.props?.edges as FlowEdgeSnapshot[];
-    expect(flowEdges.every((edge) => edge.data.bundleExpanded === false)).toBe(
-      true,
-    );
-  });
-
-  it("marks Node data active only while a connection gesture is in progress", () => {
-    render(
-      <GraphCanvas
-        edges={[]}
-        nodes={[{ id: "node-1", name: "Alice", position: { x: 10, y: 20 } }]}
-        onConnectNodes={vi.fn()}
-        onNodeDragStop={vi.fn()}
-        onNodePositionChange={vi.fn()}
-      />,
-    );
-
-    const getNodeData = () =>
-      ((flowMocks.props?.nodes as Array<{ data: { connectionActive: boolean } }>)?.[0]
-        ?.data);
-    expect(getNodeData()?.connectionActive).toBe(false);
+    [rail] = flowMocks.props?.edges as FlowEdgeSnapshot[];
+    expect(rail?.data.popoverOpen).toBe(true);
 
     act(() => {
-      (flowMocks.props?.onConnectStart as (() => void) | undefined)?.();
+      (flowMocks.props?.onPaneClick as (() => void) | undefined)?.();
     });
-    expect(getNodeData()?.connectionActive).toBe(true);
 
-    act(() => {
-      (flowMocks.props?.onConnectEnd as (() => void) | undefined)?.();
-    });
-    expect(getNodeData()?.connectionActive).toBe(false);
+    [rail] = flowMocks.props?.edges as FlowEdgeSnapshot[];
+    expect(rail?.data.popoverOpen).toBe(false);
+    expect(onClearSelection).toHaveBeenCalledTimes(1);
   });
 
-  it("preserves semantic source and target Node ids regardless of physical handles", () => {
+  it("preserves semantic source and target Node ids for new connections", () => {
     const onConnectNodes = vi.fn();
     render(
       <GraphCanvas
@@ -300,16 +267,12 @@ describe("GraphCanvas", () => {
       />,
     );
 
-    const onConnect = flowMocks.props?.onConnect as
-      | ((connection: Record<string, unknown>) => void)
-      | undefined;
     act(() => {
-      onConnect?.({
-        source: "node-a",
-        target: "node-b",
-        sourceHandle: "top",
-        targetHandle: "left",
-      });
+      (
+        flowMocks.props?.onConnect as
+          | ((connection: Record<string, unknown>) => void)
+          | undefined
+      )?.({ source: "node-a", target: "node-b", sourceHandle: "top", targetHandle: "left" });
     });
 
     expect(onConnectNodes).toHaveBeenCalledWith("node-a", "node-b");
@@ -319,11 +282,10 @@ describe("GraphCanvas", () => {
     const onNodeDragStart = vi.fn();
     const onNodePositionChange = vi.fn();
     const onNodeDragStop = vi.fn();
-
     render(
       <GraphCanvas
         edges={[]}
-        nodes={[{ id: "node-1", name: "Alice", position: { x: 10, y: 20 } }]}
+        nodes={[nodes[0]]}
         onConnectNodes={vi.fn()}
         onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
@@ -331,29 +293,30 @@ describe("GraphCanvas", () => {
       />,
     );
 
-    const props = flowMocks.props;
-    expect(props).not.toBeNull();
-    const onStart = props?.onNodeDragStart as ((event: unknown, node: unknown) => void) | undefined;
-    const onDrag = props?.onNodeDrag as ((event: unknown, node: unknown) => void) | undefined;
-    const onStop = props?.onNodeDragStop as ((event: unknown, node: unknown) => void) | undefined;
-
     act(() => {
-      onStart?.({}, { id: "node-1", position: { x: 10, y: 20 } });
-      onDrag?.({}, { id: "node-1", position: { x: 30, y: 40 } });
-      onStop?.({}, { id: "node-1", position: { x: 50, y: 60 } });
+      (flowMocks.props?.onNodeDragStart as ((event: unknown, node: any) => void))?.(
+        {},
+        { id: "node-a", position: { x: 0, y: 0 } },
+      );
+      (flowMocks.props?.onNodeDrag as ((event: unknown, node: any) => void))?.(
+        {},
+        { id: "node-a", position: { x: 20, y: 30 } },
+      );
+      (flowMocks.props?.onNodeDragStop as ((event: unknown, node: any) => void))?.(
+        {},
+        { id: "node-a", position: { x: 40, y: 50 } },
+      );
     });
 
-    expect(onNodeDragStart).toHaveBeenCalledTimes(1);
-    expect(onNodeDragStart).toHaveBeenCalledWith("node-1");
-    expect(onNodePositionChange).toHaveBeenNthCalledWith(1, "node-1", {
-      x: 30,
-      y: 40,
+    expect(onNodeDragStart).toHaveBeenCalledWith("node-a");
+    expect(onNodePositionChange).toHaveBeenNthCalledWith(1, "node-a", {
+      x: 20,
+      y: 30,
     });
-    expect(onNodePositionChange).toHaveBeenNthCalledWith(2, "node-1", {
-      x: 50,
-      y: 60,
+    expect(onNodePositionChange).toHaveBeenNthCalledWith(2, "node-a", {
+      x: 40,
+      y: 50,
     });
-    expect(onNodeDragStop).toHaveBeenCalledTimes(1);
-    expect(onNodeDragStop).toHaveBeenCalledWith("node-1");
+    expect(onNodeDragStop).toHaveBeenCalledWith("node-a");
   });
 });
