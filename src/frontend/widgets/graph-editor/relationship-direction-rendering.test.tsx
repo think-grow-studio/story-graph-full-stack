@@ -41,6 +41,8 @@ const presentation = {
   labelColor: null,
 };
 
+type StoryGraphEdgeProps = Parameters<typeof StoryGraphEdge>[0];
+
 function graphEdge(
   id: string,
   sourceNodeId: string,
@@ -82,24 +84,22 @@ function edgeData(overrides: Record<string, unknown> = {}) {
 
 function renderStoryEdge(
   data: NonNullable<StoryGraphFlowEdge["data"]>,
-  overrides: Record<string, unknown> = {},
+  overrides: Partial<StoryGraphEdgeProps> = {},
 ) {
-  render(
-    <StoryGraphEdge
-      {...({
-        id: "edge-a",
-        data,
-        sourceX: 0,
-        sourceY: 0,
-        targetX: 100,
-        targetY: 0,
-        sourcePosition: "right",
-        targetPosition: "left",
-        selected: false,
-        ...overrides,
-      } as never)}
-    />,
-  );
+  const props = {
+    id: "edge-a",
+    data,
+    sourceX: 0,
+    sourceY: 0,
+    targetX: 100,
+    targetY: 0,
+    sourcePosition: "right",
+    targetPosition: "left",
+    selected: false,
+    ...overrides,
+  } as unknown as StoryGraphEdgeProps;
+
+  render(<StoryGraphEdge {...props} />);
 }
 
 afterEach(() => {
@@ -161,8 +161,8 @@ describe("directed relationship rendering regressions", () => {
         id: "edge-b",
         sourceX: 100,
         targetX: 0,
-        sourcePosition: "left",
-        targetPosition: "right",
+        sourcePosition: "left" as StoryGraphEdgeProps["sourcePosition"],
+        targetPosition: "right" as StoryGraphEdgeProps["targetPosition"],
       },
     );
     const reverseCall = mocks.smoothCalls.at(-1);
