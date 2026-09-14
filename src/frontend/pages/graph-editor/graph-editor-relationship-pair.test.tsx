@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
   deleteEdge: vi.fn(),
 }));
 
-vi.mock("@/frontend/api/auth/bootstrap.api", () => ({ getBootstrap: mocks.getBootstrap }));
+vi.mock("@/frontend/api/auth/bootstrap.api", () => ({
+  getBootstrap: mocks.getBootstrap,
+}));
 vi.mock("@/frontend/api/graph/graph.api", () => ({
   getBoardSnapshot: mocks.getBoardSnapshot,
   createNode: vi.fn(),
@@ -25,14 +27,14 @@ vi.mock("@/frontend/api/graph/graph.api", () => ({
 }));
 
 vi.mock("@/frontend/widgets/graph-editor/graph-canvas", () => ({
-  GraphCanvas: ({ nodes, onSelectRelationshipPair }: {
-    nodes: Array<{ id: string; name: string }>;
-    onSelectRelationshipPair?: (sourceNodeId: string, targetNodeId: string) => void;
+  GraphCanvas: ({
+    edges = [],
+    onSelectEdge,
+  }: {
+    edges?: Array<{ id: string }>;
+    onSelectEdge?: (edgeId: string) => void;
   }) => (
-    <button
-      onClick={() => onSelectRelationshipPair?.(nodes[0].id, nodes[1].id)}
-      type="button"
-    >
+    <button onClick={() => onSelectEdge?.(edges[0].id)} type="button">
       Select relationship pair
     </button>
   ),
@@ -87,7 +89,12 @@ function node(id: string, name: string, x: number) {
   };
 }
 
-function edge(id: string, sourceNodeId: string, targetNodeId: string, name: string) {
+function edge(
+  id: string,
+  sourceNodeId: string,
+  targetNodeId: string,
+  name: string,
+) {
   return {
     id,
     boardId,
@@ -118,7 +125,11 @@ function snapshot() {
       tags: [],
       createdAt: now,
       updatedAt: now,
-      graphSettings: { defaultEdgeRouting: "orthogonal", snapToGrid: false, layoutMode: "free" },
+      graphSettings: {
+        defaultEdgeRouting: "orthogonal",
+        snapToGrid: false,
+        layoutMode: "free",
+      },
     },
     nodes: [node(aliceId, "Alice", 80), node(bobId, "Bob", 420)],
     edges: [edge(edgeId, aliceId, bobId, "좋아한다")],
@@ -127,7 +138,10 @@ function snapshot() {
 
 function renderPage() {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
   });
   return render(
     <QueryClientProvider client={queryClient}>
@@ -140,7 +154,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.getBootstrap.mockResolvedValue({
     actor: { id: "user-1", email: "user@example.com", name: "Writer" },
-    workspace: { id: "workspace-1", name: "Workspace", slug: "personal-user-1" },
+    workspace: {
+      id: "workspace-1",
+      name: "Workspace",
+      slug: "personal-user-1",
+    },
   });
   mocks.getBoardSnapshot.mockResolvedValue(snapshot());
   mocks.createEdge.mockImplementation(async (input) => ({
@@ -159,21 +177,31 @@ describe("relationship pair inspector", () => {
   it("opens from the single rail and shows both directions as independent toggles", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Select relationship pair" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Select relationship pair" }),
+    );
 
     expect(await screen.findByRole("heading", { name: "관계" })).toBeVisible();
     expect(screen.getByText("Alice ↔ Bob")).toBeVisible();
-    expect(screen.getByRole("checkbox", { name: "Alice → Bob 활성화" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Bob → Alice 활성화" })).not.toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Alice → Bob 활성화" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Bob → Alice 활성화" }),
+    ).not.toBeChecked();
     expect(screen.getByLabelText("Alice → Bob 관계")).toHaveValue("좋아한다");
   });
 
   it("turns the missing reverse direction on by creating one semantic edge", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Select relationship pair" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Select relationship pair" }),
+    );
 
-    await user.click(screen.getByRole("checkbox", { name: "Bob → Alice 활성화" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Bob → Alice 활성화" }),
+    );
 
     await waitFor(() => expect(mocks.createEdge).toHaveBeenCalledTimes(1));
     expect(mocks.createEdge.mock.calls[0][0]).toMatchObject({
@@ -188,9 +216,13 @@ describe("relationship pair inspector", () => {
   it("turns an existing direction off by deleting that semantic edge", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Select relationship pair" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Select relationship pair" }),
+    );
 
-    await user.click(screen.getByRole("checkbox", { name: "Alice → Bob 활성화" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Alice → Bob 활성화" }),
+    );
 
     await waitFor(() => expect(mocks.deleteEdge).toHaveBeenCalledTimes(1));
     expect(mocks.deleteEdge.mock.calls[0][0]).toMatchObject({
@@ -203,13 +235,17 @@ describe("relationship pair inspector", () => {
   it("autosaves the relationship text for each active direction", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Select relationship pair" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Select relationship pair" }),
+    );
 
     const field = screen.getByLabelText("Alice → Bob 관계");
     await user.clear(field);
     await user.type(field, "존경한다");
 
-    await waitFor(() => expect(mocks.updateEdge).toHaveBeenCalled(), { timeout: 1500 });
+    await waitFor(() => expect(mocks.updateEdge).toHaveBeenCalled(), {
+      timeout: 1500,
+    });
     expect(mocks.updateEdge.mock.calls.at(-1)?.[0]).toMatchObject({
       edgeId,
       name: "존경한다",
