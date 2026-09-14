@@ -29,6 +29,7 @@ export type RelationshipRailItem = {
   sourceLabel: string;
   targetLabel: string;
   direction: EdgeDirection;
+  orientation: "forward" | "reverse" | "undirected";
 };
 
 export type StoryGraphEdgeData = {
@@ -42,10 +43,10 @@ export type StoryGraphEdgeData = {
   waypoints: EdgeRouting["waypoints"];
   visualState: RelationshipVisualState;
   presentation: EdgePresentation;
+  onSelectPair?: () => void;
   onSelectRelationship?: (edgeId: string) => void;
   onRequestOpen?: () => void;
   onRequestClose?: () => void;
-  onTogglePinned?: () => void;
   onDismiss?: () => void;
 };
 
@@ -94,6 +95,11 @@ export function StoryGraphEdge({
     (firstRelationship
       ? `${firstRelationship.sourceLabel}와 ${firstRelationship.targetLabel}`
       : "관계");
+  const summaryRelationships = data.relationships.slice(0, 3);
+  const hiddenRelationshipCount = Math.max(
+    0,
+    data.relationships.length - summaryRelationships.length,
+  );
 
   return (
     <>
@@ -120,13 +126,13 @@ export function StoryGraphEdge({
       <EdgeLabelRenderer>
         <button
           aria-label={`${pairLabel} 관계 보기`}
-          className="nodrag nopan pointer-events-auto absolute h-8 w-8 cursor-pointer rounded-full border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--sg-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sg-surface)]"
+          className="nodrag nopan pointer-events-auto absolute flex max-w-[280px] cursor-pointer items-center gap-1.5 rounded-full border border-[var(--sg-line)] bg-[var(--sg-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--sg-ink)] shadow-[0_1px_3px_rgba(23,25,29,0.08)] outline-none transition-[border-color,box-shadow] hover:border-[var(--sg-brand)] focus-visible:ring-2 focus-visible:ring-[color:var(--sg-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--sg-surface)]"
           data-testid="relationship-rail-trigger"
           data-visual-state={data.visualState}
           onBlur={data.onRequestClose}
           onClick={(event) => {
             event.stopPropagation();
-            data.onTogglePinned?.();
+            data.onSelectPair?.();
           }}
           onFocus={data.onRequestOpen}
           onKeyDown={(event) => {
@@ -137,11 +143,34 @@ export function StoryGraphEdge({
           onPointerEnter={data.onRequestOpen}
           onPointerLeave={data.onRequestClose}
           style={{
+            opacity,
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
           }}
           type="button"
         >
-          <span className="sr-only">관계 보기</span>
+          {summaryRelationships.map((relationship, index) => (
+            <span className="contents" key={relationship.id}>
+              {index > 0 ? (
+                <span aria-hidden="true" className="text-[var(--sg-line-strong)]">
+                  ·
+                </span>
+              ) : null}
+              <span className="max-w-24 truncate whitespace-nowrap">
+                <span
+                  aria-hidden="true"
+                  className="mr-1 font-semibold text-[var(--sg-brand-strong)]"
+                >
+                  {getSummaryDirectionSymbol(relationship.orientation)}
+                </span>
+                {relationship.label || "관계"}
+              </span>
+            </span>
+          ))}
+          {hiddenRelationshipCount > 0 ? (
+            <span className="whitespace-nowrap text-[var(--sg-muted)]">
+              +{hiddenRelationshipCount}
+            </span>
+          ) : null}
         </button>
 
         {data.popoverOpen ? (
@@ -159,7 +188,7 @@ export function StoryGraphEdge({
             role="region"
             style={{
               opacity,
-              transform: `translate(-50%, calc(-100% - 14px)) translate(${labelX}px, ${labelY}px)`,
+              transform: `translate(-50%, calc(-100% - 18px)) translate(${labelX}px, ${labelY}px)`,
             }}
           >
             <div className="border-b border-[var(--sg-line)] px-3 py-2 text-[11px] font-medium text-[var(--sg-muted)]">
@@ -213,6 +242,14 @@ export function StoryGraphEdge({
       </EdgeLabelRenderer>
     </>
   );
+}
+
+function getSummaryDirectionSymbol(
+  orientation: RelationshipRailItem["orientation"],
+) {
+  if (orientation === "forward") return "→";
+  if (orientation === "reverse") return "←";
+  return "—";
 }
 
 function getStrokeWidth(
